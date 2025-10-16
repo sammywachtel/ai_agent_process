@@ -64,8 +64,8 @@ Thumbs.db
 .env.local
 .env.*.local
 
-# Claude Code session data
-.claude/sessions/
+# Claude Code local data
+.claude/
 
 # Work in progress (optional - remove if you want to track iterations)
 # work/*/iteration_*/
