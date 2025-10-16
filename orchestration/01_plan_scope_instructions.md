@@ -239,6 +239,13 @@ printf "[%s-validation] Complete.\n" "$SCOPE"
 chmod +x .agent_process/scripts/after_edit/validate-<scope-name>.sh
 ```
 
+**Important: Maintaining the validation script:**
+
+This script may need updates during the scope lifecycle:
+- **During ITERATE decisions:** If review requires fixes in NEW files not originally scoped, orchestrator updates this script (see `02_review_iteration_instructions.md` Step 7)
+- **Document changes:** Note scope expansions in iteration_plan.md "Scope Changes" section
+- **Keep focused:** Only add files directly related to fixes, avoid scope creep
+
 ---
 
 ### Step 8: Create iteration_plan.md

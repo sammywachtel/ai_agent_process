@@ -56,6 +56,8 @@ After iteration_01_c → Escalate to human for decision (ship/pivot/abort)
 - Tests only scope-specific patterns
 - Provides immediate feedback (not enforcement)
 
+**Important:** If scope expands during iterations (new files needed for fixes), the orchestrator must update the validation script to include new files.
+
 **Pre-existing issues (documented, out of scope):**
 - [List any pre-existing failures that will NOT block this scope]
 - Example: "89 TypeScript errors in non-lexical files (documented YYYY-MM-DD)"
@@ -64,6 +66,12 @@ After iteration_01_c → Escalate to human for decision (ship/pivot/abort)
 - Scoped validation via hook (fast feedback)
 - Document results in test-output.txt
 - Orchestrator review is the quality gate (not automated enforcement)
+
+## Scope Changes
+
+Track any files added to scope during iterations:
+- **iteration_01:** Initial scope (see Files in Scope section)
+- *(Orchestrator adds entries here if scope expands during ITERATE decisions)*
 
 ## Out of Scope
 - [Explicit list of what's NOT included in this scope]

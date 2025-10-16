@@ -421,6 +421,47 @@ Run: /ap_exec <scope> <next_iteration>
 EOF
 ```
 
+**If ITERATE requires changes to different files, update validation script:**
+
+If your required fixes touch NEW files not in the original scope:
+
+1. **Update `.agent_process/scripts/after_edit/validate-<scope>.sh`:**
+   ```bash
+   # Add new files to FILES_TO_LINT array
+   FILES_TO_LINT=(
+     "path/to/original-file1.tsx"
+     "path/to/original-file2.ts"
+     "path/to/new-file-from-fix.tsx"  # Added for iteration_01_a fix #2
+   )
+
+   # Add new test patterns if needed
+   TEST_PATTERNS=(
+     "OriginalTestSuite"
+     "NewTestSuite"  # Added for iteration_01_a fix #3
+   )
+   ```
+
+2. **Update iteration_plan.md Files in Scope section:**
+   ```markdown
+   ## Files in Scope
+   - `path/to/original-file1.tsx`
+   - `path/to/original-file2.ts`
+   - `path/to/new-file-from-fix.tsx` *(added iteration_01_a)*
+
+   **Total:** X files
+   ```
+
+3. **Document the change:**
+   Add a note to iteration_plan.md explaining why scope expanded:
+   ```markdown
+   ## Scope Changes
+   - **iteration_01_a:** Added `new-file.tsx` to validation (required for Fix #2)
+   ```
+
+**When NOT to update validation script:**
+- Fixes are in already-scoped files → No change needed
+- Fixes are documentation/comments only → No change needed
+
 **Update current iteration config:**
 ```bash
 cat > .agent_process/work/current_iteration.conf <<EOF
