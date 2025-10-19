@@ -346,6 +346,7 @@ This command will:
 - Review validation script at `.agent_process/scripts/after_edit/validate-{scope}.sh`
 - Check that you're only modifying files in scope
 - Verify tests are properly written and passing
+- Ensure required tooling is installed (e.g., run `npx playwright install --with-deps firefox` if browser installs are missing)
 - After 3 attempts, stop and report blocker
 
 **Can't meet acceptance criteria:**
