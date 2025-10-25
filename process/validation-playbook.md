@@ -147,6 +147,18 @@ npx playwright test tests/e2e/features/specific-feature.spec.ts
 
 ---
 
+## Contract Validation for Shared APIs
+
+Run this whenever a change alters an API or payload that another client (web, mobile, CLI, partner service) consumes.
+
+1. **Map consumers:** List every downstream client in `iteration_plan.md` and point to their contracts (TypeScript types, Swift/Kotlin models, protobuf/OpenAPI files, etc.).
+2. **Capture the contract before coding:** Record the expected request/response structure, required fields, wrappers, enums, and error shapes in the plan so changes are intentional.
+3. **Guard the backend:** Add or update tests/schemas that assert the documented shape (JSON schema test, serializer snapshot, contract test hitting the endpoint).
+4. **Exercise each consumer:** Run the client’s validation command (`npm run type-check`, `gradlew test`, `bundle exec rspec`, etc.). If automation is missing, execute the UI manually and collect logs/console output.
+5. **Collect proof:** Paste a prettified sample response plus the command results into `results.md` and surface PASS/SKIP/FAIL in `test-output.txt`. Missing evidence means the iteration is not ready to approve.
+
+---
+
 ## test-output.txt Format
 
 ### Summary Section (Top)

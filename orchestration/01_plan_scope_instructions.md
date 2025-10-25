@@ -132,6 +132,13 @@ Total: 4-8 files (if >10, split scope)
 - Prevents false blockers from unrelated code
 - Makes scope boundaries explicit
 
+### Tag Shared-API Work (if applicable)
+
+If the scope changes an API or payload consumed by other clients:
+- Add `## Contract Consumers` to `iteration_plan.md` listing each client (web, mobile, CLI, partner service) and the file that defines its contract.
+- Add `## API Contract` summarizing the expected request/response structure, required fields, wrappers, and error shapes.
+- List the validation commands each consumer needs (type check, build, targeted tests, manual workflow) so implementation must run them.
+
 ---
 
 ### Step 5: Create Frozen Acceptance Criteria
@@ -245,6 +252,7 @@ This script may need updates during the scope lifecycle:
 - **During ITERATE decisions:** If review requires fixes in NEW files not originally scoped, orchestrator updates this script (see `02_review_iteration_instructions.md` Step 7)
 - **Document changes:** Note scope expansions in iteration_plan.md "Scope Changes" section
 - **Keep focused:** Only add files directly related to fixes, avoid scope creep
+- **Manual/E2E commands:** If part of validation cannot be automated inside the script (e.g., Playwright suites that need a running dev server), document the exact manual commands in the iteration plan so implementation knows precisely what to run
 
 ---
 
@@ -299,6 +307,7 @@ After iteration_01_c → Escalate to human (ship/pivot/abort)
 - Script: `.agent_process/scripts/after_edit/validate-<scope-name>.sh`
 - Lints only files in scope
 - Tests only scope-specific patterns
+- If the script only prints instructions for manual validation (Playwright/E2E), explicitly list the required commands in this section so implementation can run them verbatim (include dev-server startup note if needed)
 
 **Pre-existing issues (documented, out of scope):**
 [List from Step 6]

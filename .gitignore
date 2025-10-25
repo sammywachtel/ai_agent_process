@@ -1,6 +1,9 @@
 # Docker development environment (local only)
 .docker-dev/
 
+# Local documents (local only)
+.local-docs/
+
 # Python
 __pycache__/
 *.py[cod]

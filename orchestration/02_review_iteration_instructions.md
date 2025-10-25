@@ -152,6 +152,8 @@ NOT expected (full validation):
 - Note in review: "Validation should be scoped, not full codebase"
 - Don't block iteration for pre-existing failures
 
+**For shared-API scopes:** Confirm `results.md` shows the recorded contract snapshot, backend guard tests, and validation evidence for each consumer (type-check output, targeted tests, manual proof). Missing artifacts → ITERATE.
+
 ---
 
 ### Step 5: Count Remaining Attempts

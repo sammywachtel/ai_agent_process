@@ -121,6 +121,7 @@ mkdir -p .agent_process/work/{scope}/{iteration}
 - Follow the Technical Assessment guidance
 - Modify ONLY files listed in "Files in Scope"
 - Do NOT expand scope beyond locked criteria
+- If you discover a change is impossible without touching an out-of-scope file, STOP and ask the orchestrator to update the scope before editing anything else
 
 **Add/update tests:**
 - Write tests for new functionality
@@ -214,32 +215,37 @@ cat > .agent_process/work/{scope}/{iteration}/test-output.txt <<EOF
 EOF
 ```
 
-**Capture scoped validation results:**
+**Capture scoped validation results (no copy/paste required):**
 
-The hook output is in your terminal/chat where the Task completed. To capture it:
-
-1. Scroll up to find the hook output section (starts with `[hook_after_edit]`)
-2. Copy the relevant output (ESLint results, Jest test results)
-3. Append to test-output.txt:
+If you still have the hook output visible, you can re-run the scoped validator and tee the logs directly into `test-output.txt`:
 
 ```bash
-cat >> .agent_process/work/{scope}/{iteration}/test-output.txt <<EOF
+bash .agent_process/scripts/after_edit/validate-{scope}.sh {scope} {iteration} | tee -a .agent_process/work/{scope}/{iteration}/test-output.txt
+```
+
+Then append a marker so reviewers know what the section contains:
+
+```bash
+cat >> .agent_process/work/{scope}/{iteration}/test-output.txt <<'EOF'
 
 === Scoped Validation ($(date -Iseconds)) ===
-[Paste hook output here - the ESLint and Jest results]
+# Output above was captured via tee
 EOF
 ```
 
-4. Update the summary line:
+Finally, update the summary line using a portable script:
+
 ```bash
-# Change "PENDING" to "PASS (hook)"
-sed -i '' 's/Scoped validation (hook): PENDING/Scoped validation (hook): PASS (hook)/' .agent_process/work/{scope}/{iteration}/test-output.txt
+python - <<'PY'
+from pathlib import Path
+path = Path(".agent_process/work/{scope}/{iteration}/test-output.txt")
+text = path.read_text()
+text = text.replace("Scoped validation (hook): PENDING", "Scoped validation (hook): PASS (hook)", 1)
+path.write_text(text)
+PY
 ```
 
-**Note:** If you cannot access the terminal output, the validation script can be re-run manually:
-```bash
-bash .agent_process/scripts/after_edit/validate-{scope}.sh {scope} {iteration}
-```
+> If you cannot re-run the validator (e.g., expensive Playwright suite), capture the original hook output manually and paste it into the detailed logs instead.
 
 **Run manual verification (if needed):**
 
@@ -256,6 +262,8 @@ The iteration_plan.md may list additional validation:
 - Visual checks
 
 Run these if specified, append output to test-output.txt.
+
+**Reminder:** Some validators (like `validate-lexical_epic_01_add_section_affordances.sh`) skip Playwright runs and only print instructions. When the iteration plan calls for Playwright Chromium/Firefox coverage, you must start the dev server, run those commands manually, and paste the logs into `test-output.txt` with PASS/FAIL status just like any other validation.
 
 ---
 
