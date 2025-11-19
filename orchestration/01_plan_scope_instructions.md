@@ -72,27 +72,38 @@ mkdir -p .agent_process/work/<scope_name>
 
 **Before creating scope structure, review the actual code:**
 
-1. **Read files mentioned in requirements:**
+1. **Review CLAUDE.md files for development patterns:**
+   - **Root CLAUDE.md:** Read `.claude/CLAUDE.md` or `CLAUDE.md` for general project-specific instructions
+   - **Nested CLAUDE.md files:** For each directory containing files you plan to create/edit, check for `<directory>/CLAUDE.md`
+   - **Pattern focus:** These files contain critical instructions on:
+     - Code patterns and conventions specific to that module
+     - Development workflows and practices
+     - Architectural decisions and constraints
+     - Testing requirements and standards
+   - **Priority:** Focus most on CLAUDE.md files nested within folders where files will be created or edited
+   - **Integration:** Incorporate these patterns into your Technical Assessment and Implementation Guidance
+
+2. **Read files mentioned in requirements:**
    - Open each file that will be modified
    - Understand current implementation
    - Identify patterns and architecture
 
-2. **Document current state:**
+3. **Document current state:**
    - What exists today?
    - What needs to change?
    - What are the dependencies?
 
-3. **Assess technical feasibility:**
+4. **Assess technical feasibility:**
    - Is the requirement achievable?
    - Are there framework limitations?
    - What's the implementation approach?
 
-4. **Identify risks and blockers:**
+5. **Identify risks and blockers:**
    - External dependencies?
    - Breaking changes?
    - Performance considerations?
 
-5. **Ask clarification questions if needed:**
+6. **Ask clarification questions if needed:**
    ```markdown
    ## Clarification Questions for Human
 
@@ -281,6 +292,9 @@ This script may need updates during the scope lifecycle:
 **Code Review Findings:**
 [Summary of current code state from Step 3]
 
+**Relevant CLAUDE.md Patterns:**
+[Key patterns and conventions from CLAUDE.md files in affected directories]
+
 **Implementation Approach:**
 [Recommended technical approach for implementation session]
 
@@ -288,7 +302,7 @@ This script may need updates during the scope lifecycle:
 [Identified risks and mitigation strategies]
 
 **Implementation Guidance:**
-[Specific guidance on patterns to follow, pitfalls to avoid, best practices to apply]
+[Specific guidance on patterns to follow, pitfalls to avoid, best practices to apply - incorporate CLAUDE.md conventions]
 
 ## Iteration Budget (ENFORCED)
 - iteration_01: First attempt
