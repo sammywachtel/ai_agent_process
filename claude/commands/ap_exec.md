@@ -112,6 +112,101 @@ Example of what I need:
 mkdir -p .agent_process/work/{scope}/{iteration}
 ```
 
+**Ensure you're on the correct branch:**
+
+The scope work must happen on a branch named `scope/{scope}`. Check current branch and create/checkout if needed:
+
+```bash
+# Check if we're on the correct branch
+EXPECTED_BRANCH="scope/{scope}"
+CURRENT_BRANCH=$(git branch --show-current)
+
+if [ "$CURRENT_BRANCH" != "$EXPECTED_BRANCH" ]; then
+  echo "⚠️  Not on branch $EXPECTED_BRANCH (currently on: $CURRENT_BRANCH)"
+
+  # Check if the branch exists
+  if git show-ref --verify --quiet "refs/heads/$EXPECTED_BRANCH"; then
+    echo "✅ Branch exists, checking out $EXPECTED_BRANCH"
+    git checkout "$EXPECTED_BRANCH"
+  else
+    echo "✅ Creating and checking out new branch $EXPECTED_BRANCH"
+    git checkout -b "$EXPECTED_BRANCH"
+  fi
+else
+  echo "✅ Already on correct branch: $EXPECTED_BRANCH"
+fi
+```
+
+**Why this matters:**
+- Keeps scope work isolated
+- Makes it easy to identify what branch corresponds to which scope
+- Enables clean PR workflow (one scope per PR)
+- Prevents accidental work on wrong branch
+
+---
+
+## Step 1.5: Select Specialized Agent
+
+**Determine the appropriate agent for this scope:**
+
+The agent process has access to specialized agents optimized for different types of work. Before implementing, analyze the scope to select the most appropriate agent.
+
+**Agent Selection Framework:**
+
+1. **Check for explicit agent hint** in iteration_plan.md or requirements.md:
+   - Look for `agent_hint: {agent_name}` field
+   - If present and valid, use that agent (skip auto-detection)
+
+2. **Auto-detect based on file patterns** (if no explicit hint):
+
+   Examine the "Files in Scope" or "Files to Create/Modify" section and match patterns:
+
+   **Database/Backend Infrastructure:**
+   - `.sql`, `migrations/`, database schema → `backend-security:backend-architect`
+   - Backend API files, FastAPI routes → `backend-security:backend-architect`
+
+   **Frontend React/TypeScript:**
+   - React components, hooks, `.tsx`/`.ts` → `frontend-excellence:react-specialist`
+   - Lexical editor files, plugins → `frontend-excellence:react-specialist`
+   - CSS, styling, design system → `frontend-excellence:css-expert`
+   - State management, Redux → `frontend-excellence:state-manager`
+
+   **Testing:**
+   - Test files, Jest, Playwright → `dev-accelerator:test-automator`
+   - E2E test specs → `dev-accelerator:test-automator`
+
+   **DevOps/Infrastructure:**
+   - Docker, CI/CD, deployment → `infra-pipeline:infra-architect`
+   - GitHub Actions, pipelines → `infra-pipeline:cicd-engineer`
+
+   **Security/Auth:**
+   - Authentication, authorization → `backend-security:auth-specialist`
+   - Security audits, OWASP → `backend-security:security-guardian`
+
+   **Code Review/Quality:**
+   - Refactoring, cleanup → `dev-accelerator:code-reviewer`
+   - Bug fixes → `dev-accelerator:debugger`
+
+3. **Fallback to general-purpose:**
+   - If no clear pattern match → use `general-purpose` Task agent
+   - For multi-domain scopes → use `general-purpose` Task agent
+
+**Selection Output:**
+
+Once you've determined the agent, note it for Step 2:
+```
+Selected Agent: {agent_name}
+Reasoning: {brief explanation of why this agent was chosen}
+```
+
+**Example Selections:**
+
+- Scope with `migrations/add_editor_preferences.sql` → `backend-security:backend-architect` (database schema)
+- Scope with `frontend/src/hooks/useEditorPreferences.ts` → `frontend-excellence:react-specialist` (React hook)
+- Scope with `frontend/src/components/lexical/plugins/StressOverlayPlugin.tsx` → `frontend-excellence:react-specialist` (Lexical plugin)
+- Scope with `tests/e2e/preferences.spec.ts` → `dev-accelerator:test-automator` (E2E tests)
+- Mixed scope with database + frontend + tests → `general-purpose` (multi-domain)
+
 ---
 
 ## Step 2: Implement Changes
@@ -128,29 +223,55 @@ mkdir -p .agent_process/work/{scope}/{iteration}
 - Update existing tests for modified behavior
 - Ensure tests are comprehensive and meaningful
 
-**Use Task tool for implementation:**
+**Use Task tool with selected agent:**
 
-Launch a general-purpose Task agent to do the actual coding.
+Launch the specialized agent determined in Step 1.5. If using a specialized agent (not general-purpose), enhance the prompt with domain-specific context.
+
+**Task Invocation Template:**
+
+Use the agent selected in Step 1.5 with the Task tool. Replace `{selected_agent}` with your choice (e.g., `frontend-excellence:react-specialist` or `general-purpose`).
 
 **For first iteration (iteration_01):**
-```
-Execute iteration work for {scope}/{iteration}:
 
-1. Read iteration_plan.md for objectives and acceptance criteria
-2. Follow the Technical Assessment implementation guidance
-3. Implement all required code changes
-4. Add or update automated tests
-5. Perform manual spot checks to confirm behavior
+```typescript
+// Example Task call:
+Task({
+  subagent_type: "{selected_agent}",  // From Step 1.5
+  description: "Implement {scope} iteration_01",
+  prompt: `Execute iteration work for {scope}/{iteration}:
+
+1. Read iteration_plan.md at .agent_process/work/{scope}/iteration_plan.md
+2. Review acceptance criteria (LOCKED - these are your requirements)
+3. Follow the Technical Assessment implementation guidance
+4. Implement all required code changes
+5. Add or update automated tests for changes
+6. Perform manual spot checks to confirm behavior
+
+IMPORTANT CONTEXT:
+- Scope: {scope}
+- Iteration: {iteration}
+- Files in scope: [list from iteration_plan.md]
+- Validation will run automatically via hook after you complete
 
 Work directly on the code - do NOT launch additional subagents.
-Report completion status when done.
+Report completion status when done, including:
+- What was implemented
+- What tests were added/updated
+- Any issues encountered
+`
+})
 ```
 
 **For sub-iterations (iteration_01_a/b/c):**
-```
-Execute iteration work for {scope}/{iteration}:
 
-1. Read iteration_plan.md for original acceptance criteria
+```typescript
+// Example Task call:
+Task({
+  subagent_type: "{selected_agent}",  // From Step 1.5
+  description: "Fix issues for {scope} {iteration}",
+  prompt: `Execute iteration work for {scope}/{iteration}:
+
+1. Read iteration_plan.md at .agent_process/work/{scope}/iteration_plan.md
 2. Read {iteration}/results.md for the 1-3 specific fixes required
 3. Read {parent_iteration}/results.md to see what was already tried
 4. Focus ONLY on addressing the specific fixes from orchestrator review
@@ -158,14 +279,36 @@ Execute iteration work for {scope}/{iteration}:
 6. Add or update tests for the fixes
 7. Perform manual spot checks to confirm fixes work
 
+IMPORTANT CONTEXT:
+- Scope: {scope}
+- Iteration: {iteration} (sub-iteration fixing specific issues)
+- Previous iteration: {parent_iteration}
+- This is attempt {X} of maximum 3 sub-iterations
+- Validation will run automatically via hook after you complete
+
 Work directly on the code - do NOT launch additional subagents.
-Report completion status when done.
+Report completion status when done, including:
+- Which specific fixes were addressed
+- What was changed to fix them
+- Any remaining issues
+`
+})
 ```
+
+**Agent-Specific Context Enhancements:**
+
+When using specialized agents, add relevant context to the prompt:
+
+- **backend-security:backend-architect**: Include database schema requirements, RLS policies, migration patterns
+- **frontend-excellence:react-specialist**: Include React patterns, Lexical framework rules, performance requirements
+- **dev-accelerator:test-automator**: Include test coverage requirements, testing patterns to follow
+- **frontend-excellence:css-expert**: Include design tokens, CSS patterns, accessibility requirements
 
 **Why use Task tool:**
 - The SubagentStop hook fires automatically when Task completes
 - Hook runs the scoped validation script (`.agent_process/scripts/after_edit/validate-{scope}.sh`)
 - Provides immediate feedback on lint/test issues
+- Specialized agents bring domain expertise to implementation
 
 ---
 
@@ -263,7 +406,24 @@ The iteration_plan.md may list additional validation:
 
 Run these if specified, append output to test-output.txt.
 
-**Reminder:** Some validators (like `validate-lexical_epic_01_add_section_affordances.sh`) skip Playwright runs and only print instructions. When the iteration plan calls for Playwright Chromium/Firefox coverage, you must start the dev server, run those commands manually, and paste the logs into `test-output.txt` with PASS/FAIL status just like any other validation.
+**E2E Test Execution (IMPORTANT):**
+
+E2E tests run automatically via the validation script using Playwright's `webServer` feature. The servers (frontend + backend) are auto-started by Playwright - you do NOT need to start them manually.
+
+Standard E2E command in validation scripts:
+```bash
+npx playwright test tests/e2e/features/your-spec.ts --config=playwright.e2e.config.ts
+```
+
+This command:
+1. Starts backend on port 8001 (if not already running)
+2. Starts frontend on port 5175 (if not already running)
+3. Runs the E2E tests
+4. Reports results
+
+If you see server startup timeout errors, troubleshoot per the "E2E tests and server startup" section in Troubleshooting below.
+
+**Note:** Some older validators may skip Playwright or only print instructions. Always check the validation script content. Modern validators should include the full Playwright command with `--config=playwright.e2e.config.ts`.
 
 ---
 
@@ -356,6 +516,37 @@ This command will:
 - Verify tests are properly written and passing
 - Ensure required tooling is installed (e.g., run `npx playwright install --with-deps firefox` if browser installs are missing)
 - After 3 attempts, stop and report blocker
+
+**E2E tests and server startup:**
+
+⚠️ **IMPORTANT**: E2E tests DO NOT require manually starting servers!
+
+The project's Playwright configuration includes a `webServer` section that automatically starts both frontend and backend servers before running tests. Specifically:
+
+- `playwright.e2e.config.ts` starts:
+  - Frontend: `npm run dev` on port 5175
+  - Backend: `uvicorn app.main:app` on port 8001
+
+- Key config options:
+  - `reuseExistingServer: true` - Won't start new servers if they're already running
+  - `timeout: 120000` - Allows 2 minutes for servers to start
+
+**Correct behavior:**
+```bash
+# This command handles everything - server startup, test execution, teardown
+npx playwright test tests/e2e/features/your-spec.ts --config=playwright.e2e.config.ts
+```
+
+**Do NOT:**
+- Report that E2E tests couldn't run because "servers weren't running"
+- Skip E2E tests claiming they "require a running dev server"
+- Manually start servers before running validation scripts
+
+**If E2E tests fail to start servers:**
+1. Check if ports 5175/8001 are in use by stale processes: `lsof -i :5175 -i :8001`
+2. Kill stale processes if needed: `pkill -f vite && pkill -f uvicorn`
+3. Verify backend dependencies: `cd backend && pip install -r requirements.txt`
+4. Verify Playwright browsers: `npx playwright install --with-deps`
 
 **Can't meet acceptance criteria:**
 - Document specifically what's blocking progress
