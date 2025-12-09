@@ -107,10 +107,15 @@ Use this template structure:
 **Scoped validation (hook):** {PASS | FAIL}
 {Brief summary of hook validation results}
 
+**E2E tests:** {PASS | FAIL}
+{Results from Playwright E2E tests - servers auto-started by Playwright}
+
 **Manual verification:** {PASS | FAIL | SKIPPED}
 {What manual testing was done, if any}
 
 **Detailed logs:** See `test-output.txt` for complete validation output
+
+> ⚠️ Do NOT report E2E tests as "skipped because servers weren't running" - Playwright auto-starts servers via the `webServer` config. If E2E tests failed, report the actual error.
 
 ---
 
@@ -187,6 +192,13 @@ Use this template structure:
 - Do NOT mark PASS if validation failed
 - Do NOT hide issues or blockers
 - Be honest about criteria not met
+
+**E2E test reporting:**
+- Do NOT report that E2E tests "could not run because servers weren't started"
+- Do NOT claim E2E tests "require manual server startup" - they don't!
+- The Playwright `webServer` config auto-starts frontend and backend servers
+- If E2E tests failed, report the ACTUAL error (timeout, assertion failure, etc.)
+- If servers failed to start, that IS a reportable error - but diagnose the root cause (port conflict, missing dependencies, etc.)
 
 **Orchestrator relies on this:**
 - Results.md is the primary artifact for review
