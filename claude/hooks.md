@@ -4,37 +4,72 @@
 
 The `.agent_process` uses a simplified hook system:
 - **after_edit hook**: Provides scoped validation feedback after implementation
-- **No enforcement hooks**: Codex review is the quality gate
+- **No enforcement hooks**: Orchestrator review is the quality gate
 
 ---
 
 ## Installation
 
-### Step 1: Ensure Hooks Directory Exists
+### Step 1: Ensure .claude Directory Exists
 
 ```bash
 mkdir -p .claude
 ```
 
-### Step 2: Create/Update hooks.json
+### Step 2: Configure Hooks in settings.json
 
-Create or edit `.claude/hooks.json`:
+Edit `.claude/settings.json` (or `.claude/settings.local.json` for local-only config):
 
 ```json
 {
-  "SubagentStop": {
-    "command": "bash .agent_process/scripts/hook_after_edit.sh \"${SCOPE:-}\" \"${ITERATION:-}\""
+  "hooks": {
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /absolute/path/to/project/.agent_process/scripts/hook_after_edit.sh"
+          }
+        ]
+      }
+    ]
   }
 }
 ```
 
-**Note:** The SubagentStop hook runs automatically when Task agents complete.
+**Important notes:**
+- Use **absolute paths** for reliability (relative paths may not resolve correctly)
+- The hook goes in `.claude/settings.json`, NOT `.claude/hooks.json`
+- The format requires nested `hooks` arrays (see structure above)
+- The SubagentStop hook runs automatically when Task agents complete
 
-### Step 3: Make Hook Executable
+**Example for this project:**
+```json
+{
+  "hooks": {
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/samwachtel/PycharmProjects/your-project/.agent_process/scripts/hook_after_edit.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### Step 3: Make Hook Script Executable
 
 ```bash
 chmod +x .agent_process/scripts/hook_after_edit.sh
 ```
+
+### Step 4: Restart Claude Code
+
+After modifying settings.json, restart Claude Code for changes to take effect.
 
 ---
 
@@ -42,27 +77,24 @@ chmod +x .agent_process/scripts/hook_after_edit.sh
 
 ### after_edit Hook (Scoped Validation)
 
-**Trigger:** Automatically runs after Task agent completes (SubagentStop)
+**Trigger:** Automatically runs after Task agent completes (SubagentStop event)
 
 **Purpose:** Provides immediate feedback on scoped validation
 
-**Behavior:**
-1. Looks for validation scripts in `.agent_process/scripts/after_edit/`
-2. Runs each `validate-*.sh` script found
-3. Reports results (PASS/FAIL)
-4. **No blocking** - just feedback, Claude can proceed
+**Data Flow:**
+1. Hook script reads current scope from `.agent_process/work/current_iteration.conf`
+2. Finds the matching validator: `.agent_process/scripts/after_edit/validate-{scope}.sh`
+3. Runs scope-specific validation (ESLint + Jest tests)
+4. Reports results (PASS/FAIL)
+5. **No blocking** - just feedback, Claude can proceed
 
-**Example:**
+**Example Output:**
 ```bash
-# Hook finds and runs:
-.agent_process/scripts/after_edit/validate-lexical-node-lifecycle.sh
-
-# Provides output:
-[hook_after_edit] Running validate-lexical-node-lifecycle.sh
-[lexical-node-lifecycle-validation] Linting scope sources...
-✓ All files pass lint
-[lexical-node-lifecycle-validation] Running scope tests...
-✓ 12/12 tests passing
+[hook_after_edit] Running scoped validation for my_scope/iteration_01_a
+[hook_after_edit] Running validator for scope: my_scope
+[my_scope-validation] Linting scope sources...
+[my_scope-validation] Running scope unit tests...
+✓ 47/47 tests passing
 [hook_after_edit] Complete
 ```
 
@@ -70,17 +102,9 @@ chmod +x .agent_process/scripts/hook_after_edit.sh
 
 ## Creating Scope-Specific Validation Scripts
 
-### Template
+### Template Structure
 
-Copy from template:
-```bash
-cp .agent_process/scripts/after_edit/validate-scope.sh.template \
-   .agent_process/scripts/after_edit/validate-<scope-name>.sh
-```
-
-### Customize
-
-Edit `validate-<scope-name>.sh`:
+Create `validate-{scope-name}.sh` in `.agent_process/scripts/after_edit/`:
 
 ```bash
 #!/usr/bin/env bash
@@ -93,14 +117,8 @@ printf "[%s-validation] scope=%s iteration=%s\n" "$SCOPE" "$SCOPE" "$ITERATION"
 
 # List files in this scope
 FILES_TO_LINT=(
-  "path/to/file1.tsx"
-  "path/to/file2.ts"
-)
-
-# List test patterns for this scope
-TEST_PATTERNS=(
-  "TestSuite1"
-  "TestSuite2"
+  "frontend/src/path/to/file1.tsx"
+  "frontend/src/path/to/file2.ts"
 )
 
 pushd frontend >/dev/null
@@ -109,8 +127,7 @@ printf "[%s-validation] Linting scope sources...\n" "$SCOPE"
 npx eslint "${FILES_TO_LINT[@]}" --max-warnings 0
 
 printf "[%s-validation] Running scope tests...\n" "$SCOPE"
-npm test -- --testPathPattern="$(IFS=\|; echo "${TEST_PATTERNS[*]}")" \
-  --watchAll=false --passWithNoTests
+npm test -- --testPathPatterns=YourTestPattern --watchAll=false --passWithNoTests=false
 
 popd >/dev/null
 
@@ -120,7 +137,7 @@ printf "[%s-validation] Complete.\n" "$SCOPE"
 ### Make Executable
 
 ```bash
-chmod +x .agent_process/scripts/after_edit/validate-<scope-name>.sh
+chmod +x .agent_process/scripts/after_edit/validate-{scope-name}.sh
 ```
 
 ---
@@ -138,7 +155,7 @@ chmod +x .agent_process/scripts/after_edit/validate-<scope-name>.sh
 **New approach (simplified):**
 - ✅ after_edit provides immediate scoped validation feedback
 - ✅ No blocking - just helpful feedback
-- ✅ Codex review is the real quality gate
+- ✅ Orchestrator review is the real quality gate
 - ✅ Focus on implementation, not process compliance
 
 ### Why This Works
@@ -155,7 +172,7 @@ chmod +x .agent_process/scripts/after_edit/validate-<scope-name>.sh
 - Exit code reflects validation (but doesn't block)
 - Helps Claude fix issues quickly
 
-**Codex review catches quality issues:**
+**Orchestrator review catches quality issues:**
 - Reviews against original acceptance criteria
 - Catches incomplete work
 - Makes go/no-go decisions
@@ -168,27 +185,39 @@ chmod +x .agent_process/scripts/after_edit/validate-<scope-name>.sh
 ### Hook Doesn't Run
 
 **Check:**
-1. Is `.claude/hooks.json` configured correctly?
-2. Is `hook_after_edit.sh` executable? (`chmod +x`)
-3. Are SCOPE and ITERATION environment variables set?
+1. Is hook configured in `.claude/settings.json` (NOT `.claude/hooks.json`)?
+2. Is the JSON format correct (nested `hooks` arrays)?
+3. Is `hook_after_edit.sh` executable? (`chmod +x`)
+4. Did you restart Claude Code after changing settings?
 
 **Debug:**
 ```bash
-# Test manually
-SCOPE=test ITERATION=iteration_01 \
-  bash .agent_process/scripts/hook_after_edit.sh test iteration_01
+# Test manually with stdin
+echo "" | bash .agent_process/scripts/hook_after_edit.sh
+
+# Check if hook is triggering (add debug logging)
+echo "[hook_after_edit] TRIGGERED at $(date)" >> /tmp/claude-hook-debug.log
+# Add this line to the top of hook_after_edit.sh
 ```
+
+**Known Issue:**
+The `/hooks` UI may show incorrect information or display bugs. If `/hooks` shows the hook isn't registered but manual testing works, the hook is likely firing correctly - the UI just has a display bug.
 
 ### Validation Script Not Found
 
 **Check:**
 1. Does script exist in `.agent_process/scripts/after_edit/`?
-2. Does script name match pattern `validate-*.sh`?
+2. Does script name match pattern `validate-{scope}.sh`?
 3. Is script executable?
+4. Does `.agent_process/work/current_iteration.conf` have the correct SCOPE value?
 
 **Debug:**
 ```bash
-ls -la .agent_process/scripts/after_edit/
+# List available validators
+ls -la .agent_process/scripts/after_edit/validate-*.sh
+
+# Check current scope
+cat .agent_process/work/current_iteration.conf
 ```
 
 ### Validation Fails
@@ -208,15 +237,37 @@ ls -la .agent_process/scripts/after_edit/
 
 ---
 
+## Key Differences from Old Documentation
+
+**File location:**
+- ❌ Old: `.claude/hooks.json`
+- ✅ New: `.claude/settings.json`
+
+**Configuration format:**
+- ❌ Old: `{"SubagentStop": {"command": "..."}}`
+- ✅ New: `{"hooks": {"SubagentStop": [{"hooks": [{"type": "command", "command": "..."}]}]}}`
+
+**Scope/iteration passing:**
+- ❌ Old: Environment variables `${SCOPE:-}` and `${ITERATION:-}`
+- ✅ New: Hook script reads from `.agent_process/work/current_iteration.conf`
+
+**Path handling:**
+- ❌ Old: Relative paths `bash .agent_process/scripts/...`
+- ✅ New: Absolute paths `/full/path/to/.agent_process/scripts/...`
+
+---
+
 ## Summary
 
 **Single hook:** `after_edit` (scoped validation feedback)
+**Location:** `.claude/settings.json` (NOT hooks.json)
+**Format:** Nested structure with `hooks` arrays
 **Purpose:** Fast feedback, not enforcement
-**Installation:** Simple hooks.json + executable script
-**Philosophy:** Help Claude fix issues quickly, Codex review for quality
+**Philosophy:** Help Claude fix issues quickly, orchestrator review for quality
 
 ---
 
 **See also:**
-- `../process/validation-playbook.md` - Scoped validation patterns
-- `../codex/02_review_iteration_instructions.md` - Codex review as quality gate
+- `.agent_process/scripts/hook_after_edit.sh` - Main hook script
+- `.agent_process/scripts/after_edit/validate-*.sh` - Scope-specific validators
+- `.agent_process/work/current_iteration.conf` - Scope/iteration tracking
