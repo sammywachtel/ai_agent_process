@@ -182,6 +182,118 @@ No mid-iteration scope creep allowed.
 
 ---
 
+### Step 5.5: Identify Documentation Impact
+
+**Analyze which documentation needs updating based on scope:**
+
+Per CLAUDE.md "Zero Documentation Drift" rule, documentation must be updated in the **same commit** as code changes.
+
+#### Documentation Audiences
+
+Consider both user types:
+- **End Users**: People using the application (UI workflows, features, user guides)
+- **Developer Users**: People using your code/API or contributing (API docs, architecture, integration guides)
+
+**For open source projects**: Developer documentation IS user-facing documentation.
+
+#### Fast-Track Assessment
+
+**End User Impact:**
+1. Does this scope change **visible behavior** (UI, features, workflows)? → User docs needed
+2. Does this scope change **how users accomplish tasks**? → User docs needed
+
+**Developer User Impact:**
+1. Does this scope change **public API** (endpoints, functions, interfaces)? → API docs required
+2. Does this scope change **integration points** (config, dependencies)? → Integration docs required
+3. Does this scope introduce **architectural decisions**? → Explanation docs required
+
+**All "no"?** → Add to iteration plan: *"Internal implementation change, no external impact"*
+
+**Any "yes"?** → Proceed with full documentation identification below.
+
+#### Scan for Affected Documentation
+
+Use these search patterns to find docs that might reference changed code:
+
+```bash
+# Search for references to changed components (both user and dev docs)
+grep -r "ComponentName" docs/
+grep -r "FunctionName" docs/
+
+# Search for API endpoint references (developer docs)
+grep -r "/api/endpoint" docs/
+
+# Search for feature mentions (user docs)
+grep -r "Feature Name" docs/tutorials/ docs/how-to/
+
+# Search README files (critical for developers)
+grep -r "featureName" */README.md
+
+# Search for configuration references (both audiences)
+grep -r "config.optionName" docs/
+```
+
+#### Add to Iteration Plan
+
+In the "Documentation in Scope" section (see `templates/iteration-plan.md`):
+
+**End User Documentation:**
+- List docs for application users that need updates
+- Example: `docs/how-to/using-feature-x.md` (workflow changes)
+- Or: *None - no user-facing behavior changes*
+
+**Developer Documentation:**
+- List docs for code users/contributors that need updates
+- Example: `docs/reference/api/endpoints.md` (API changes)
+- Example: `docs/explanation/architecture/data-flow.md` (architectural decision)
+- Example: `README.md` (if affects installation/setup)
+- Or: *None - internal implementation only*
+
+#### Add Documentation Criteria
+
+Include in Acceptance Criteria:
+```markdown
+- [ ] End user documentation updated (or N/A - explain why)
+- [ ] Developer documentation updated (or N/A - explain why)
+```
+
+#### Common Documentation Types by Change
+
+| Change Type | End User Docs | Developer Docs | Location |
+|-------------|---------------|----------------|----------|
+| New UI feature | ✅ Yes | ⚠️ Maybe | `docs/how-to/`, `docs/tutorials/` |
+| New API endpoint | ❌ No* | ✅ Yes | `docs/reference/api/` |
+| Architecture decision | ❌ No | ✅ Yes | `docs/explanation/architecture/` |
+| System replacement | ⚠️ Maybe | ✅ Yes | Migration guide in `docs/how-to/` |
+| Config option change | ⚠️ Maybe | ✅ Yes | `docs/reference/configuration.md` |
+| Bug fix (no API change) | ❌ No | ❌ No | Changelog only |
+| Internal refactor | ❌ No | ❌ No | None |
+| New dependency | ❌ No | ✅ Yes | `README.md`, `docs/reference/` |
+| Breaking change | ⚠️ Maybe | ✅ Yes | Migration guide + CHANGELOG |
+
+*Unless API is directly exposed to end users (e.g., embedded SDK, user-facing scripting)
+
+#### Reference
+
+See `process/documentation-checklist.md` for:
+- Detailed guidance on dual-audience documentation
+- Search patterns for finding affected docs
+- Diátaxis framework organization
+- Quality metrics
+
+See `process/doc-update-templates.md` for:
+- Copy-paste templates for common doc types
+- Audience-specific examples
+- README and CONTRIBUTING templates
+
+**Why this matters:**
+- CLAUDE.md mandates "Zero Documentation Drift"
+- Documentation that diverges from reality is worse than no documentation
+- Including docs in scope ensures they're validated with the code
+- Both end users AND developer users depend on accurate documentation
+
+---
+
 ### Step 6: Document Pre-existing Issues
 
 **Identify validation commands that will fail for unrelated reasons:**

@@ -159,6 +159,173 @@ Run this whenever a change alters an API or payload that another client (web, mo
 
 ---
 
+## Documentation Validation
+
+Run this whenever code changes affect external behavior (API, UI, configuration, workflows, architecture) for end users OR developer users.
+
+Per CLAUDE.md "Zero Documentation Drift" rule, documentation must be updated in the **same commit** as code changes.
+
+### When Documentation Updates Are Required
+
+Documentation updates are required when:
+- **End User Impact**: API endpoints, UI features, workflows, configuration options, user-facing behavior
+- **Developer User Impact**: Public APIs, integration points, architecture decisions, dependencies, contribution workflows
+- **System Changes**: Migrations, deprecations, breaking changes, new patterns
+
+**For open source projects**: Developer documentation IS user-facing documentation (API docs, integration guides, architecture explanations).
+
+### Documentation Validation Checklist
+
+Before marking iteration complete, verify documentation was handled:
+
+```markdown
+## Documentation Check (from results.md)
+
+Code changes made:
+- [ ] List files modified and nature of changes
+
+Documentation impact analysis (dual-audience):
+- [ ] End user changes → `docs/how-to/`, `docs/tutorials/` updated?
+- [ ] API changes → `docs/reference/api/` updated?
+- [ ] Workflow changes → `docs/how-to/` updated?
+- [ ] Architecture changes → `docs/explanation/architecture/` updated?
+- [ ] Config changes → `docs/reference/configuration.md` updated?
+- [ ] System replacement → Migration guide created in `docs/how-to/`?
+- [ ] New dependency → `README.md` and `docs/reference/` updated?
+- [ ] Breaking change → Migration guide + CHANGELOG updated?
+- [ ] Cross-references → Searched docs for broken links/references?
+
+Documentation updated:
+- [ ] List docs modified (or explain why none needed)
+
+Verification:
+- [ ] Examples tested and work with current code
+- [ ] Followed Diátaxis organization (tutorial/how-to/reference/explanation)
+- [ ] Both end user AND developer audiences addressed (if applicable)
+```
+
+### Grep Patterns for Finding Affected Documentation
+
+Search for documentation that might reference changed code:
+
+```bash
+# Find docs mentioning a changed file/function/class
+grep -r "FunctionName" docs/
+grep -r "ComponentName" docs/
+
+# Find docs mentioning API endpoints
+grep -r "api/endpoint" docs/
+grep -r "/v1/resource" docs/
+
+# Find docs mentioning removed features
+grep -r "oldFeatureName" docs/
+
+# Find docs mentioning configuration options
+grep -r "config.optionName" docs/
+grep -r "ENVIRONMENT_VAR" docs/
+
+# Find README files that might need updates
+grep -r "featureName" */README.md
+
+# Find integration guides
+grep -r "import.*ModuleName" docs/
+```
+
+### Fast-Track Assessment
+
+**Skip documentation validation if ALL true:**
+- Internal refactor with no API/UI changes
+- Bug fix with no behavior change visible to users or developers
+- Test-only changes
+- results.md explicitly notes "Internal implementation, no external impact"
+
+**Otherwise, perform full documentation validation.**
+
+### Documentation Validation Steps
+
+1. **Review "Documentation Changes" section in results.md:**
+   - Check both end user and developer documentation
+   - Verify explanations for why docs weren't needed (if applicable)
+   - Look for documentation debt notes
+
+2. **Verify documentation accuracy:**
+   ```bash
+   # If API changed, verify API docs were updated
+   grep -r "EndpointName" docs/reference/api/
+
+   # If component renamed, verify no stale references
+   grep -r "OldComponentName" docs/
+
+   # If config changed, verify config docs updated
+   grep -r "oldConfigKey" docs/
+   ```
+
+3. **Check documentation quality:**
+   - [ ] Examples are current (not outdated code)
+   - [ ] Cross-references are valid (no broken links)
+   - [ ] Organized per Diátaxis (tutorial/how-to/reference/explanation)
+   - [ ] Clear audience (end user vs developer user)
+   - [ ] Migration path clear (if breaking change)
+
+4. **Document findings in review:**
+   ```markdown
+   ## Documentation Validation
+
+   **End User Documentation:**
+   - ✅ Updated: [list docs]
+   - Or: ❌ Gap: [what's missing]
+   - Or: ✅ N/A - no user-facing changes
+
+   **Developer Documentation:**
+   - ✅ Updated: [list docs]
+   - Or: ❌ Gap: [what's missing]
+   - Or: ✅ N/A - internal implementation only
+
+   **Cross-reference check:**
+   - ✅ No stale references found
+   - Or: ⚠️ Found stale references: [list and fix]
+
+   **Quality check:**
+   - ✅ Examples tested and work
+   - ✅ Follows Diátaxis organization
+   - ✅ Both audiences addressed appropriately
+   ```
+
+### Blocking Conditions
+
+**BLOCK iteration approval if:**
+- Code changes external behavior (UI, API, config) AND no docs updated AND no explanation
+- System migration completed but no migration guide
+- Breaking change with no migration path documented
+- New dependency but README not updated
+- Public API changed but no API docs updated
+- results.md claims "no docs needed" but code review shows user-facing changes
+
+**Allow iteration if:**
+- Docs appropriately updated for both audiences
+- Clear justification why no docs needed (with evidence)
+- Internal-only changes with no external impact
+- Documentation debt explicitly tracked with follow-up issue
+
+### Reference Materials
+
+- **Checklist**: `process/documentation-checklist.md` - Dual-audience framework, search patterns
+- **Templates**: `process/doc-update-templates.md` - Copy-paste templates for common doc types
+- **Planning Guide**: `orchestration/01_plan_scope_instructions.md` Step 5.5 - Documentation impact analysis
+- **Review Guide**: `orchestration/02_review_iteration_instructions.md` Step 3.5 - Documentation gate
+
+### Integration with results.md
+
+The "Documentation Changes" section in `results.md` should document:
+- End user documentation updates (or why none needed)
+- Developer documentation updates (or why none needed)
+- Cross-reference verification results
+- Documentation debt (if any, with tracking issue)
+
+This provides the evidence needed for the review phase documentation gate.
+
+---
+
 ## test-output.txt Format
 
 ### Summary Section (Top)

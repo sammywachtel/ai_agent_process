@@ -82,11 +82,13 @@ After modifying settings.json, restart Claude Code for changes to take effect.
 **Purpose:** Provides immediate feedback on scoped validation
 
 **Data Flow:**
-1. Hook script reads current scope from `.agent_process/work/current_iteration.conf`
-2. Finds the matching validator: `.agent_process/scripts/after_edit/validate-{scope}.sh`
-3. Runs scope-specific validation (ESLint + Jest tests)
-4. Reports results (PASS/FAIL)
-5. **No blocking** - just feedback, Claude can proceed
+1. Hook checks for execution lock file (`.agent_process/work/.execution_active`)
+2. If lock not present, silently exits (prevents noise from non-exec edits)
+3. Hook script reads current scope from `.agent_process/work/current_iteration.conf`
+4. Finds the matching validator: `.agent_process/scripts/after_edit/validate-{scope}.sh`
+5. Runs scope-specific validation (ESLint + Jest tests)
+6. Reports results (PASS/FAIL)
+7. **No blocking** - just feedback, Claude can proceed
 
 **Example Output:**
 ```bash

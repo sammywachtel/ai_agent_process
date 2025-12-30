@@ -10,6 +10,13 @@ set -euo pipefail
 # Consume stdin (Claude Code passes JSON context, but we use config file instead)
 cat > /dev/null
 
+# Only run if we're in an active /ap_exec session
+EXECUTION_LOCK=".agent_process/work/.execution_active"
+if [[ ! -f "$EXECUTION_LOCK" ]]; then
+  # Silent exit - not in an execution session
+  exit 0
+fi
+
 SCRIPT_DIR=".agent_process/scripts/after_edit"
 
 # Read current scope from iteration config file
@@ -32,6 +39,18 @@ else
   echo "[hook_after_edit] No validator found for scope: $CURRENT_SCOPE"
   echo "[hook_after_edit] Available validators:"
   ls -1 "$SCRIPT_DIR"/validate-*.sh 2>/dev/null | sed 's/.*validate-//;s/.sh//' | sort || echo "  (none)"
+fi
+
+# Check for documentation debt in results.md
+if [[ "$CURRENT_SCOPE" != "unknown" ]] && [[ -f ".agent_process/work/$CURRENT_SCOPE/$CURRENT_ITERATION/results.md" ]]; then
+  if grep -qi "documentation debt" ".agent_process/work/$CURRENT_SCOPE/$CURRENT_ITERATION/results.md" 2>/dev/null; then
+    echo ""
+    echo "⚠️  [hook_after_edit] Documentation debt noted in results.md"
+    echo "📝 [hook_after_edit] Consider creating follow-up task to address:"
+    # Extract and show the documentation debt section
+    grep -A 3 -i "documentation debt" ".agent_process/work/$CURRENT_SCOPE/$CURRENT_ITERATION/results.md" 2>/dev/null | head -5
+    echo ""
+  fi
 fi
 
 echo "[hook_after_edit] Complete"

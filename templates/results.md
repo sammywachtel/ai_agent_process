@@ -27,6 +27,33 @@
 
 ---
 
+## Documentation Changes
+
+**End User Documentation:**
+- [List docs updated for application users, or "None - no user-facing changes"]
+- Example: ✅ Updated `docs/how-to/using-feature-x.md` with new workflow
+- Example: ❌ Not needed - internal refactor only
+
+**Developer Documentation:**
+- [List docs updated for code users/contributors, or "None - internal implementation only"]
+- Example: ✅ Updated `docs/reference/api/endpoints.md` with new endpoint
+- Example: ✅ Added `docs/explanation/architecture/caching-decision.md`
+- Example: ✅ Updated `README.md` installation requirements
+- Example: ❌ Not needed - no API changes
+
+**Documentation Verification:**
+- [ ] Checked for cross-references to changed code (grep results: [summary])
+- [ ] Migration guide created (if system replaced)
+- [ ] Examples tested and work with current code
+- [ ] Followed Diátaxis organization
+
+**Documentation Debt (if any):**
+- [List docs that should be updated but weren't, with justification]
+- Example: "Architecture diagram for caching layer - requires design time (2-3 hours), tracked in issue #123"
+- Or: *None - all documentation up to date*
+
+---
+
 ## Validation
 
 | Command | Status | Notes |

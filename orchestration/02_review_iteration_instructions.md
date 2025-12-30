@@ -132,6 +132,108 @@ REVIEW DECISION:
 
 ---
 
+### Step 3.5: Documentation Verification Gate
+
+**Verify documentation was updated per CLAUDE.md "Zero Documentation Drift" rule:**
+
+Per CLAUDE.md, documentation must be updated **in the same commit** as code changes. This is a **blocking requirement** for approval.
+
+#### Documentation Checkpoint
+
+Review the "Documentation Changes" section in `results.md`:
+
+1. **Check dual-audience coverage:**
+   - **End User Documentation**: Were user-facing docs updated (if needed)?
+   - **Developer Documentation**: Were API/architecture docs updated (if needed)?
+
+2. **Verify documentation matches code:**
+   ```markdown
+   ## Documentation Verification
+
+   Code changes that typically require doc updates:
+   - ✅ API endpoint added/changed → Reference docs updated?
+   - ✅ Workflow modified → How-to guides updated?
+   - ✅ Architecture decision → Explanation docs updated?
+   - ✅ System replaced → Migration guide created?
+   - ✅ Config option changed → Reference docs updated?
+   - ✅ New dependency → README updated?
+
+   Documentation actually updated (from results.md):
+   - [List docs that were modified]
+
+   Documentation gaps (if any):
+   - [Missing updates that should have been made]
+   ```
+
+3. **Search for orphaned references:**
+   ```bash
+   # If code was renamed/removed, search for broken doc references
+   grep -r "OldComponentName" docs/
+   grep -r "/old/api/endpoint" docs/
+   grep -r "deprecatedFunction" docs/
+   ```
+
+#### Documentation Gate Decision Criteria
+
+**BLOCK iteration approval if:**
+- ❌ Code changes external behavior (UI, API, config) AND no docs updated AND no explanation in results.md
+- ❌ System migration completed but no migration guide created
+- ❌ Breaking change introduced but no documentation of migration path
+- ❌ New dependency added but README not updated
+- ❌ Public API changed but no API reference docs updated
+- ❌ results.md claims "no docs needed" but code review shows user-facing changes
+
+**Allow iteration approval if:**
+- ✅ Docs appropriately updated for both audiences (end users AND developers)
+- ✅ Clear justification in results.md why no docs needed (with evidence)
+- ✅ Internal-only changes with no external impact
+- ✅ Documentation debt explicitly tracked with follow-up issue
+
+#### Documentation Quality Check
+
+If documentation was updated, verify:
+- [ ] **Accuracy**: Docs reflect actual current behavior (not old behavior)
+- [ ] **Examples**: Code examples compile/run with current version
+- [ ] **Cross-references**: Links to related docs are valid
+- [ ] **Diátaxis organization**: Docs placed in correct category (tutorial/how-to/reference/explanation)
+- [ ] **Audience clarity**: Clear whether docs are for end users or developers
+- [ ] **Migration path**: If breaking change, migration steps are clear
+
+#### Fast-Track for Simple Cases
+
+**If all true, documentation is likely adequate:**
+- Internal refactor (no API/UI changes)
+- Bug fix with no behavior change
+- Test-only changes
+- results.md explicitly notes "Internal implementation, no external impact"
+
+**Otherwise, review documentation thoroughly.**
+
+#### Include in Review Decision
+
+Add documentation assessment to decision rationale:
+
+```markdown
+**Documentation Status:**
+- ✅ End user docs updated: [List or "N/A - no user-facing changes"]
+- ✅ Developer docs updated: [List or "N/A - internal only"]
+- ✅ Documentation verified accurate with code changes
+- Or: ⚠️ Documentation debt tracked in issue #123 with justification
+- Or: ❌ Documentation gap - MUST address before APPROVE
+```
+
+**Why this matters:**
+- CLAUDE.md mandates zero documentation drift
+- Documentation is code - it must stay synchronized
+- Both end users AND developers depend on accurate docs
+- Open source projects: developer docs ARE user-facing docs
+- Documentation debt compounds - catch it now when context is fresh
+
+**For open source projects:**
+Remember that API documentation, architecture guides, and integration docs are user-facing documentation for your developer audience. Treat them with the same importance as end-user docs.
+
+---
+
 ### Step 4: Verify Scoped Validation
 
 **Check that validation was scoped (not entire codebase):**

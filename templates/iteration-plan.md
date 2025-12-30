@@ -48,6 +48,31 @@ After iteration_01_c → Escalate to human for decision (ship/pivot/abort)
 
 **Total:** {{count}} files (if >10, consider splitting scope)
 
+## Documentation in Scope
+
+**End User Documentation:**
+- [List docs that need updates for application users]
+- Example: `docs/how-to/using-feature-x.md` (workflow changes)
+- Example: `docs/tutorials/getting-started.md` (if affects onboarding)
+- Or: *None - no user-facing behavior changes*
+
+**Developer Documentation:**
+- [List docs that need updates for code users/contributors]
+- Example: `docs/reference/api/endpoints.md` (API changes)
+- Example: `docs/explanation/architecture/data-flow.md` (architectural decision)
+- Example: `README.md` (if affects installation/setup)
+- Example: `CONTRIBUTING.md` (if affects contribution workflow)
+- Or: *None - internal implementation only*
+
+**Documentation Requirements (from CLAUDE.md):**
+- [ ] End user documentation updated (or N/A - explain why)
+- [ ] Developer documentation updated (or N/A - explain why)
+- [ ] Documentation follows Diátaxis framework organization
+- [ ] Cross-references to changed code updated
+- [ ] Migration guide created (if replacing systems)
+
+**Reference:** See `process/documentation-checklist.md` for guidance
+
 ## Validation Requirements (SCOPED)
 
 **Hook validation (after_edit):**

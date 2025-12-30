@@ -189,23 +189,40 @@ The agent process has access to specialized agents optimized for different types
 
 3. **Fallback to general-purpose:**
    - If no clear pattern match → use `general-purpose` Task agent
-   - For multi-domain scopes → use `general-purpose` Task agent
+   - For multi-domain scopes → consider spawning multiple specialized agents in parallel (see Step 2)
+
+**Decision Tree (if uncertain):**
+
+```
+Is it frontend code (.tsx, .ts, React)? → frontend-excellence:react-specialist
+Is it backend code (.py, FastAPI)? → backend-security:backend-expert
+Is it tests? → dev-accelerator:test-automator
+Is it infrastructure (Docker, CI/CD)? → infra-pipeline:infra-architect
+Multiple domains? → SPAWN MULTIPLE AGENTS IN PARALLEL (see Step 2)
+Still unsure? → general-purpose
+```
 
 **Selection Output:**
 
-Once you've determined the agent, note it for Step 2:
+Once you've determined the agent(s), note it for Step 2:
 ```
-Selected Agent: {agent_name}
-Reasoning: {brief explanation of why this agent was chosen}
+Selected Agent(s):
+- {agent_name} - for {file pattern or domain}
+[- {agent_name_2} - for {file pattern or domain}]  # If multi-domain
+Reasoning: {brief explanation of why this/these agent(s) were chosen}
 ```
 
 **Example Selections:**
 
-- Scope with `migrations/add_editor_preferences.sql` → `backend-security:backend-architect` (database schema)
-- Scope with `frontend/src/hooks/useEditorPreferences.ts` → `frontend-excellence:react-specialist` (React hook)
-- Scope with `frontend/src/components/lexical/plugins/StressOverlayPlugin.tsx` → `frontend-excellence:react-specialist` (Lexical plugin)
-- Scope with `tests/e2e/preferences.spec.ts` → `dev-accelerator:test-automator` (E2E tests)
-- Mixed scope with database + frontend + tests → `general-purpose` (multi-domain)
+| Files in Scope | Selected Agent(s) | Reasoning |
+|----------------|-------------------|-----------|
+| `migrations/*.sql` | `dev-accelerator:backend-architect` | Database schema work |
+| `frontend/src/hooks/*.ts` | `frontend-excellence:react-specialist` | React hooks |
+| `frontend/src/components/lexical/*.tsx` | `frontend-excellence:react-specialist` | Lexical plugin |
+| `tests/e2e/*.spec.ts` | `dev-accelerator:test-automator` | E2E tests |
+| `frontend/*.tsx` + `backend/*.py` | `frontend-excellence:react-specialist` + `backend-security:backend-expert` | **Parallel: 2 agents** |
+| `frontend/*.tsx` + `tests/e2e/*.ts` | `frontend-excellence:react-specialist` + `dev-accelerator:test-automator` | **Parallel: 2 agents** |
+| `frontend/*.tsx` + `backend/*.py` + `tests/*.ts` | 3 specialized agents in parallel | **Parallel: 3 agents** |
 
 ---
 
@@ -245,7 +262,14 @@ Task({
 3. Follow the Technical Assessment implementation guidance
 4. Implement all required code changes
 5. Add or update automated tests for changes
-6. Perform manual spot checks to confirm behavior
+6. Update documentation per CLAUDE.md requirements:
+   - Check "Documentation in Scope" section in iteration_plan.md
+   - Update end user docs if user-facing behavior changed
+   - Update developer docs if API/architecture/config changed
+   - Search docs/ for references to changed code (grep patterns in process/documentation-checklist.md)
+   - Use templates in process/doc-update-templates.md if helpful
+   - If no docs needed, note why in completion report
+7. Perform manual spot checks to confirm behavior
 
 IMPORTANT CONTEXT:
 - Scope: {scope}
@@ -257,6 +281,7 @@ Work directly on the code - do NOT launch additional subagents.
 Report completion status when done, including:
 - What was implemented
 - What tests were added/updated
+- What documentation was updated (or why none needed)
 - Any issues encountered
 `
 })
@@ -277,7 +302,11 @@ Task({
 4. Focus ONLY on addressing the specific fixes from orchestrator review
 5. Build on what already works - don't break working parts
 6. Add or update tests for the fixes
-7. Perform manual spot checks to confirm fixes work
+7. Update documentation if fixes changed external behavior (API/UI/config)
+   - Check "Documentation in Scope" section in iteration_plan.md
+   - Update docs that reference changed code
+   - If no docs needed, note why in completion report
+8. Perform manual spot checks to confirm fixes work
 
 IMPORTANT CONTEXT:
 - Scope: {scope}
@@ -290,10 +319,82 @@ Work directly on the code - do NOT launch additional subagents.
 Report completion status when done, including:
 - Which specific fixes were addressed
 - What was changed to fix them
+- What documentation was updated (or why none needed)
 - Any remaining issues
 `
 })
 ```
+
+**Multiple Agents (multi-domain scope):**
+
+When the scope spans multiple domains, spawn all agents in a SINGLE response with multiple Task calls. This runs them in parallel for efficiency.
+
+```typescript
+// Example: Frontend + Backend + Tests scope
+// Send ALL THREE Task calls in ONE response:
+
+Task({
+  subagent_type: "frontend-excellence:react-specialist",
+  description: "Implement frontend for {scope}",
+  prompt: `Execute FRONTEND changes for {scope}/{iteration}:
+
+1. Read iteration_plan.md at .agent_process/work/{scope}/iteration_plan.md
+2. Focus ONLY on frontend files: [list frontend files from scope]
+3. Implement React component changes per acceptance criteria
+4. Add/update Jest tests for frontend changes
+
+Files you are responsible for:
+- frontend/src/components/...
+- frontend/src/hooks/...
+
+Do NOT touch backend or E2E test files - other agents handle those.
+Report what you implemented when done.
+`
+})
+
+Task({
+  subagent_type: "backend-security:backend-expert",
+  description: "Implement backend for {scope}",
+  prompt: `Execute BACKEND changes for {scope}/{iteration}:
+
+1. Read iteration_plan.md at .agent_process/work/{scope}/iteration_plan.md
+2. Focus ONLY on backend files: [list backend files from scope]
+3. Implement API/service changes per acceptance criteria
+4. Add/update pytest tests for backend changes
+
+Files you are responsible for:
+- backend/app/api/...
+- backend/app/services/...
+
+Do NOT touch frontend or E2E test files - other agents handle those.
+Report what you implemented when done.
+`
+})
+
+Task({
+  subagent_type: "dev-accelerator:test-automator",
+  description: "Implement E2E tests for {scope}",
+  prompt: `Execute E2E TEST changes for {scope}/{iteration}:
+
+1. Read iteration_plan.md at .agent_process/work/{scope}/iteration_plan.md
+2. Focus ONLY on E2E test files: [list test files from scope]
+3. Write/update Playwright E2E tests per acceptance criteria
+4. Ensure tests cover the integration between frontend and backend
+
+Files you are responsible for:
+- tests/e2e/...
+
+Do NOT touch frontend or backend implementation files - other agents handle those.
+Report what tests you added/updated when done.
+`
+})
+```
+
+⚠️ **Important for parallel agents:**
+- Send ALL Task calls in ONE response (not sequential responses)
+- Each agent gets a clearly scoped subset of files
+- Agents should NOT overlap in file responsibility
+- Wait for ALL agents to complete before proceeding to Step 3
 
 **Agent-Specific Context Enhancements:**
 
@@ -456,6 +557,11 @@ This command will:
 - [ ] Criterion 1: [Met/Not Met - brief note]
 - [ ] Criterion 2: [Met/Not Met - brief note]
 - [ ] Criterion 3: [Met/Not Met - brief note]
+
+**Documentation Updated:**
+- End User Docs: [List updated docs, or "None - no user-facing changes"]
+- Developer Docs: [List updated docs, or "None - internal implementation only"]
+- Or: [Explanation of why no docs needed]
 
 **Validation Status:**
 - Scoped validation (hook): [PASS/FAIL]
