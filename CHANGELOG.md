@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-01-04
+
+### Added
+- USER_CHANGELOG.md generation in `/ap_release` command for user-facing release notes
+  - Automatic transformation from technical changelog to user-friendly language
+  - Permission-based update workflow (never modifies existing entries without asking)
+  - Supports emojis and benefit-focused descriptions
+
+### Fixed
+- Command front matter now conforms to Claude Code specification
+  - Removed invalid `name` and `arguments` fields
+  - Moved argument documentation to command body with `$1`, `$2` placeholders
+  - All commands (`ap_release`, `ap_changelog_init`, `ap_exec`, `ap_iteration_results`) updated
+
+---
+
 ## [1.1.0-beta.1] - 2026-01-04
 
 ### Added

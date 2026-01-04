@@ -1,16 +1,14 @@
 ---
-name: /ap_exec
 description: Execute one iteration - implement changes, validate, and document results
 argument-hint: [scope] [iteration]
-arguments:
-  - name: scope
-    type: string
-    description: Scope folder under `.agent_process/work/`.
-    required: true
-  - name: iteration
-    type: string
-    description: Iteration folder name (e.g., `iteration_01`, `iteration_01_a`).
-    required: true
+---
+
+## Arguments
+
+**`$1` (scope)** - Required. Scope folder name under `.agent_process/work/`.
+
+**`$2` (iteration)** - Required. Iteration folder name (e.g., `iteration_01`, `iteration_01_a`).
+
 ---
 
 ## Your Role

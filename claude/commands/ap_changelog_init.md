@@ -1,12 +1,12 @@
 ---
-name: /ap_changelog_init
 description: Initialize CHANGELOG.md from git history for projects that haven't been tracking releases
 argument-hint: [starting-version]
-arguments:
-  - name: starting_version
-    type: string
-    description: "Version number to use as the 'detailed tracking starts here' point (default: 1.0.0)"
-    required: false
+---
+
+## Arguments
+
+**`$1` (starting_version)** - Optional. Version number to use as the "detailed tracking starts here" point. Defaults to `1.0.0` if not specified.
+
 ---
 
 ## Your Role

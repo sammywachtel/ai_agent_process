@@ -1,16 +1,20 @@
 ---
-name: /ap_release
 description: Update changelog, create PR, and optionally tag a release
 argument-hint: pr | beta | release [patch|minor|major]
-arguments:
-  - name: mode
-    type: string
-    description: "pr (changelog + PR) | beta (+ beta tag) | release (+ version bump + release tag)"
-    required: true
-  - name: version_type
-    type: string
-    description: "patch | minor | major (required for 'release' mode only)"
-    required: false
+---
+
+## Arguments
+
+**`$1` (mode)** - Required. One of:
+- `pr` - Update changelog under [Unreleased], create PR, no tag
+- `beta` - Move [Unreleased] to beta version, create beta tag, create PR
+- `release` - Move [Unreleased] to new version, update version files, tag release
+
+**`$2` (version_type)** - Required for `release` mode only:
+- `patch` - Bug fixes (1.0.0 → 1.0.1)
+- `minor` - New features (1.0.0 → 1.1.0)
+- `major` - Breaking changes (1.0.0 → 2.0.0)
+
 ---
 
 ## Your Role
@@ -262,6 +266,108 @@ Then create empty [Unreleased] section:
 ## [1.3.0-beta.1] - {DATE}  // or [1.3.0] for release mode
 ...
 ```
+
+---
+
+### Step 5.5: Update USER_CHANGELOG.md (beta and release modes only)
+
+**Purpose:** Generate user-facing release notes for in-app display.
+
+**Only for `beta` and `release` modes** (skip for `pr` mode).
+
+**Check if USER_CHANGELOG.md exists:**
+```bash
+ls -la USER_CHANGELOG.md 2>/dev/null || echo "Not found"
+```
+
+**If USER_CHANGELOG.md does NOT exist:**
+
+Create it with user-friendly transformation of the current changelog entry:
+
+```markdown
+# What's New
+
+## Version {VERSION} - {DATE}
+
+{Transform CHANGELOG.md entries into user-friendly language}
+
+### ✨ New Features
+- {User-facing description of added features}
+
+### 🔧 Improvements
+- {User-facing description of changes}
+
+### 🐛 Bug Fixes
+- {User-facing description of fixes}
+
+### ⚠️ Breaking Changes
+- {User-facing explanation with migration guidance}
+```
+
+**Transformation guidelines:**
+- Use "You can now..." instead of "Added feature..."
+- Focus on user benefits, not implementation details
+- Use emojis for visual appeal (✨🔧🐛⚠️📊🎵)
+- Skip internal refactoring or developer-only changes
+- Link to documentation where helpful
+- Explain breaking changes in terms users understand
+
+**If USER_CHANGELOG.md EXISTS:**
+
+⚠️ **CRITICAL: Do NOT modify existing entries without permission**
+
+1. **Read existing content:**
+   ```bash
+   cat USER_CHANGELOG.md
+   ```
+
+2. **Generate new entry** for current release (same transformation as above)
+
+3. **Show preview to user:**
+   ```markdown
+   ## Proposed USER_CHANGELOG.md Entry
+
+   ```
+   {Show the new entry you generated}
+   ```
+
+   This will be prepended to the existing USER_CHANGELOG.md.
+   Existing entries will NOT be modified.
+
+   Add this entry? (yes/no)
+   ```
+
+4. **Wait for user confirmation**
+
+5. **If yes:** Prepend new entry to USER_CHANGELOG.md (after the `# What's New` header, before existing entries)
+
+6. **If no:** Skip USER_CHANGELOG.md update (only CHANGELOG.md will be updated)
+
+**Example transformation:**
+
+CHANGELOG.md entry:
+```markdown
+### Added
+- Dark mode toggle in settings
+- CSV export for usage data
+
+### Fixed
+- Session timeout not extending on user activity (#142)
+```
+
+USER_CHANGELOG.md entry:
+```markdown
+## Version 1.3.0 - January 4, 2026
+
+### ✨ New Features
+- **Dark Mode**: Switch to dark mode in Settings → Appearance for comfortable viewing in low light
+- **Data Export**: Export your session history to CSV for analysis in Excel or Google Sheets
+
+### 🐛 Bug Fixes
+- Sessions now properly extend when you're actively working, preventing unexpected timeouts
+```
+
+**Location:** `USER_CHANGELOG.md` in project root (same directory as CHANGELOG.md)
 
 ---
 
