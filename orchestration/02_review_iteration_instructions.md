@@ -598,6 +598,28 @@ On human approval:
 - Update iteration_plan.md to mark scope complete
 - Or plan next numbered iteration (iteration_02) if scope continues
 
+**After APPROVE is confirmed, suggest the release workflow:**
+```markdown
+## Ready for Release
+
+The scope work is approved. To update the changelog and create a PR, run:
+
+`/ap_release <mode>`
+
+**Mode options:**
+- `pr` - Update changelog under [Unreleased], create PR, no tag
+- `beta` - Same as pr, plus create beta tag (v1.2.3-beta.N)
+- `release patch|minor|major` - Move [Unreleased] to new version, tag release
+
+**Recommended for this scope:**
+- If this is ongoing work (more scopes coming): `/ap_release pr`
+- If ready for user testing: `/ap_release beta`
+- If ready to ship:
+  - Bug fixes only → `/ap_release release patch`
+  - New features → `/ap_release release minor`
+  - Breaking changes → `/ap_release release major`
+```
+
 **If BLOCK:**
 ```
 This requires human decision - no further action from me.
