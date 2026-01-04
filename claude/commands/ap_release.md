@@ -24,7 +24,7 @@ You are the release coordinator. Your job: update version files and changelog, c
 | Mode | Updates Changelog | Creates PR | Creates Tag | Moves [Unreleased] |
 |------|-------------------|------------|-------------|-------------------|
 | `pr` | Yes (under Unreleased) | Yes | No | No |
-| `beta` | Yes (under Unreleased) | Yes | Yes (`vX.Y.Z-beta.N`) | No |
+| `beta` | Yes | Yes | Yes (`vX.Y.Z-beta.N`) | Yes → beta version |
 | `release patch` | Yes | Yes | Yes (`vX.Y.Z+1`) | Yes → new version |
 | `release minor` | Yes | Yes | Yes (`vX.Y+1.0`) | Yes → new version |
 | `release major` | Yes | Yes | Yes (`vX+1.0.0`) | Yes → new version |
@@ -206,7 +206,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 
-**For `pr` and `beta` modes:**
+**For `pr` mode only:**
 
 Append entry to [Unreleased] section under appropriate category:
 
@@ -221,12 +221,13 @@ Append entry to [Unreleased] section under appropriate category:
 - Session timeout now extends properly on activity (#142)
 ```
 
-**For `release` mode:**
+**For `beta` and `release` modes:**
 
 Move [Unreleased] contents to new version header:
 
+For `beta` mode (version includes beta suffix):
 ```markdown
-## [1.3.0] - 2025-01-04
+## [1.3.0-beta.1] - {TODAY'S DATE}
 
 ### Added
 - Dark mode toggle in Settings → Appearance
@@ -235,7 +236,22 @@ Move [Unreleased] contents to new version header:
 ### Fixed
 - Session timeout now extends properly on activity (#142)
 
-## [1.2.3] - 2024-12-15
+## [1.2.3] - {PREVIOUS RELEASE DATE}
+...
+```
+
+For `release` mode (clean version number):
+```markdown
+## [1.3.0] - {TODAY'S DATE}
+
+### Added
+- Dark mode toggle in Settings → Appearance
+- CSV export for usage data
+
+### Fixed
+- Session timeout now extends properly on activity (#142)
+
+## [1.2.3] - {PREVIOUS RELEASE DATE}
 ...
 ```
 
@@ -243,7 +259,7 @@ Then create empty [Unreleased] section:
 ```markdown
 ## [Unreleased]
 
-## [1.3.0] - 2025-01-04
+## [1.3.0-beta.1] - {DATE}  // or [1.3.0] for release mode
 ...
 ```
 
@@ -528,7 +544,7 @@ EOF
 ```bash
 /ap_release beta
 ```
-- Adds entry to [Unreleased] in CHANGELOG.md
+- Moves [Unreleased] to [1.3.0-beta.1] in CHANGELOG.md
 - Creates tag `v1.3.0-beta.1`
 - Creates PR with beta label
 
