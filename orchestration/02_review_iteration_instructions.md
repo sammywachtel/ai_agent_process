@@ -608,7 +608,7 @@ The scope work is approved. To update the changelog and create a PR, run:
 
 **Mode options:**
 - `pr` - Update changelog under [Unreleased], create PR, no tag
-- `beta` - Same as pr, plus create beta tag (v1.2.3-beta.N)
+- `beta` - Move [Unreleased] to beta version, create beta tag (vX.Y.Z-beta.N), create PR
 - `release patch|minor|major` - Move [Unreleased] to new version, tag release
 
 **Recommended for this scope:**

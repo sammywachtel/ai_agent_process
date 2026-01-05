@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] - 2026-01-04
+
+### Fixed
+- Documentation now includes version format examples for beta mode
+  - Added `(vX.Y.Z-beta.N)` format examples to `claude/commands.md`
+  - Added `(vX.Y.Z-beta.N)` format examples to `orchestration/02_review_iteration_instructions.md`
+  - Ensures users understand the exact tag format they'll get
+
+---
+
 ## [1.1.0] - 2026-01-04
 
 ### Added

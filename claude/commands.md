@@ -16,7 +16,7 @@ Copy the command files from this directory into your project's `.claude/commands
 
   **Modes:**
   - `pr` – Add to [Unreleased] changelog, create PR, no tag
-  - `beta` – Same as pr, plus create beta tag (vX.Y.Z-beta.N)
+  - `beta` – Move [Unreleased] to beta version, create beta tag (vX.Y.Z-beta.N), create PR
   - `release patch|minor|major` – Move [Unreleased] to new version, update version files, tag release
 
 - **ap_changelog_init.md** – `/ap_changelog_init [starting-version]` – Initialize CHANGELOG.md from git history for projects that haven't been tracking releases. One-time setup command.
