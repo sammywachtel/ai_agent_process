@@ -47,19 +47,68 @@ Outcome: Shippable feature or measurable improvement
 
 ---
 
-### Step 2: Choose Scope Name
+### Step 2: Derive Work Folder Name
 
-**Good scope names (specific, measurable):**
-- `add_user_authentication`
-- `fix_cursor_jump_on_stressed_syllables`
-- `extract_stress_coordinator_service`
-- `consolidate_prosody_css_classes`
+**Derive the work folder name from the requirements path using this convention:**
 
-**Bad scope names (vague, unmeasurable):**
+#### Pattern
+```
+<area>_<path_numbers>_<task>
+```
+
+#### Derivation Rules
+
+1. **Area**: First segment of requirements path
+   - Normalize: replace `-` with `_`, lowercase
+   - Example: `ai_radar-based_feedback_system` → `ai_radar`
+   - Example: `word_tools` → `word_tools`
+
+2. **Path Numbers**: Extract all `##_` prefixed numbers from path segments, join with `_`
+   - `00_foundation/01_database_prefs` → `00_01`
+   - `epic_07/01_rewrites` → `07_01`
+   - `scopes/01_collection` → `01`
+
+3. **Task**: Final segment with leading `##_` stripped
+   - `01_database_preferences` → `database_preferences`
+   - `stress_toggle` → `stress_toggle`
+
+#### Examples
+
+| Requirements Path | Work Folder Name |
+|-------------------|------------------|
+| `word_tools/scopes/01_collection_model` | `word_tools_01_collection_model` |
+| `ai_radar.../00_foundation/01_db_prefs` | `ai_radar_00_01_db_prefs` |
+| `ai_radar.../01_ambient/07_stress_toggle` | `ai_radar_01_07_stress_toggle` |
+| `code_quality/epic_07/01_rewrites` | `code_quality_07_01_rewrites` |
+| `song_settings/03_boxes_system` | `song_settings_03_boxes_system` |
+
+#### Ad-hoc Work (No Requirements Doc)
+
+For bug fixes or quick work without a requirements doc:
+```
+hotfix_<area>_<brief_description>
+```
+Example: `hotfix_lexical_cursor_jump`
+
+#### Good vs Bad Names
+
+**Good (specific, traceable):**
+- `word_tools_01_collection_model` (traces to requirements)
+- `ai_radar_01_07_stress_toggle` (includes hierarchy)
+- `hotfix_lexical_cursor_jump` (clear ad-hoc pattern)
+
+**Bad (vague, untraceable):**
 - `lexical_cleanup` (what does "cleanup" mean?)
 - `improve_editor` (no boundary)
 - `fix_bugs` (which bugs?)
-- `refactor_frontend` (too large)
+- `ai_radar_based_feedback_system_scope_01_...` (redundant `scope_`)
+
+#### Naming Validation
+
+Before creating work folder, verify:
+- [ ] Name traces back to requirements path unambiguously
+- [ ] Numbers preserve order from requirements hierarchy
+- [ ] No redundant words (`scope_` prefix not needed)
 
 **Create directory:**
 ```bash

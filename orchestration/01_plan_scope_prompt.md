@@ -41,9 +41,9 @@ Once you've loaded context, proceed to Step 1.
 
 ## Requirements Document
 
-**Location:** `.agent_process/requirements_docs/requirements_doc_here.md
+**Location:** `.agent_process/requirements_docs/{{requirements_path}}`
 
-**Scope Name** Generate a scope name (scope_name) to use that closely matches the requirements doc name in a form similar to <epic>_scope_<scope number>_task. For example, "code_quality_scope_01_fix_linting". The scope number is only relevent when there are multiple scopes in an epic.
+**Work folder name:** Derive using naming convention in `01_plan_scope_instructions.md` Step 2.
 
 ---
 

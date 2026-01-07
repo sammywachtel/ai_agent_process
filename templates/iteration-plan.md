@@ -5,6 +5,12 @@
 - **Date:** {{date}}
 - **Summary:** [One sentence describing what this scope achieves]
 
+## Requirements Source
+- **Path:** `.agent_process/requirements_docs/{{requirements_path}}`
+- **Document:** `{{requirements_filename}}`
+
+*Work folder name derived from requirements path per naming convention.*
+
 ## Current Status
 - Latest iteration: iteration_01 (not started)
 - Decision: N/A

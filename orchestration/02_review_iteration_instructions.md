@@ -234,6 +234,246 @@ Remember that API documentation, architecture guides, and integration docs are u
 
 ---
 
+### Step 3.6: Integration Verification Gate
+
+**Verify that changes don't break integration points with related code outside scope:**
+
+Per system reliability principles, changes to one component must maintain compatibility with connected components. This is a **blocking requirement** for approval.
+
+#### Integration Checkpoint
+
+**The problem:** Files in scope often interact with code NOT in scope. Changes can break these integration points even when in-scope validation passes.
+
+**Common integration failures:**
+- Frontend changes API call structure → Backend expects different schema
+- Backend changes response format → Frontend can't parse response
+- Component changes props interface → Parent components pass wrong props
+- Service changes method signature → Callers use old signature
+- Database schema changes → Queries use old column names
+- Config changes → Consumers expect old config structure
+
+#### Integration Verification Steps
+
+For each file in scope, identify and check related code:
+
+1. **Frontend ↔ Backend Integration:**
+   ```markdown
+   ## Frontend/Backend Integration Check
+
+   Files in scope that make API calls:
+   - [List frontend files that call backend APIs]
+
+   For each API endpoint touched:
+   - ✅ Request schema matches backend expectations
+   - ✅ Response schema matches frontend usage
+   - ✅ Error handling covers new error cases
+   - ✅ Authentication/authorization requirements unchanged (or coordinated)
+
+   Backend files checked (even if not in scope):
+   - [List backend endpoints/controllers verified]
+
+   Integration gaps (if any):
+   - [Schema mismatches, contract violations]
+   ```
+
+2. **Component Interface Changes:**
+   ```markdown
+   ## Component Integration Check
+
+   Components in scope with changed interfaces:
+   - [List components with modified props/events/slots]
+
+   For each interface change:
+   - ✅ All call sites updated (search codebase)
+   - ✅ Parent components pass correct props
+   - ✅ Child components receive expected data
+   - ✅ Event handlers match new signatures
+
+   Related files checked (even if not in scope):
+   - [List parent/child components verified]
+
+   Integration gaps (if any):
+   - [Call sites using old interface, prop mismatches]
+   ```
+
+3. **Database Schema Changes:**
+   ```markdown
+   ## Database Integration Check
+
+   Schema changes in scope:
+   - [List table/column changes, migrations]
+
+   For each schema change:
+   - ✅ All queries updated to use new schema
+   - ✅ ORM models reflect new structure
+   - ✅ Indexes still valid
+   - ✅ Foreign key constraints maintained
+
+   Query files checked (even if not in scope):
+   - [List query files, repositories verified]
+
+   Integration gaps (if any):
+   - [Queries using old column names, missing migrations]
+   ```
+
+4. **Configuration Changes:**
+   ```markdown
+   ## Configuration Integration Check
+
+   Config files changed in scope:
+   - [List config files modified]
+
+   For each config change:
+   - ✅ All config consumers updated
+   - ✅ Environment variables match
+   - ✅ Deployment configs synchronized
+   - ✅ Documentation reflects new config
+
+   Consumer files checked (even if not in scope):
+   - [List files that read these configs]
+
+   Integration gaps (if any):
+   - [Code expecting old config structure]
+   ```
+
+5. **Service/API Signature Changes:**
+   ```markdown
+   ## Service Integration Check
+
+   Services/methods with changed signatures:
+   - [List services with modified interfaces]
+
+   For each signature change:
+   - ✅ All callers use new signature
+   - ✅ Return type matches caller expectations
+   - ✅ Error handling updated for new exceptions
+
+   Caller files checked (even if not in scope):
+   - [List files that call these services]
+
+   Integration gaps (if any):
+   - [Callers using old signatures, missing parameters]
+   ```
+
+#### How to Check Integration Points
+
+**Use these techniques to find related code:**
+
+```bash
+# Find API endpoint usages
+grep -r "api/endpoint-path" frontend/src/
+
+# Find component usages
+grep -r "<ComponentName" frontend/src/
+grep -r "from.*ComponentName" frontend/src/
+
+# Find function call sites
+grep -r "functionName(" src/
+
+# Find config readers
+grep -r "config\.settingName" src/
+
+# Find database table references
+grep -r "table_name" src/
+```
+
+**Manual verification:**
+- Open related files and read the code
+- Verify schema/interface compatibility
+- Check that changes are coordinated
+- Look for type mismatches, missing parameters
+
+#### Integration Gate Decision Criteria
+
+**BLOCK iteration approval if:**
+- ❌ Frontend API call doesn't match backend endpoint schema
+- ❌ Backend response format doesn't match frontend parsing
+- ❌ Component interface changed but call sites use old interface
+- ❌ Database schema changed but queries use old column names
+- ❌ Service signature changed but callers use old signature
+- ❌ Config changed but consumers expect old structure
+- ❌ Integration verification not performed (no evidence in results.md)
+
+**ITERATE if integration gaps found:**
+- Specify exact files and lines that need coordination
+- Include both in-scope and out-of-scope files in fix list
+- Update validation script to include newly-identified files
+
+**Allow iteration approval if:**
+- ✅ All integration points verified compatible
+- ✅ Coordinated changes documented (e.g., "backend PR #123 deployed first")
+- ✅ No interface/schema changes (internal refactor only)
+- ✅ Integration verification explicitly documented in results.md
+
+#### Integration Quality Check
+
+When integration points are identified, verify:
+- [ ] **Bidirectional compatibility**: Both sides of integration checked
+- [ ] **Type safety**: TypeScript/type checking passes across boundary
+- [ ] **Runtime testing**: Integration tests or manual verification performed
+- [ ] **Error scenarios**: Error handling compatible on both sides
+- [ ] **Deployment coordination**: If changes must deploy together, documented
+
+#### Fast-Track for Simple Cases
+
+**If all true, integration verification likely not needed:**
+- Internal implementation only (no API/interface changes)
+- Test-only changes
+- Documentation-only changes
+- Bug fix with no signature/schema changes
+- results.md explicitly notes "No integration points affected"
+
+**Otherwise, perform integration verification thoroughly.**
+
+#### Include in Review Decision
+
+Add integration assessment to decision rationale:
+
+```markdown
+**Integration Status:**
+- ✅ Frontend/backend schemas verified compatible
+- ✅ Component interfaces checked across call sites
+- ✅ Database queries updated for schema changes
+- ✅ Related code verified: [list files checked]
+- Or: ⚠️ Integration risk documented and accepted
+- Or: ❌ Integration gap found - MUST address before APPROVE
+
+**Files checked outside scope:**
+- [List any files verified that weren't in original scope]
+```
+
+#### When to Expand Scope
+
+**If you find integration issues in related code:**
+
+1. **Use ITERATE decision** with specific fixes
+2. **Include out-of-scope files in fix list:**
+   ```markdown
+   Required fixes:
+   1. In frontend/src/api/client.ts (IN SCOPE), change request to {...}
+   2. In backend/src/routes/api.py (OUT OF SCOPE), update endpoint to {...}
+   ```
+3. **Update validation script** to include newly-identified files
+4. **Document scope expansion** in iteration_plan.md
+
+**Why this matters:**
+- Integration bugs are the hardest to debug in production
+- Schema mismatches cause runtime errors, not compile errors
+- Frontend/backend drift creates silent failures
+- Catching integration issues early saves hours of debugging
+- Scoped validation can pass while breaking production
+
+**Real-world example that motivated this gate:**
+- Frontend changed API call structure
+- Backend code not in scope, so not checked
+- Validation passed (frontend code was correct)
+- Runtime failure: backend expected different schema
+- Required emergency fix after merge
+
+**Remember:** Changes don't exist in isolation. Always check the integration points.
+
+---
+
 ### Step 4: Verify Scoped Validation
 
 **Check that validation was scoped (not entire codebase):**
@@ -299,6 +539,15 @@ NOT expected (full validation):
 
 **Code Verification:**
 [Summary of Step 3 findings - what was actually changed]
+
+**Documentation Status:**
+[Summary of Step 3.5 findings - docs updated or justification why not needed]
+
+**Integration Status:**
+[Summary of Step 3.6 findings - integration points verified or fast-tracked]
+- Related code checked: [list files outside scope that were verified]
+- Frontend/backend compatibility: [verified/N/A]
+- Component interfaces: [verified/N/A]
 
 **Rationale:**
 [1-2 sentences explaining why criteria met]
@@ -377,12 +626,20 @@ Each fix MUST include:
 **Code Verification:**
 [Summary of Step 3 findings - what's incomplete/incorrect]
 
+**Documentation Status:**
+[Summary of Step 3.5 findings - what docs need updating]
+
+**Integration Status:**
+[Summary of Step 3.6 findings - what integration gaps found]
+- Related code checked: [list files outside scope that were verified]
+- Integration gaps: [list schema mismatches, interface incompatibilities]
+
 **Rationale:**
 [1-2 sentences explaining specific issues]
 
 **Required fixes (max 3):**
 1. [Specific fix with file:line, before/after, acceptance test]
-2. [Specific fix with file:line, before/after, acceptance test]
+2. [Specific fix with file:line, before/after, acceptance test - may include OUT OF SCOPE files]
 3. [Specific fix with file:line, before/after, acceptance test]
 
 **Next iteration:** <scope>/<iteration>_{a/b/c}
@@ -640,6 +897,69 @@ Should I update iteration_plan.md with the proposed scope change (requires your 
 
 ---
 
+### Step 9: Update Requirements Doc Status (APPROVE or BLOCK only)
+
+**When scope reaches terminal state (APPROVE or BLOCK), update the original requirements document:**
+
+1. **Read the requirements source path** from `iteration_plan.md` → "Requirements Source" section
+
+2. **Update the top-level status field** (if present):
+   - Search for line matching `**Status:** TODO` or `**Status:** IN_PROGRESS`
+   - Replace with `**Status:** COMPLETED` (for APPROVE) or `**Status:** BLOCKED` (for BLOCK)
+
+3. **Append detailed status section** to the requirements document:
+
+**For APPROVE:**
+```markdown
+---
+
+## Implementation Status
+
+**Status:** ✅ COMPLETED
+**Date:** YYYY-MM-DD
+**Work Folder:** `.agent_process/work/<scope_name>`
+**Iterations Used:** X of 4
+
+**Summary:**
+[Brief description of what was implemented]
+
+**Notes:**
+[Any deviations from original requirements, or follow-up work needed]
+```
+
+**For BLOCK:**
+```markdown
+---
+
+## Implementation Status
+
+**Status:** 🚫 BLOCKED
+**Date:** YYYY-MM-DD
+**Work Folder:** `.agent_process/work/<scope_name>`
+**Iterations Used:** X of 4
+
+**Blocker:**
+[Description of what blocked completion]
+
+**Partial Work:**
+[What was completed before blocking, if anything]
+
+**Recommendations:**
+[Next steps - split scope, address blocker, or abandon]
+```
+
+4. **Why this matters:**
+   - Creates bidirectional traceability (requirements ↔ work)
+   - Top-level status enables quick scanning of requirements status
+   - Detailed Implementation Status preserves context and decisions
+   - Future planners can see which requirements are done
+   - Prevents duplicate work on completed requirements
+   - Documents decisions for historical reference
+
+**Note:** If the requirements doc doesn't have a top-level `**Status:**` field, skip step 2 and just append the detailed Implementation Status section.
+
+---
+
 ## Decision Matrix (Quick Reference)
 
 | Situation | Decision | Next Step |
@@ -688,6 +1008,10 @@ Should I update iteration_plan.md with the proposed scope change (requires your 
 - [ ] Read original acceptance criteria (iteration_plan.md)
 - [ ] Reviewed actual code changes (Step 3)
 - [ ] Cross-checked results.md claims vs actual code
+- [ ] Verified documentation updates (Step 3.5)
+- [ ] Verified integration points with related code (Step 3.6)
+- [ ] Checked frontend/backend schema compatibility (if applicable)
+- [ ] Checked component interface compatibility (if applicable)
 - [ ] Counted attempts used (1/2/3/4 of 4)
 - [ ] Verified scoped validation (not full codebase)
 - [ ] Checked for external blockers

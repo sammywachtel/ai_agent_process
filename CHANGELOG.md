@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.0] - 2026-01-07
+
+### Added
+- Integration Verification Gate (Step 3.6) in iteration review workflow
+  - Catches frontend/backend schema mismatches before they reach production
+  - Verifies component interface compatibility across call sites
+  - Checks database schema changes against query usage
+  - Validates configuration changes against consumers
+  - Allows scope expansion to include out-of-scope files when integration issues found
+  - Includes grep commands and manual verification checklists
+  - Updated APPROVE/ITERATE templates to require integration status reporting
+  - Added integration verification to validation checklist
+
+### Fixed
+- Orchestrator now verifies related code outside scope to prevent runtime integration failures
+  - Prevents the specific case where frontend changes API calls but backend schema not checked
+  - Reduces production bugs caused by schema drift and interface incompatibilities
+
+---
+
 ## [1.2.0] - 2026-01-04
 
 ### Fixed
