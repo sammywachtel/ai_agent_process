@@ -24,6 +24,96 @@ Sub-iterations: 0-3 per numbered iteration
 Outcome: Shippable feature or measurable improvement
 ```
 
+### Large Requirements File Breakdown
+
+**If a requirements file is too large for a single scope:**
+
+1. **Ask human for approval to split:**
+   ```
+   The requirements in [filename] are too large for one scope.
+
+   Would you like me to automatically break this down into multiple
+   properly-sized requirements files?
+
+   If yes, I will:
+   - Rename the original to [filename-basename]-breakdown[.ext]
+   - Create multiple numbered files: [filename-basename]-01[.ext],
+     [filename-basename]-02[.ext], etc.
+   - Update the breakdown file to reference the new files
+   ```
+
+2. **If human approves, perform breakdown:**
+
+   **Step A: Rename original file**
+   ```bash
+   # Example: requirements.md → requirements-breakdown.md
+   # Example: epic-07.txt → epic-07-breakdown.txt
+   git mv [original-file] [basename]-breakdown[.extension]
+   ```
+
+   **Step B: Create numbered requirement files**
+
+   Files should be numbered to maintain alphanumeric order in the directory:
+   ```bash
+   # Example: requirements-01.md, requirements-02.md, requirements-03.md
+   # Naming: [basename]-[##][.extension]
+   ```
+
+   **Step C: Update the breakdown file**
+
+   Add header and references to new files:
+   ```markdown
+   # [Original Title] - BREAKDOWN
+
+   **Status:** This is the original requirements document. It has been
+   split into multiple properly-sized requirements files for implementation.
+
+   ## Split Requirements Files
+
+   This original document has been broken down into the following files:
+
+   1. `[basename]-01[.ext]` - [Brief description of scope 1]
+   2. `[basename]-02[.ext]` - [Brief description of scope 2]
+   3. `[basename]-03[.ext]` - [Brief description of scope 3]
+
+   ## Original Content
+
+   [Original content preserved below for reference]
+
+   ---
+
+   [... original requirements content ...]
+   ```
+
+   **Step D: Create each split requirements file**
+
+   Each file should:
+   - Follow the requirements template format
+   - Be properly sized (passes 5-second scope check)
+   - Reference the original breakdown file
+   - Include header indicating it's part of a split
+
+   ```markdown
+   # [Scope-specific Title]
+
+   **Part of:** `[basename]-breakdown[.ext]`
+   **Split:** [X] of [N]
+
+   [Properly-scoped requirements content]
+   ```
+
+3. **If human declines:**
+   - Provide detailed splitting recommendations
+   - Wait for human to manually create separate requirements docs
+   - Do NOT create work folder
+
+**Benefits of automated breakdown:**
+- Preserves original requirements for reference
+- Maintains alphanumeric ordering in requirements directory
+- Uses `git mv` to preserve file history
+- Creates traceable relationship between breakdown and split files
+- Each split file is independently actionable
+
 ---
 
 ## Planning Steps

@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.0] - 2026-01-09
+
+### Added
+- Automated requirements file breakdown in scope planning workflow
+  - Orchestrator now offers to split oversized requirements files automatically
+  - Renames original to `*-breakdown[.ext]` using `git mv` to preserve history
+  - Creates numbered split files (`*-01[.ext]`, `*-02[.ext]`, etc.) maintaining alphanumeric order
+  - Updates breakdown file with references to new split files
+  - Each split file references the original and indicates which part it is (X of N)
+  - Reduces manual work when requirements exceed single-scope sizing
+  - Added "Large Requirements File Breakdown" section to `01_plan_scope_instructions.md`
+  - Updated `01_plan_scope_prompt.md` with automated vs manual splitting options
+
+---
+
 ## [1.3.0] - 2026-01-07
 
 ### Added

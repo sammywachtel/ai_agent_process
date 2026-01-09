@@ -61,10 +61,17 @@ Use Read tool to open the requirements document specified above.
 - Specific name (not "cleanup" or "improve")?
 
 **If TOO LARGE:**
-- **STOP** - Do not create work folder
-- Provide splitting recommendations
-- Suggest multiple smaller scopes
-- Wait for human to create separate requirements docs
+- **OPTION A: Automated Breakdown (Recommended)**
+  - Ask human if they want automatic requirements file splitting
+  - If approved: Follow "Large Requirements File Breakdown" process from instructions
+    - Rename original to `*-breakdown[.ext]` using `git mv`
+    - Create numbered split files (`*-01[.ext]`, `*-02[.ext]`, etc.)
+    - Update breakdown file with references to new files
+    - Each split file references the original and indicates which part it is
+- **OPTION B: Manual Splitting**
+  - Provide detailed splitting recommendations
+  - Wait for human to manually create separate requirements docs
+- **Do NOT create work folder until requirements are properly sized**
 
 **If GOOD SIZE:**
 - Proceed to Step 3
