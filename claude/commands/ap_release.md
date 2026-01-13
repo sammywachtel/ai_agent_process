@@ -25,13 +25,15 @@ You are the release coordinator. Your job: update version files and changelog, c
 
 ## Mode Reference
 
-| Mode | Updates Changelog | Creates PR | Creates Tag | Moves [Unreleased] |
-|------|-------------------|------------|-------------|-------------------|
-| `pr` | Yes (under Unreleased) | Yes | No | No |
-| `beta` | Yes | Yes | Yes (`vX.Y.Z-beta.N`) | Yes → beta version |
-| `release patch` | Yes | Yes | Yes (`vX.Y.Z+1`) | Yes → new version |
-| `release minor` | Yes | Yes | Yes (`vX.Y+1.0`) | Yes → new version |
-| `release major` | Yes | Yes | Yes (`vX+1.0.0`) | Yes → new version |
+| Mode | Updates Changelog | Creates PR | Creates Build Tag | Creates Release Tag | Moves [Unreleased] |
+|------|-------------------|------------|-------------------|---------------------|-------------------|
+| `pr` | Yes (under Unreleased) | Yes | Yes (`build/N`) | No | No |
+| `beta` | Yes | Yes | Yes (`build/N`) | Yes (`vX.Y.Z-beta.N`) | Yes → beta version |
+| `release patch` | Yes | Yes | Yes (`build/N`) | Yes (`vX.Y.Z+1`) | Yes → new version |
+| `release minor` | Yes | Yes | Yes (`build/N`) | Yes (`vX.Y+1.0`) | Yes → new version |
+| `release major` | Yes | Yes | Yes (`build/N`) | Yes (`vX+1.0.0`) | Yes → new version |
+
+**Build tags:** Every mode creates a `build/N` tag (monotonically increasing). This tracks deployable artifacts independently from semantic releases.
 
 **Version types (for `release` mode):**
 - `patch` - Bug fixes, no new features (1.0.0 → 1.0.1)
@@ -70,6 +72,42 @@ ITERATION=<iteration_name>
 - Files that were changed
 - Whether this is a new feature, bug fix, or breaking change
 - Any user-facing behavior changes
+
+---
+
+### Step 1.5: Create Build Tag (ALL modes)
+
+**Build tags track every release action, regardless of mode.**
+
+Build numbers are monotonically increasing integers that identify deployable artifacts. They're independent from semantic versions - every `pr`, `beta`, and `release` gets a build number.
+
+**Get the next build number:**
+```bash
+# Find the highest existing build number
+LAST_BUILD=$(git tag -l "build/*" | sed 's|build/||' | sort -n | tail -1)
+
+# Handle case where no build tags exist yet
+if [ -z "$LAST_BUILD" ]; then
+  LAST_BUILD=0
+fi
+
+# Calculate next build number
+BUILD_NUM=$((LAST_BUILD + 1))
+
+echo "Build number: ${BUILD_NUM}"
+```
+
+**Store the build number for later steps:**
+```
+BUILD_NUM=<calculated value>
+```
+
+This build number will be:
+- Used in commit message trailers
+- Created as a lightweight tag after committing
+- Pushed alongside any release tags
+
+**Note:** The actual `build/N` tag is created in Step 8 (after committing), but we calculate the number now to include it in commit messages.
 
 ---
 
@@ -426,6 +464,7 @@ docs(changelog): add entries for <scope>
 
 Scope: <scope_name>
 Iteration: <iteration_name>
+Build: <BUILD_NUM>
 EOF
 )"
 ```
@@ -437,6 +476,7 @@ chore(release): prepare v1.3.0-beta.1
 
 Scope: <scope_name>
 Iteration: <iteration_name>
+Build: <BUILD_NUM>
 EOF
 )"
 ```
@@ -450,15 +490,22 @@ chore(release): release v1.3.0
 
 Scope: <scope_name>
 Iteration: <iteration_name>
+Build: <BUILD_NUM>
 EOF
 )"
 ```
 
 ---
 
-### Step 8: Create Tag (beta and release modes only)
+### Step 8: Create Tags
 
-**For `beta` mode:**
+**For ALL modes - create build tag (lightweight):**
+```bash
+# Create lightweight build tag on the commit we just made
+git tag "build/${BUILD_NUM}"
+```
+
+**For `beta` mode - also create release tag (annotated):**
 ```bash
 # Determine beta number
 BETA_NUM=$(git tag -l "v*-beta.*" | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$" | sort -V | tail -1 | sed 's/.*beta\.//' || echo "0")
@@ -471,10 +518,11 @@ Changes in this beta:
 - <list changes from changelog>
 
 Scope: <scope_name>
+Build: ${BUILD_NUM}
 "
 ```
 
-**For `release` mode:**
+**For `release` mode - also create release tag (annotated):**
 ```bash
 git tag -a "v1.3.0" -m "Release v1.3.0
 
@@ -488,6 +536,7 @@ $(cat <<'EOF'
 - <entries from changelog>
 
 Full changelog: CHANGELOG.md
+Build: ${BUILD_NUM}
 EOF
 )"
 ```
@@ -497,12 +546,23 @@ EOF
 ### Step 9: Push and Create PR
 
 **Push branch and tags:**
-```bash
-# Push branch
-git push -u origin $(git branch --show-current)
 
-# Push tags (if created)
-git push --tags
+For `pr` mode (build tag only):
+```bash
+# Push branch and build tag
+git push -u origin $(git branch --show-current) "build/${BUILD_NUM}"
+```
+
+For `beta` mode (build tag + beta tag):
+```bash
+# Push branch and both tags
+git push -u origin $(git branch --show-current) "build/${BUILD_NUM}" "v${VERSION}-beta.${NEXT_BETA}"
+```
+
+For `release` mode (build tag + release tag):
+```bash
+# Push branch and both tags
+git push -u origin $(git branch --show-current) "build/${BUILD_NUM}" "v${VERSION}"
 ```
 
 **Create PR:**
@@ -522,6 +582,7 @@ gh pr create --title "feat(<scope>): <brief description>" --body "$(cat <<'EOF'
 ---
 Scope: `<scope_name>`
 Iteration: `<iteration_name>`
+Build: `${BUILD_NUM}`
 EOF
 )"
 ```
@@ -538,6 +599,7 @@ gh pr create --title "chore(release): v1.3.0-beta.1" --body "$(cat <<'EOF'
 
 ---
 Tag: `v1.3.0-beta.1`
+Build: `${BUILD_NUM}`
 EOF
 )" --label "beta"
 ```
@@ -554,9 +616,108 @@ gh pr create --title "chore(release): v1.3.0" --body "$(cat <<'EOF'
 
 ---
 Tag: `v1.3.0`
+Build: `${BUILD_NUM}`
 EOF
 )" --label "release"
 ```
+
+---
+
+### Step 9.5: Sync Agent Process Central Repo (OPTIONAL)
+
+**This step is OPTIONAL** - only execute if a central repo sync file exists in the project.
+
+**Check for sync configuration:**
+```bash
+ls process/ap_release_central_sync.md 2>/dev/null || echo "No central sync configured"
+```
+
+**If the file exists, read it for project-specific configuration:**
+```bash
+cat process/ap_release_central_sync.md
+```
+
+The sync file will contain:
+- `CENTRAL_REPO_PATH`: Path to the central repository
+- `PROJECT_FOLDER`: This project's folder name in the central repo
+
+**Background:** When `.agent_process` is a symlink to the central repo, changes made during scope work are already in the central repo's working directory. We just need to commit and push them.
+
+**Navigate to central repo:**
+```bash
+cd ${CENTRAL_REPO_PATH}
+```
+
+**Check if there are changes to commit:**
+```bash
+git status --short ${PROJECT_FOLDER}/
+```
+
+**If there are NO changes, skip to Step 10.**
+
+**If there ARE changes, commit them:**
+
+For `pr` mode:
+```bash
+git add ${PROJECT_FOLDER}/
+git commit -m "$(cat <<'EOF'
+docs(${PROJECT_FOLDER}): update for <scope>
+
+Project: ${PROJECT_FOLDER}
+Scope: <scope_name>
+Iteration: <iteration_name>
+Build: ${BUILD_NUM}
+
+Synced from main repo commit: <commit_sha_from_main_repo>
+EOF
+)"
+```
+
+For `beta` mode:
+```bash
+git add ${PROJECT_FOLDER}/
+git commit -m "$(cat <<'EOF'
+chore(${PROJECT_FOLDER}): prepare v<version>-beta.<N>
+
+Project: ${PROJECT_FOLDER}
+Scope: <scope_name>
+Iteration: <iteration_name>
+Build: ${BUILD_NUM}
+
+Synced from main repo commit: <commit_sha_from_main_repo>
+EOF
+)"
+```
+
+For `release` mode:
+```bash
+git add ${PROJECT_FOLDER}/
+git commit -m "$(cat <<'EOF'
+chore(${PROJECT_FOLDER}): release v<version>
+
+Project: ${PROJECT_FOLDER}
+Scope: <scope_name>
+Iteration: <iteration_name>
+Build: ${BUILD_NUM}
+
+<summary of main changes>
+
+Synced from main repo commit: <commit_sha_from_main_repo>
+EOF
+)"
+```
+
+**Push to remote:**
+```bash
+git push origin main
+```
+
+**Return to project directory:**
+```bash
+cd -
+```
+
+**Note:** The central repo uses a simpler workflow (direct commits to main) since it's a private tracking repo. No PRs needed.
 
 ---
 
@@ -569,14 +730,17 @@ EOF
 
 **Scope:** <scope_name>
 **Iteration:** <iteration_name>
+**Build:** <BUILD_NUM>
 
 **Actions Taken:**
 - ✅ Changelog updated: [Unreleased] / [X.Y.Z]
 - ✅ Version files updated: [list files] (release mode only)
 - ✅ Committed: <commit sha>
-- ✅ Tagged: <tag> (beta/release mode only)
+- ✅ Build tagged: `build/<BUILD_NUM>`
+- ✅ Release tagged: <tag> (beta/release mode only)
 - ✅ Pushed to: origin/<branch>
 - ✅ PR created: <PR URL>
+- ✅ Agent process synced to central repo: <central_commit_sha> (if configured)
 
 **Changelog Entry:**
 ```
@@ -605,9 +769,10 @@ EOF
 - Breaking changes get their own section
 
 **Tag conventions:**
-- Release tags: `v1.2.3` (semantic versioning)
-- Beta tags: `v1.2.3-beta.N` (incrementing beta number)
-- Tags are annotated (with message), not lightweight
+- Build tags: `build/N` (monotonically increasing, lightweight)
+- Release tags: `v1.2.3` (semantic versioning, annotated)
+- Beta tags: `v1.2.3-beta.N` (incrementing beta number, annotated)
+- Build tags are lightweight; release/beta tags are annotated (with message)
 
 **PR best practices:**
 - PR title follows conventional commits
@@ -643,15 +808,17 @@ EOF
 /ap_release pr
 ```
 - Adds entry to [Unreleased] in CHANGELOG.md
+- Creates build tag `build/47`
 - Creates PR with changelog in description
-- No version bump, no tag
+- No version bump, no release tag
 
 ### Example 2: Beta release for testing
 ```bash
 /ap_release beta
 ```
 - Moves [Unreleased] to [1.3.0-beta.1] in CHANGELOG.md
-- Creates tag `v1.3.0-beta.1`
+- Creates build tag `build/48`
+- Creates release tag `v1.3.0-beta.1`
 - Creates PR with beta label
 
 ### Example 3: Minor feature release
@@ -660,7 +827,8 @@ EOF
 ```
 - Moves [Unreleased] to [1.3.0] in CHANGELOG.md
 - Updates version files to 1.3.0
-- Creates tag `v1.3.0`
+- Creates build tag `build/49`
+- Creates release tag `v1.3.0`
 - Creates PR with release label
 
 ### Example 4: Hotfix release
@@ -669,7 +837,8 @@ EOF
 ```
 - Moves [Unreleased] to [1.2.4] in CHANGELOG.md
 - Updates version files to 1.2.4
-- Creates tag `v1.2.4`
+- Creates build tag `build/50`
+- Creates release tag `v1.2.4`
 - Creates PR with release label
 
 ---

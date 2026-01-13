@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.0] - 2026-01-13
+
+### Added
+- **Build tags** (`build/N`) for all release modes - monotonically increasing artifact tracking independent of semantic versions
+  - Every `/ap_release` invocation (pr, beta, release) now creates a build tag
+  - Build numbers included in commit messages, PR descriptions, and tag annotations
+  - Enables fast rollbacks and deployment tracking without version lookup
+- **Central repo sync** (Step 9.5) for projects using symlinked `.agent_process/`
+  - New optional `process/ap_release_central_sync.md` configuration file
+  - Automatically syncs changes to central tracking repo after releases
+  - Preserves commit traceability between project and central repos
+- **Installer improvements**
+  - Detects and preserves `.agent_process/` symlinks during re-installation
+  - Prompts for central repo sync configuration during install
+  - Updates templates while preserving user-configured values
+  - All paths now use `$AGENT_PROCESS_DIR` variable for symlink compatibility
+
+### Changed
+- Step 8 renamed from "Create Tag (beta and release modes only)" to "Create Tags" (now applies to all modes)
+- Mode Reference table now shows separate "Creates Build Tag" and "Creates Release Tag" columns
+- Tag conventions updated to distinguish lightweight (build) vs annotated (release/beta) tags
+
+---
+
 ## [1.4.0] - 2026-01-09
 
 ### Added
