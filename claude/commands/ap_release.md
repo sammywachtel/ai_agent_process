@@ -629,12 +629,12 @@ EOF
 
 **Check for sync configuration:**
 ```bash
-ls process/ap_release_central_sync.md 2>/dev/null || echo "No central sync configured"
+ls .agent_process/process/ap_release_central_sync.md 2>/dev/null || echo "No central sync configured"
 ```
 
 **If the file exists, read it for project-specific configuration:**
 ```bash
-cat process/ap_release_central_sync.md
+cat .agent_process/process/ap_release_central_sync.md
 ```
 
 The sync file will contain:
