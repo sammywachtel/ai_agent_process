@@ -19,7 +19,11 @@ argument-hint: pr | beta | release [patch|minor|major]
 
 ## Your Role
 
-You are the release coordinator. Your job: update version files and changelog, commit changes, create tags (if applicable), and create/update the PR. This command runs AFTER scope work is approved by the orchestrator.
+You are the release coordinator. Your job: update version files and changelog, commit changes, create tags (if applicable), and create/update the PR.
+
+**Two context modes:**
+- **Scope mode** (default when scope exists): Reads from `.agent_process/work/` after orchestrator approval
+- **No-scope mode** (automatic fallback): Analyzes git diff when no active scope exists
 
 ---
 
@@ -46,6 +50,16 @@ You are the release coordinator. Your job: update version files and changelog, c
 
 ### Step 1: Gather Context
 
+**First, detect context mode:**
+```bash
+# Check if scope context exists
+ls .agent_process/work/current_iteration.conf 2>/dev/null && echo "SCOPE_MODE" || echo "NO_SCOPE_MODE"
+```
+
+---
+
+#### Step 1A: Scope Mode (if current_iteration.conf exists)
+
 **Read current scope info:**
 ```bash
 cat .agent_process/work/current_iteration.conf
@@ -55,6 +69,7 @@ cat .agent_process/work/current_iteration.conf
 ```
 SCOPE=<scope_name>
 ITERATION=<iteration_name>
+CONTEXT_MODE=scope
 ```
 
 **Read the approved results:**
@@ -72,6 +87,60 @@ ITERATION=<iteration_name>
 - Files that were changed
 - Whether this is a new feature, bug fix, or breaking change
 - Any user-facing behavior changes
+
+**Skip to Step 1.5.**
+
+---
+
+#### Step 1B: No-Scope Mode (if no current_iteration.conf)
+
+**Set context mode:**
+```
+SCOPE=none
+ITERATION=none
+CONTEXT_MODE=no-scope
+```
+
+**Analyze changes from git:**
+```bash
+# Get the default branch name
+DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main")
+
+# Show what's changed vs the default branch
+git diff --stat ${DEFAULT_BRANCH}...HEAD
+
+# Show staged changes if on default branch
+git diff --stat --cached
+
+# Show unstaged changes
+git diff --stat
+```
+
+**Review changed files:**
+```bash
+# List all modified/added files (staged and unstaged)
+git status --short
+```
+
+**Read key changed files to understand the work:**
+- Read modified source files to understand what was implemented
+- Look for patterns: new features, bug fixes, refactoring, documentation
+- Identify user-facing vs internal changes
+
+**Summarize findings:**
+```markdown
+## Changes Detected (No-Scope Mode)
+
+**Files changed:** <count>
+**Change type:** [feature | fix | refactor | docs | chore]
+
+**Summary:**
+- <bullet points describing what changed>
+
+**User-facing:** [Yes/No]
+```
+
+**Note:** Without scope context, changelog entries may need more manual refinement. Review the generated entry carefully.
 
 ---
 
@@ -457,7 +526,9 @@ git status --short
 
 **Commit with conventional message:**
 
-For `pr` mode:
+#### Scope Mode Commits
+
+For `pr` mode (scope):
 ```bash
 git commit -m "$(cat <<'EOF'
 docs(changelog): add entries for <scope>
@@ -469,7 +540,7 @@ EOF
 )"
 ```
 
-For `beta` mode:
+For `beta` mode (scope):
 ```bash
 git commit -m "$(cat <<'EOF'
 chore(release): prepare v1.3.0-beta.1
@@ -481,7 +552,7 @@ EOF
 )"
 ```
 
-For `release` mode:
+For `release` mode (scope):
 ```bash
 git commit -m "$(cat <<'EOF'
 chore(release): release v1.3.0
@@ -490,6 +561,46 @@ chore(release): release v1.3.0
 
 Scope: <scope_name>
 Iteration: <iteration_name>
+Build: <BUILD_NUM>
+EOF
+)"
+```
+
+#### No-Scope Mode Commits
+
+For `pr` mode (no-scope):
+```bash
+git commit -m "$(cat <<'EOF'
+<type>(<area>): <brief description>
+
+- <summary of main changes>
+
+Build: <BUILD_NUM>
+EOF
+)"
+```
+Where `<type>` is: feat, fix, refactor, docs, chore, etc.
+Where `<area>` is derived from changed files (e.g., auth, api, ui).
+
+For `beta` mode (no-scope):
+```bash
+git commit -m "$(cat <<'EOF'
+chore(release): prepare v1.3.0-beta.1
+
+- <summary of main changes>
+
+Build: <BUILD_NUM>
+EOF
+)"
+```
+
+For `release` mode (no-scope):
+```bash
+git commit -m "$(cat <<'EOF'
+chore(release): release v1.3.0
+
+- <summary of main changes>
+
 Build: <BUILD_NUM>
 EOF
 )"
@@ -567,7 +678,9 @@ git push -u origin $(git branch --show-current) "build/${BUILD_NUM}" "v${VERSION
 
 **Create PR:**
 
-For `pr` mode:
+#### Scope Mode PRs
+
+For `pr` mode (scope):
 ```bash
 gh pr create --title "feat(<scope>): <brief description>" --body "$(cat <<'EOF'
 ## Summary
@@ -587,7 +700,66 @@ EOF
 )"
 ```
 
-For `beta` mode:
+For `beta` mode (scope):
+```bash
+gh pr create --title "chore(release): v1.3.0-beta.1" --body "$(cat <<'EOF'
+## Beta Release v1.3.0-beta.1
+
+<changelog entries>
+
+## Testing This Beta
+<instructions for testing if applicable>
+
+---
+Scope: `<scope_name>`
+Tag: `v1.3.0-beta.1`
+Build: `${BUILD_NUM}`
+EOF
+)" --label "beta"
+```
+
+For `release` mode (scope):
+```bash
+gh pr create --title "chore(release): v1.3.0" --body "$(cat <<'EOF'
+## Release v1.3.0
+
+<full changelog section for this version>
+
+## Upgrade Notes
+<any migration or upgrade notes>
+
+---
+Scope: `<scope_name>`
+Tag: `v1.3.0`
+Build: `${BUILD_NUM}`
+EOF
+)" --label "release"
+```
+
+#### No-Scope Mode PRs
+
+For `pr` mode (no-scope):
+```bash
+gh pr create --title "<type>(<area>): <brief description>" --body "$(cat <<'EOF'
+## Summary
+<1-3 bullet points describing changes>
+
+## Changelog Entry
+<show the entry added to CHANGELOG.md>
+
+## Files Changed
+<list key files modified>
+
+## Test Plan
+- [ ] <how to verify the changes work>
+
+---
+Build: `${BUILD_NUM}`
+EOF
+)"
+```
+
+For `beta` mode (no-scope):
 ```bash
 gh pr create --title "chore(release): v1.3.0-beta.1" --body "$(cat <<'EOF'
 ## Beta Release v1.3.0-beta.1
@@ -604,7 +776,7 @@ EOF
 )" --label "beta"
 ```
 
-For `release` mode:
+For `release` mode (no-scope):
 ```bash
 gh pr create --title "chore(release): v1.3.0" --body "$(cat <<'EOF'
 ## Release v1.3.0
@@ -725,9 +897,11 @@ cd -
 
 **Provide summary:**
 
+For scope mode:
 ```markdown
 ## Release Complete: <mode>
 
+**Context:** Scope mode
 **Scope:** <scope_name>
 **Iteration:** <iteration_name>
 **Build:** <BUILD_NUM>
@@ -753,6 +927,36 @@ cd -
 - For `release`: Merge PR, release is complete
 ```
 
+For no-scope mode:
+```markdown
+## Release Complete: <mode>
+
+**Context:** No-scope mode (changes detected from git diff)
+**Build:** <BUILD_NUM>
+
+**Changes Included:**
+- <summary of detected changes>
+
+**Actions Taken:**
+- ✅ Changelog updated: [Unreleased] / [X.Y.Z]
+- ✅ Version files updated: [list files] (release mode only)
+- ✅ Committed: <commit sha>
+- ✅ Build tagged: `build/<BUILD_NUM>`
+- ✅ Release tagged: <tag> (beta/release mode only)
+- ✅ Pushed to: origin/<branch>
+- ✅ PR created: <PR URL>
+
+**Changelog Entry:**
+```
+<show the entry that was added>
+```
+
+**Next Steps:**
+- For `pr`: Merge PR when ready, run `/ap_release release <type>` when ready to ship
+- For `beta`: Share beta tag for testing, run more betas or `/ap_release release` when stable
+- For `release`: Merge PR, release is complete
+```
+
 ---
 
 ## Important Rules
@@ -763,7 +967,8 @@ cd -
 - `release` mode updates both changelog AND version files
 
 **Changelog discipline:**
-- One entry per scope (not per commit)
+- Scope mode: One entry per scope (not per commit)
+- No-scope mode: One cohesive entry per release describing all changes
 - User-facing language (not implementation details)
 - Categorize correctly (Added/Changed/Fixed/etc.)
 - Breaking changes get their own section
