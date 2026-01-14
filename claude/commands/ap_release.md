@@ -1,19 +1,27 @@
 ---
 description: Update changelog, create PR, and optionally tag a release
-argument-hint: pr | beta | release [patch|minor|major]
+argument-hint: [noscope] pr | beta | release [patch|minor|major]
 ---
 
 ## Arguments
 
-**`$1` (mode)** - Required. One of:
+**`$1` (context)** - Optional. Use `noscope` to skip scope context and analyze git diff instead.
+
+**`$1` or `$2` (mode)** - Required. One of:
 - `pr` - Update changelog under [Unreleased], create PR, no tag
 - `beta` - Move [Unreleased] to beta version, create beta tag, create PR
 - `release` - Move [Unreleased] to new version, update version files, tag release
 
-**`$2` (version_type)** - Required for `release` mode only:
+**Last arg (version_type)** - Required for `release` mode only:
 - `patch` - Bug fixes (1.0.0 → 1.0.1)
 - `minor` - New features (1.0.0 → 1.1.0)
 - `major` - Breaking changes (1.0.0 → 2.0.0)
+
+**Examples:**
+- `/ap_release pr` - Scope mode, PR only
+- `/ap_release noscope pr` - No-scope mode, PR only
+- `/ap_release release minor` - Scope mode, minor release
+- `/ap_release noscope release patch` - No-scope mode, patch release
 
 ---
 
@@ -22,8 +30,8 @@ argument-hint: pr | beta | release [patch|minor|major]
 You are the release coordinator. Your job: update version files and changelog, commit changes, create tags (if applicable), and create/update the PR.
 
 **Two context modes:**
-- **Scope mode** (default when scope exists): Reads from `.agent_process/work/` after orchestrator approval
-- **No-scope mode** (automatic fallback): Analyzes git diff when no active scope exists
+- **Scope mode** (default): Reads from `.agent_process/work/` after orchestrator approval
+- **No-scope mode** (use `noscope` arg): Analyzes git diff for ad-hoc releases
 
 ---
 
@@ -50,15 +58,25 @@ You are the release coordinator. Your job: update version files and changelog, c
 
 ### Step 1: Gather Context
 
-**First, detect context mode:**
-```bash
-# Check if scope context exists
-ls .agent_process/work/current_iteration.conf 2>/dev/null && echo "SCOPE_MODE" || echo "NO_SCOPE_MODE"
+**First, check arguments for context mode:**
+
+If `$1` is `noscope`:
+```
+CONTEXT_MODE=no-scope
+MODE=$2
+VERSION_TYPE=$3  # if MODE is "release"
+```
+
+Otherwise (default):
+```
+CONTEXT_MODE=scope
+MODE=$1
+VERSION_TYPE=$2  # if MODE is "release"
 ```
 
 ---
 
-#### Step 1A: Scope Mode (if current_iteration.conf exists)
+#### Step 1A: Scope Mode (default, no `noscope` argument)
 
 **Read current scope info:**
 ```bash
@@ -92,7 +110,7 @@ CONTEXT_MODE=scope
 
 ---
 
-#### Step 1B: No-Scope Mode (if no current_iteration.conf)
+#### Step 1B: No-Scope Mode (when `noscope` argument provided)
 
 **Set context mode:**
 ```
