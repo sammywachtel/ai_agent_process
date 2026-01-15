@@ -189,6 +189,12 @@ mkdir -p "$AGENT_PROCESS_DIR/claude"
 cp -r "$SOURCE_DIR"/claude/* "$AGENT_PROCESS_DIR/claude/"
 echo -e "${GREEN}  ✓${NC} Installed documentation files"
 
+# Copy main README to .agent_process/
+if [[ -f "$SOURCE_DIR/README.md" ]]; then
+  cp "$SOURCE_DIR/README.md" "$AGENT_PROCESS_DIR/"
+  echo -e "${GREEN}  ✓${NC} Installed README.md"
+fi
+
 # Central Repo Sync Configuration
 echo ""
 echo -e "${BLUE}▸${NC} Central repository sync configuration..."
