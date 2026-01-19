@@ -236,10 +236,10 @@ EXISTING_CENTRAL_REPO_PATH=""
 EXISTING_PROJECT_FOLDER=""
 
 if [[ -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" ]]; then
-  # Extract existing values (with error handling for set -e)
-  EXISTING_ENABLED=$(grep "ENABLED:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" 2>/dev/null | sed 's/ENABLED: *//' | tr -d ' ') || true
-  EXISTING_CENTRAL_REPO_PATH=$(grep "CENTRAL_REPO_PATH:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" 2>/dev/null | sed 's/CENTRAL_REPO_PATH: *//' | tr -d ' ') || true
-  EXISTING_PROJECT_FOLDER=$(grep "PROJECT_FOLDER:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" 2>/dev/null | sed 's/PROJECT_FOLDER: *//' | tr -d ' ') || true
+  # Extract existing values (only look in first 20 lines to avoid matching docs)
+  EXISTING_ENABLED=$(head -20 "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" 2>/dev/null | grep "^ENABLED:" | sed 's/ENABLED: *//' | tr -d ' ') || true
+  EXISTING_CENTRAL_REPO_PATH=$(head -20 "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" 2>/dev/null | grep "^CENTRAL_REPO_PATH:" | sed 's/CENTRAL_REPO_PATH: *//' | tr -d ' ') || true
+  EXISTING_PROJECT_FOLDER=$(head -20 "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" 2>/dev/null | grep "^PROJECT_FOLDER:" | sed 's/PROJECT_FOLDER: *//' | tr -d ' ') || true
 
   # Check if this is the old format (no ENABLED field but has real paths)
   if [[ -z "$EXISTING_ENABLED" && -n "$EXISTING_CENTRAL_REPO_PATH" && "$EXISTING_CENTRAL_REPO_PATH" != "<CENTRAL_REPO_PATH>" && "$EXISTING_CENTRAL_REPO_PATH" != "<not_configured>" ]]; then
@@ -301,12 +301,22 @@ if [[ -z "$EXISTING_ENABLED" ]]; then
 
   if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo ""
-    read -p "  Central repo path (e.g., ~/PycharmProjects/agent-process-central): " CENTRAL_REPO_PATH
+
+    # Prompt for central repo path (required)
+    while [[ -z "$CENTRAL_REPO_PATH" ]]; do
+      read -p "  Central repo path (e.g., ~/PycharmProjects/agent-process-central): " CENTRAL_REPO_PATH
+      if [[ -z "$CENTRAL_REPO_PATH" ]]; then
+        echo -e "  ${RED}Error: Central repo path is required${NC}"
+      fi
+    done
 
     # Get project folder name - default to target directory name
     DEFAULT_PROJECT_FOLDER="$(basename "$TARGET_DIR")"
     read -p "  Project folder name in central repo [$DEFAULT_PROJECT_FOLDER]: " PROJECT_FOLDER
     PROJECT_FOLDER="${PROJECT_FOLDER:-$DEFAULT_PROJECT_FOLDER}"
+
+    # Expand tilde in path (store as-is with tilde for portability)
+    # Note: We keep the tilde in the config for portability across machines
 
     # Copy template and substitute values - ENABLED: true
     cp "$SOURCE_DIR/process/ap_release_central_sync.md" "$AGENT_PROCESS_DIR/process/"
@@ -360,8 +370,8 @@ echo -e "     • Create ${GREEN}scripts/after_edit/validate-my_feature.sh${NC}"
 echo -e "     • Make executable: ${BLUE}chmod +x scripts/after_edit/validate-my_feature.sh${NC}"
 echo ""
 if [[ -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" ]]; then
-  # Check if central sync is enabled
-  SYNC_ENABLED=$(grep "ENABLED:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" | sed 's/ENABLED: *//' | tr -d ' ')
+  # Check if central sync is enabled (only look in first 20 lines to avoid matching docs)
+  SYNC_ENABLED=$(head -20 "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" | grep "^ENABLED:" | sed 's/ENABLED: *//' | tr -d ' ')
 
   if [[ "$SYNC_ENABLED" == "true" ]]; then
     echo -e "  ${GREEN}✓${NC} Central repo sync: ${GREEN}enabled${NC}"
@@ -369,9 +379,9 @@ if [[ -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" ]]; then
 
     # Check if .agent_process is a symlink (central repo setup)
     if [[ "$AGENT_PROCESS_IS_SYMLINK" == true ]]; then
-      # Read central repo path from config
-      CENTRAL_PATH=$(grep "CENTRAL_REPO_PATH:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" | sed 's/CENTRAL_REPO_PATH: *//' | tr -d ' ')
-      PROJECT_FOLDER=$(grep "PROJECT_FOLDER:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" | sed 's/PROJECT_FOLDER: *//' | tr -d ' ')
+      # Read central repo path from config (only look in first 20 lines)
+      CENTRAL_PATH=$(head -20 "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" | grep "^CENTRAL_REPO_PATH:" | sed 's/CENTRAL_REPO_PATH: *//' | tr -d ' ')
+      PROJECT_FOLDER=$(head -20 "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" | grep "^PROJECT_FOLDER:" | sed 's/PROJECT_FOLDER: *//' | tr -d ' ')
 
       if [[ -n "$CENTRAL_PATH" && "$CENTRAL_PATH" != "<CENTRAL_REPO_PATH>" && "$CENTRAL_PATH" != "<not_configured>" ]]; then
         echo ""
@@ -380,7 +390,7 @@ if [[ -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" ]]; then
         echo ""
         echo -e "     ${BLUE}cd $CENTRAL_PATH${NC}"
         echo -e "     ${BLUE}git add $PROJECT_FOLDER/${NC}"
-        echo -e "     ${BLUE}git commit -m \"chore($PROJECT_FOLDER): update to ai_agent_process v$(cat VERSION)\"${NC}"
+        echo -e "     ${BLUE}git commit -m \"chore($PROJECT_FOLDER): update to ai_agent_process v$(cat "$SOURCE_DIR/VERSION")\"${NC}"
         echo -e "     ${BLUE}git push origin main${NC}"
         echo -e "     ${BLUE}cd -${NC}"
         echo ""
