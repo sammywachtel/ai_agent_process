@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.1.5] - 2026-01-19
+
+### Fixed
+- **Config value extraction** in install.sh final status message
+  - Now uses `head -20 | grep "^FIELD:"` to only match configuration block
+  - Prevents false matches in documentation sections
+  - Correctly displays "Central repo sync: enabled" when configured
+- **Empty path validation** when configuring central repo sync
+  - Prompt now loops until user provides a valid path
+  - Prevents silent failures from empty CENTRAL_REPO_PATH values
+- **VERSION file path** in central repo sync instructions
+  - Fixed reference to use `$SOURCE_DIR/VERSION` instead of bare `VERSION`
+
+### Technical Details
+The extraction logic was matching ALL lines containing field names, including
+documentation. Changed from:
+```bash
+grep "ENABLED:"  # Matches everywhere
+```
+To:
+```bash
+head -20 | grep "^ENABLED:"  # Only config block
+```
+
+---
+
 ## [3.1.4] - 2026-01-19
 
 ### Fixed
