@@ -7,7 +7,7 @@ argument-hint: [scope] [iteration]
 
 **`$1` (scope)** - Required. Scope folder name under `.agent_process/work/`.
 
-**`$2` (iteration)** - Required. Iteration folder name (e.g., `iteration_01`, `iteration_01_a`).
+**`$2` (iteration)** - Required. Iteration folder name (e.g., `iteration_01`, `iteration_01_a`, `iteration_02`, `iteration_02_a`).
 
 ---
 
@@ -59,6 +59,9 @@ Sub-iterations focus on specific fixes from orchestrator review. Load these addi
    - iteration_01_a → read iteration_01/results.md
    - iteration_01_b → read iteration_01_a/results.md
    - iteration_01_c → read iteration_01_b/results.md
+   - iteration_02_a → read iteration_02/results.md
+   - iteration_02_b → read iteration_02_a/results.md
+   - (and so on for iteration_03, etc.)
 
    **Extract:**
    - What was already implemented (don't break these parts)
@@ -285,7 +288,7 @@ Report completion status when done, including:
 })
 ```
 
-**For sub-iterations (iteration_01_a/b/c):**
+**For sub-iterations (iteration_NN_a/b/c):**
 
 ```typescript
 // Example Task call:
@@ -605,10 +608,11 @@ This command will:
 - Cannot add new requirements mid-iteration
 - Follow Technical Assessment guidance exactly
 
-**Iteration budget:**
-- This is attempt {iteration} (e.g., iteration_01, iteration_01_a)
-- Maximum 3 sub-iterations (a/b/c) before escalation
-- If you're on iteration_01_c, this is the final attempt
+**Iteration model (two-level):**
+- **Major iterations** (01, 02, 03): Created via PIVOT when criteria need to change
+- **Sub-iterations** (_a, _b, _c): Created via ITERATE for minor fixes within same criteria
+- Maximum 3 sub-iterations per major iteration before PIVOT or BLOCK
+- Example progression: iteration_01 → _a → _b → PIVOT → iteration_02 → _a → ...
 
 ---
 

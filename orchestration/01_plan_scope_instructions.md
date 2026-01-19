@@ -125,7 +125,7 @@ Outcome: Shippable feature or measurable improvement
 1. **Objective:** What specific outcome should this scope achieve? (one sentence)
 2. **Success criteria:** How will we know when it's done? (measurable test/demo)
 3. **Boundaries:** What's explicitly out of scope?
-4. **Priority:** What's the relative importance (high/medium/low)?
+4. **Priority:** What's the relative importance (CRITICAL/HIGH/MEDIUM/LOW)?
 5. **Risk:** Any known blockers or dependencies?
 
 **Red flags that scope is too large:**
@@ -555,13 +555,20 @@ This script may need updates during the scope lifecycle:
 **Implementation Guidance:**
 [Specific guidance on patterns to follow, pitfalls to avoid, best practices to apply - incorporate CLAUDE.md conventions]
 
-## Iteration Budget (ENFORCED)
-- iteration_01: First attempt
-- iteration_01_a: First revision (if needed)
-- iteration_01_b: Second revision (if needed)
-- iteration_01_c: Final attempt (if needed)
+## Iteration Model
 
-After iteration_01_c → Escalate to human (ship/pivot/abort)
+- **Major iterations (01, 02, 03):** For criteria changes after PIVOT
+- **Sub-iterations (_a, _b, _c):** For minor fixes within same criteria
+- Max 3 sub-iterations per major iteration
+- PIVOT can happen at any point when criteria need change
+- Human approves PIVOT before new iteration created
+
+## Criteria History
+
+### v1 (iteration_01)
+[Criteria from "Acceptance Criteria" section above - LOCKED for 01 and sub-iterations]
+
+*(Orchestrator adds v2, v3 sections here if PIVOT creates new iterations)*
 
 ## Files in Scope
 [List from Step 4]
@@ -590,7 +597,7 @@ After iteration_01_c → Escalate to human (ship/pivot/abort)
 
 ## Time Budget
 - Target: 2-4 hours implementation per iteration
-- Maximum: 1-2 weeks total
+- Maximum: 1-3 weeks total (allows for multiple iterations if needed)
 - After time exceeded: Escalate to human
 
 ## Success Metrics
@@ -629,7 +636,57 @@ EOF
 
 ---
 
-### Step 11: Summarize for Hand-off
+### Step 11: Update Roadmap (if exists)
+
+**Check if roadmap exists:**
+```bash
+ls .agent_process/roadmap/master_roadmap.md 2>/dev/null
+```
+
+**If roadmap exists, update it to reflect the new work scope:**
+
+#### 11.1: Update Work Scope Count
+
+Find the requirement row in "Requirements by Category" section and increment work scope count:
+
+```markdown
+# Before:
+| 📋 | HIGH | Requirements – Save State and Navigation Bugs | 0 |
+
+# After:
+| 🚧 | HIGH | Requirements – Save State and Navigation Bugs | 1 |
+```
+
+**Note:** Status changes from 📋 (Not Started) to 🚧 (In Progress) because work has been scoped.
+
+#### 11.2: Add to Active Work Section
+
+Add row to "Active Work (In Progress)" table:
+
+```markdown
+| <requirement_id> | <category> | 1 |
+```
+
+#### 11.3: Update Summary Statistics
+
+In the header and Status Summary table:
+- Decrement "Not Started" count (if was 📋)
+- Increment "In Progress" count
+- Recalculate category completion percentage
+
+#### 11.4: Update Timestamp
+
+Update the "Last Updated" timestamp in the header.
+
+**Why this matters:**
+- Roadmap reflects actual project state
+- Work scope count enables progress tracking
+- Status change shows requirement is actively being worked
+- See `.agent_process/process/roadmap_update.md` for update procedures
+
+---
+
+### Step 12: Summarize for Hand-off
 
 **Provide this summary to human:**
 
@@ -640,7 +697,7 @@ EOF
 
 **Acceptance Criteria (LOCKED):** [Summary]
 
-**Iteration Budget:** Max 3 sub-iterations before escalation
+**Iteration Model:** Major iterations (01, 02, 03) for criteria changes; sub-iterations (_a, _b, _c) for fixes
 
 **Files in Scope:** [Count] files
 
@@ -648,7 +705,7 @@ EOF
 
 **Pre-existing Issues:** [Count] documented, won't block progress
 
-**Time Budget:** Target 1-2 weeks
+**Time Budget:** Target 1-3 weeks (allows for multiple iterations)
 
 **Next Step:** Human approval, then implementation session runs `/ap_exec <scope_name> iteration_01`
 ```
@@ -662,13 +719,14 @@ EOF
 - [ ] Scope name is specific (not "cleanup" or "improve")
 - [ ] Objective fits in one sentence
 - [ ] Acceptance criteria are 3-7 specific, testable items
-- [ ] Criteria marked as LOCKED (cannot change)
+- [ ] Criteria marked as LOCKED (frozen within each iteration)
 - [ ] Files in scope explicitly listed (4-10 files)
 - [ ] Scoped validation script created and executable
 - [ ] Pre-existing issues documented (won't block iterations)
 - [ ] iteration_plan.md created with all sections
 - [ ] iteration_01/ placeholder created
 - [ ] current_iteration.conf updated
+- [ ] Roadmap updated (if exists): work scope count, status, Active Work section
 - [ ] Human approved scope before execution
 
 ---

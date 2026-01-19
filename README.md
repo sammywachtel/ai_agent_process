@@ -1,8 +1,8 @@
 # AI Agent Process Template
 
-A structured workflow template for AI-powered development with Claude Code, featuring iteration budgets, frozen criteria, and scoped validation.
+A structured workflow template for AI-powered development with Claude Code, featuring two-level iteration model, frozen-within-iteration criteria, and scoped validation.
 
-**Philosophy:** Ship pragmatically, iterate deliberately, converge forcefully.
+**Philosophy:** Ship pragmatically, iterate deliberately, pivot when you learn.
 
 ---
 
@@ -18,8 +18,8 @@ A structured workflow template for AI-powered development with Claude Code, feat
 ## What This Template Provides
 
 ### Core Workflow
-- **Iteration Budgets:** Max 3 sub-iterations before human escalation
-- **Frozen Criteria:** Acceptance criteria locked at iteration start
+- **Two-Level Iterations:** Major iterations (01, 02, 03) for criteria changes; sub-iterations (_a, _b, _c) for fixes
+- **Frozen-Within-Iteration Criteria:** Criteria locked during iteration, changeable between iterations via PIVOT
 - **Scoped Validation:** Only test files in scope, not entire codebase
 - **4-Choice Framework:** APPROVE/ITERATE/BLOCK/PIVOT decisions
 
@@ -65,22 +65,32 @@ Run `/ap_exec <scope> <iteration>` to:
 
 ### 4. Review Results
 Use `orchestration/02_review_iteration_prompt.md` to:
-- Review against original criteria
+- Review against current criteria version
 - Make APPROVE/ITERATE/BLOCK/PIVOT decision
-- Enforce iteration budget (max 3 sub-iterations)
+- PIVOT when criteria need changing (creates iteration_02, etc.)
 
 ---
 
 ## Core Principles
 
-### Iteration Budget Enforcement
+### Two-Level Iteration Model
 ```
-iteration_01    → First attempt
-iteration_01_a  → First revision
-iteration_01_b  → Second revision
-iteration_01_c  → Final attempt
-                → MUST escalate to human after this
+Major iterations (criteria changes via PIVOT):
+  iteration_01  → Initial criteria (v1)
+  iteration_02  → Revised criteria (v2) after PIVOT
+  iteration_03  → Further revision (v3) if needed
+
+Sub-iterations (fixes within same criteria via ITERATE):
+  iteration_01_a/b/c  → Fix attempts for v1 criteria
+  iteration_02_a/b/c  → Fix attempts for v2 criteria
+
+Example progression:
+  01 → 01_a → 01_b → PIVOT → 02 → 02_a → APPROVE
 ```
+
+**PIVOT** creates new major iteration (learning-driven, not failure-driven)
+**ITERATE** creates sub-iteration (same criteria, specific fixes)
+**Max 3 sub-iterations** per major iteration before PIVOT or BLOCK
 
 ### Scoped Validation
 Only validate files you changed, not the entire codebase:
@@ -94,9 +104,10 @@ npm run typecheck  # Fails on 89 unrelated errors
 npm test           # Fails on 10 unrelated tests
 ```
 
-### Frozen Criteria
-- Acceptance criteria locked at iteration start
-- No new requirements during execution
+### Frozen-Within-Iteration Criteria
+- Acceptance criteria locked within each major iteration
+- No new requirements during execution (use backlog)
+- PIVOT allows criteria revision between major iterations
 - Document pre-existing issues once in iteration plan
 - Focus on objectives, not perfection
 
@@ -105,13 +116,14 @@ npm test           # Fails on 10 unrelated tests
 ## Success Metrics
 
 **Healthy Process:**
-- Average 1-3 iterations per scope
-- 0-2 sub-iterations per iteration
+- 1-3 major iterations per scope (PIVOTs indicate learning, not failure)
+- 0-2 sub-iterations per major iteration
 - >80% scope completion rate
-- 1-2 week completion time
+- 1-3 week completion time
 
-**Broken Process:**
-- Infinite sub-iterations (iteration_01_a → iteration_01_z)
+**Warning Signs:**
+- >3 sub-iterations on same criteria (should PIVOT or BLOCK)
+- PIVOTs without clear criteria changes (misusing the mechanism)
 - <20% scope completion rate
 - Indefinite completion time
 
@@ -143,4 +155,4 @@ This is a personal template. Feel free to fork and customize for your needs!
 
 ---
 
-**Philosophy:** Ship pragmatically, iterate deliberately, converge forcefully.
+**Philosophy:** Ship pragmatically, iterate deliberately, pivot when you learn.

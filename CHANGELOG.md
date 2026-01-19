@@ -9,6 +9,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.1.0] - 2026-01-19
+
+### Changed
+- **Orchestration planning integration** with roadmap system
+  - Step 11 added to planning workflow: automatic roadmap update when scoping new work
+  - Updates work scope count, status (📋→🚧), and Active Work section
+  - Ensures roadmap stays synchronized with actual development activity
+- **Iteration model clarification** in planning instructions
+  - Renamed "Iteration Budget" to "Iteration Model" for clarity
+  - Added explicit distinction between major iterations (for PIVOT) and sub-iterations (for fixes)
+  - Documented human approval requirement for PIVOT decisions
+- **Criteria history tracking** in iteration plans
+  - Added "Criteria History" section to track v1, v2, v3 criteria across PIVOTs
+  - Locked criteria versions make it clear what changed between iterations
+- **Priority value standardization**
+  - Updated from lowercase (high/medium/low) to uppercase (CRITICAL/HIGH/MEDIUM/LOW)
+  - Matches roadmap system priority format
+- **Extended time budget** in planning template
+  - Changed from "1-2 weeks total" to "1-3 weeks total"
+  - Accommodates multiple iterations and PIVOT cycles
+
+### Fixed
+- Planning workflow now references roadmap update procedures when roadmap exists
+- Checklist in prompt includes roadmap update step
+
+---
+
+## [3.0.0] - 2026-01-18
+
+### Added
+- **Roadmap Management System** - comprehensive project visibility and status tracking
+  - New `/ap_project` command with 10 actions: init, discover, status, set-status, archive, add-todo, add-requirement, sync, report, help
+  - Automated project discovery scans `requirements_docs/` and `work/` to build roadmap
+  - Live completion metrics with category breakdown (e.g., "86.1% complete, 68/79 requirements")
+  - Smart requirement matching using frontmatter IDs, manual mappings, and fuzzy matching
+  - Structured backlog system with prioritized work queue and acceptance criteria
+  - Status tracking: ✅ Complete | 🚧 In Progress | ❌ Blocked | 📋 Not Started
+  - Consolidated `master_roadmap.md` format (replaces separate work_scope_details.md and phase_status.md)
+  - Configuration file (`.roadmap_config.json`) for project-specific mappings and status markers
+  - Audit trail support (`.roadmap_audit.jsonl`) for status change history
+  - Stakeholder reporting (executive, detailed, weekly formats)
+
+- **Process Documentation** - comprehensive roadmap system guides
+  - `process/naming_conventions.md` - single source of truth for requirement IDs, filenames, categories
+  - `process/roadmap_discovery.md` - automated discovery process and matching algorithms
+  - `process/roadmap_schema.md` - roadmap file format specification and structure
+  - `process/roadmap_update.md` - update procedures and workflow guidance
+
+### Changed
+- **Philosophy update**: "Ship pragmatically, iterate deliberately, **pivot when you learn**" (was "converge forcefully")
+- **Two-level iteration model** clarified in README
+  - Major iterations (01, 02, 03) for criteria changes via PIVOT
+  - Sub-iterations (_a, _b, _c) for fixes within same criteria via ITERATE
+  - Max 3 sub-iterations per major iteration before PIVOT or BLOCK
+- **`/ap_exec` command** updated with iteration_02+ examples for clarity
+- **README.md** restructured with:
+  - Two-level iteration model explanation
+  - Success metrics section
+  - Updated documentation references
+  - Clearer PIVOT vs ITERATE guidance
+
+### Breaking Changes
+- Roadmap files now use consolidated format (single `master_roadmap.md` instead of separate files)
+- Projects using old roadmap format should run `/ap_project discover` to migrate to new structure
+- Status markers standardized to: `**Status:** COMPLETE`, `**Status:** BLOCKED`, `**Status:** IN_PROGRESS`, `**Status:** FAILED`
+
+### Deprecated
+- Separate `work_scope_details.md` and `phase_status.md` files (consolidated into `master_roadmap.md`)
+- Discovery-based status marker detection (now uses standardized markers)
+
+---
+
 ## [2.0.0] - 2026-01-13
 
 ### Added

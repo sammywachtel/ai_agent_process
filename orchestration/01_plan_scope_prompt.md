@@ -101,6 +101,7 @@ Following the detailed instructions:
 - Create scoped validation script (use Write tool, then Bash to chmod +x)
 - Create `iteration_01/` placeholder (use Bash and Write tools)
 - Update current iteration config (use Write tool)
+- Update roadmap if it exists: increment work scope count, change status 📋→🚧, add to Active Work section
 
 ### Step 12: Provide Handoff Summary
 Summarize scope for human approval using this template:
