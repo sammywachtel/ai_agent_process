@@ -64,8 +64,8 @@ fi
 echo ""
 
 # Verify source directory has required structure
-if [[ ! -d "$SOURCE_DIR/.claude/commands" ]]; then
-  echo -e "${RED}Error: Source directory missing .claude/commands/${NC}"
+if [[ ! -d "$SOURCE_DIR/claude/commands" ]]; then
+  echo -e "${RED}Error: Source directory missing claude/commands/${NC}"
   echo "Are you running this from the AI Agent Process template directory?"
   exit 1
 fi
@@ -84,12 +84,14 @@ if [[ "$AGENT_PROCESS_IS_SYMLINK" == true ]]; then
   mkdir -p "$AGENT_PROCESS_DIR/scripts/after_edit"
   mkdir -p "$AGENT_PROCESS_DIR/templates"
   mkdir -p "$AGENT_PROCESS_DIR/requirements_docs"
+  mkdir -p "$AGENT_PROCESS_DIR/claude/commands"
 else
   mkdir -p "$AGENT_PROCESS_DIR/orchestration"
   mkdir -p "$AGENT_PROCESS_DIR/process"
   mkdir -p "$AGENT_PROCESS_DIR/scripts/after_edit"
   mkdir -p "$AGENT_PROCESS_DIR/templates"
   mkdir -p "$AGENT_PROCESS_DIR/requirements_docs"
+  mkdir -p "$AGENT_PROCESS_DIR/claude/commands"
 fi
 
 # Only create work/ if it doesn't exist (preserve existing work)
@@ -104,11 +106,43 @@ fi
 echo ""
 echo -e "${BLUE}▸${NC} Installing Claude Code commands..."
 
-for cmd_file in "$SOURCE_DIR"/.claude/commands/*.md; do
+# Copy actual command files to .claude/commands/ (where Claude Code looks)
+for cmd_file in "$SOURCE_DIR"/claude/commands/*.md; do
   if [[ -f "$cmd_file" ]]; then
     filename="$(basename "$cmd_file")"
-    cp "$cmd_file" "$TARGET_DIR/.claude/commands/$filename"
-    echo -e "${GREEN}  ✓${NC} Installed command: $filename"
+    # Skip README.md - it's a placeholder for .agent_process/claude/commands/
+    if [[ "$filename" != "README.md" ]]; then
+      cp "$cmd_file" "$TARGET_DIR/.claude/commands/$filename"
+      echo -e "${GREEN}  ✓${NC} Installed command: $filename"
+    fi
+  fi
+done
+
+# Clean up old command files from .agent_process/claude/commands/ (from previous installs)
+# These should only be in .claude/commands/ now
+if [[ -d "$AGENT_PROCESS_DIR/claude/commands" ]]; then
+  REMOVED_COUNT=0
+  for old_cmd in "$AGENT_PROCESS_DIR"/claude/commands/ap_*.md; do
+    if [[ -f "$old_cmd" ]]; then
+      rm -f "$old_cmd"
+      REMOVED_COUNT=$((REMOVED_COUNT + 1))
+    fi
+  done
+  if [[ $REMOVED_COUNT -gt 0 ]]; then
+    echo -e "${YELLOW}  ⊙${NC} Removed $REMOVED_COUNT duplicate command files from .agent_process/claude/commands/"
+  fi
+fi
+
+# Copy placeholder README to .agent_process/claude/commands/
+if [[ -f "$SOURCE_DIR/claude/commands/README.md" ]]; then
+  cp "$SOURCE_DIR/claude/commands/README.md" "$AGENT_PROCESS_DIR/claude/commands/"
+  echo -e "${GREEN}  ✓${NC} Installed command reference in .agent_process/claude/commands/"
+fi
+
+# Copy documentation files to .agent_process/claude/
+for doc_file in "$SOURCE_DIR"/claude/*.md; do
+  if [[ -f "$doc_file" ]]; then
+    cp "$doc_file" "$AGENT_PROCESS_DIR/claude/"
   fi
 done
 
@@ -181,13 +215,10 @@ if [[ ! -f "$AGENT_PROCESS_DIR/work/current_iteration.conf.template" ]]; then
   fi
 fi
 
-# Copy documentation to .agent_process/claude/
+# Documentation files are already installed above (commands.md, hooks.md, README.md)
 echo ""
 echo -e "${BLUE}▸${NC} Installing documentation..."
-
-mkdir -p "$AGENT_PROCESS_DIR/claude"
-cp -r "$SOURCE_DIR"/claude/* "$AGENT_PROCESS_DIR/claude/"
-echo -e "${GREEN}  ✓${NC} Installed documentation files"
+echo -e "${GREEN}  ✓${NC} Installed documentation files
 
 # Copy main README to .agent_process/
 if [[ -f "$SOURCE_DIR/README.md" ]]; then
