@@ -815,21 +815,28 @@ EOF
 
 ### Step 9.5: Sync Agent Process Central Repo (OPTIONAL)
 
-**This step is OPTIONAL** - only execute if a central repo sync file exists in the project.
+**This step is OPTIONAL** - only execute if central repo sync is enabled.
 
-**Check for sync configuration:**
+**Check if sync is enabled:**
 ```bash
-ls .agent_process/process/ap_release_central_sync.md 2>/dev/null || echo "No central sync configured"
-```
-
-**If the file exists, read it for project-specific configuration:**
-```bash
-cat .agent_process/process/ap_release_central_sync.md
+cat .agent_process/process/ap_release_central_sync.md | grep "ENABLED:"
 ```
 
 The sync file will contain:
-- `CENTRAL_REPO_PATH`: Path to the central repository
-- `PROJECT_FOLDER`: This project's folder name in the central repo
+- `ENABLED: true` or `ENABLED: false`
+- `CENTRAL_REPO_PATH`: Path to the central repository (if enabled)
+- `PROJECT_FOLDER`: This project's folder name in the central repo (if enabled)
+
+**If `ENABLED: false`, skip to Step 10.** This project manages `.agent_process/` locally.
+
+**If `ENABLED: true`, proceed with sync:**
+
+Read configuration:
+```bash
+ENABLED=$(grep "ENABLED:" .agent_process/process/ap_release_central_sync.md | sed 's/ENABLED: *//' | tr -d ' ')
+CENTRAL_REPO_PATH=$(grep "CENTRAL_REPO_PATH:" .agent_process/process/ap_release_central_sync.md | sed 's/CENTRAL_REPO_PATH: *//' | tr -d ' ')
+PROJECT_FOLDER=$(grep "PROJECT_FOLDER:" .agent_process/process/ap_release_central_sync.md | sed 's/PROJECT_FOLDER: *//' | tr -d ' ')
+```
 
 **Background:** When `.agent_process` is a symlink to the central repo, changes made during scope work are already in the central repo's working directory. We just need to commit and push them.
 

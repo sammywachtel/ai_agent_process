@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.1.2] - 2026-01-19
+
+### Changed
+- **Central sync config now always created** for consistency
+  - `process/ap_release_central_sync.md` created in all projects (not just enabled ones)
+  - File uses `ENABLED: true` or `ENABLED: false` to control behavior
+  - Makes configuration explicit rather than implicit (missing file = disabled)
+  - Clearer documentation with enabled/disabled states explained
+- **Updated `/ap_release` Step 9.5** to check `ENABLED:` field instead of file existence
+- **Updated `install.sh`** to always create config file with appropriate state
+
+### Benefits
+- More consistent installation across all projects
+- Explicit opt-out instead of implicit (no file = no sync)
+- Configuration file documents itself (disabled state is self-explanatory)
+- Easier for users to understand and modify sync behavior
+
+---
+
 ## [3.1.1] - 2026-01-19
 
 ### Fixed

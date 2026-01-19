@@ -2,22 +2,29 @@
 
 This file configures syncing `.agent_process` changes to a central repository after releases.
 
-**This step is OPTIONAL** - the `/ap_release` command checks for this file and only executes the sync if it exists.
+The `/ap_release` command (Step 9.5) reads this file to determine sync behavior.
 
 ---
 
 ## Configuration
 
 ```
+ENABLED: <ENABLED>
 CENTRAL_REPO_PATH: <CENTRAL_REPO_PATH>
 PROJECT_FOLDER: <PROJECT_FOLDER>
 ```
+
+**Values:**
+- `ENABLED: true` - Central repo sync is active
+- `ENABLED: false` - Central repo sync is disabled (this project does not use central sync)
 
 ---
 
 ## How It Works
 
-When this file exists, `/ap_release` (Step 9.5) will:
+### When ENABLED: true
+
+The `/ap_release` command (Step 9.5) will:
 
 1. Navigate to `CENTRAL_REPO_PATH`
 2. Check for changes in `PROJECT_FOLDER/` (subdirectory of central repo)
@@ -36,14 +43,32 @@ CENTRAL_REPO_PATH/
 
 The project's `.agent_process/` symlinks directly to `CENTRAL_REPO_PATH/PROJECT_FOLDER/`.
 
-See `ap_release.md` Step 9.5 for full details.
+### When ENABLED: false
+
+The `/ap_release` command (Step 9.5) will skip all sync steps.
+
+This project manages `.agent_process/` locally within the project repository.
 
 ---
 
 ## Setup
 
-This file is typically created during installation when you answer "yes" to central repo sync.
+This file is created during installation:
+- **Central sync enabled:** Set `ENABLED: true` and provide paths
+- **Central sync disabled:** Set `ENABLED: false` (default for most projects)
 
-To manually configure:
-1. Replace `<CENTRAL_REPO_PATH>` with your central repo path (e.g., `~/repos/agent-process-central`)
-2. Replace `<PROJECT_FOLDER>` with this project's folder name in the central repo
+### To enable central sync manually:
+
+1. Set `ENABLED: true`
+2. Replace `<CENTRAL_REPO_PATH>` with your central repo path (e.g., `~/repos/agent-process-central`)
+3. Replace `<PROJECT_FOLDER>` with this project's folder name in the central repo
+4. Create symlink: `ln -s $CENTRAL_REPO_PATH/$PROJECT_FOLDER .agent_process`
+
+### To disable central sync:
+
+1. Set `ENABLED: false`
+2. The other fields will be ignored
+
+---
+
+See `claude/commands/ap_release.md` Step 9.5 for full release integration details.

@@ -119,13 +119,13 @@ echo -e "${BLUE}▸${NC} Installing orchestration files..."
 cp -r "$SOURCE_DIR"/orchestration/* "$AGENT_PROCESS_DIR/orchestration/"
 echo -e "${GREEN}  ✓${NC} Installed $(find "$SOURCE_DIR/orchestration" -type f | wc -l | tr -d ' ') orchestration files"
 
-# Install process files (excluding central sync config - handled separately)
+# Install process files (excluding central sync config - configured separately below)
 echo ""
 echo -e "${BLUE}▸${NC} Installing process files..."
 
 for process_file in "$SOURCE_DIR"/process/*; do
   filename="$(basename "$process_file")"
-  # Skip the central sync config - it's handled by user prompt
+  # Skip the central sync config - it's configured with user prompts below
   if [[ "$filename" != "ap_release_central_sync.md" ]]; then
     cp "$process_file" "$AGENT_PROCESS_DIR/process/"
   fi
@@ -199,31 +199,35 @@ fi
 echo ""
 echo -e "${BLUE}▸${NC} Central repository sync configuration..."
 
-# Check if config already exists and extract values
+# Check if config already exists with ENABLED: true
+EXISTING_ENABLED=""
 EXISTING_CENTRAL_REPO_PATH=""
 EXISTING_PROJECT_FOLDER=""
 
 if [[ -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" ]]; then
   # Extract existing values
+  EXISTING_ENABLED=$(grep "ENABLED:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" | sed 's/ENABLED: *//' | tr -d ' ')
   EXISTING_CENTRAL_REPO_PATH=$(grep "CENTRAL_REPO_PATH:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" | sed 's/CENTRAL_REPO_PATH: *//' | tr -d ' ')
   EXISTING_PROJECT_FOLDER=$(grep "PROJECT_FOLDER:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" | sed 's/PROJECT_FOLDER: *//' | tr -d ' ')
 
-  # Check if it has real values (not placeholders)
-  if [[ -n "$EXISTING_CENTRAL_REPO_PATH" && "$EXISTING_CENTRAL_REPO_PATH" != "<CENTRAL_REPO_PATH>" ]]; then
-    echo -e "${YELLOW}  ⊙${NC} Updating template, preserving existing config values"
+  # Check if it's enabled with real values (not placeholders)
+  if [[ "$EXISTING_ENABLED" == "true" && -n "$EXISTING_CENTRAL_REPO_PATH" && "$EXISTING_CENTRAL_REPO_PATH" != "<CENTRAL_REPO_PATH>" ]]; then
+    echo -e "${YELLOW}  ⊙${NC} Updating template, preserving enabled config"
     cp "$SOURCE_DIR/process/ap_release_central_sync.md" "$AGENT_PROCESS_DIR/process/"
+    sed -i.bak "s|ENABLED:.*|ENABLED: true|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
     sed -i.bak "s|CENTRAL_REPO_PATH:.*|CENTRAL_REPO_PATH: $EXISTING_CENTRAL_REPO_PATH|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
     sed -i.bak "s|PROJECT_FOLDER:.*|PROJECT_FOLDER: $EXISTING_PROJECT_FOLDER|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
     rm -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md.bak"
-    echo -e "${GREEN}  ✓${NC} Updated central sync template (kept: $EXISTING_PROJECT_FOLDER)"
+    echo -e "${GREEN}  ✓${NC} Updated central sync config (enabled: $EXISTING_PROJECT_FOLDER)"
+    EXISTING_ENABLED="true"  # Keep this set so we don't prompt below
   else
-    # Has file but no real values - treat as new install
-    EXISTING_CENTRAL_REPO_PATH=""
+    # Has file but disabled or no real values - treat as new install
+    EXISTING_ENABLED=""
   fi
 fi
 
-# If no existing config, prompt user
-if [[ -z "$EXISTING_CENTRAL_REPO_PATH" ]]; then
+# If no existing enabled config, prompt user
+if [[ -z "$EXISTING_ENABLED" ]]; then
   echo ""
   echo -e "${YELLOW}  Optional: Configure central repository sync for agent process files.${NC}"
   echo -e "  This is useful if you track .agent_process files in a separate central repo."
@@ -240,15 +244,23 @@ if [[ -z "$EXISTING_CENTRAL_REPO_PATH" ]]; then
     read -p "  Project folder name in central repo [$DEFAULT_PROJECT_FOLDER]: " PROJECT_FOLDER
     PROJECT_FOLDER="${PROJECT_FOLDER:-$DEFAULT_PROJECT_FOLDER}"
 
-    # Copy template and substitute values
+    # Copy template and substitute values - ENABLED: true
     cp "$SOURCE_DIR/process/ap_release_central_sync.md" "$AGENT_PROCESS_DIR/process/"
+    sed -i.bak "s|ENABLED:.*|ENABLED: true|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
     sed -i.bak "s|CENTRAL_REPO_PATH:.*|CENTRAL_REPO_PATH: $CENTRAL_REPO_PATH|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
     sed -i.bak "s|PROJECT_FOLDER:.*|PROJECT_FOLDER: $PROJECT_FOLDER|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
     rm -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md.bak"
 
-    echo -e "${GREEN}  ✓${NC} Created central sync config"
+    echo -e "${GREEN}  ✓${NC} Created central sync config (enabled)"
   else
-    echo -e "${YELLOW}  ⊙${NC} Skipping central repo sync configuration"
+    # Copy template and set ENABLED: false - no path configuration needed
+    cp "$SOURCE_DIR/process/ap_release_central_sync.md" "$AGENT_PROCESS_DIR/process/"
+    sed -i.bak "s|ENABLED:.*|ENABLED: false|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|CENTRAL_REPO_PATH:.*|CENTRAL_REPO_PATH: <not_configured>|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|PROJECT_FOLDER:.*|PROJECT_FOLDER: <not_configured>|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    rm -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md.bak"
+
+    echo -e "${GREEN}  ✓${NC} Created central sync config (disabled)"
   fi
 fi
 
@@ -284,27 +296,35 @@ echo -e "     • Create ${GREEN}scripts/after_edit/validate-my_feature.sh${NC}"
 echo -e "     • Make executable: ${BLUE}chmod +x scripts/after_edit/validate-my_feature.sh${NC}"
 echo ""
 if [[ -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" ]]; then
-  echo -e "  ${GREEN}✓${NC} Central repo sync configured"
-  echo -e "     Config: ${GREEN}$AGENT_PROCESS_DIR/process/ap_release_central_sync.md${NC}"
+  # Check if central sync is enabled
+  SYNC_ENABLED=$(grep "ENABLED:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" | sed 's/ENABLED: *//' | tr -d ' ')
 
-  # Check if .agent_process is a symlink (central repo setup)
-  if [[ "$AGENT_PROCESS_IS_SYMLINK" == true ]]; then
-    # Read central repo path from config
-    CENTRAL_PATH=$(grep "CENTRAL_REPO_PATH:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" | sed 's/CENTRAL_REPO_PATH: *//' | tr -d ' ')
-    PROJECT_FOLDER=$(grep "PROJECT_FOLDER:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" | sed 's/PROJECT_FOLDER: *//' | tr -d ' ')
+  if [[ "$SYNC_ENABLED" == "true" ]]; then
+    echo -e "  ${GREEN}✓${NC} Central repo sync: ${GREEN}enabled${NC}"
+    echo -e "     Config: ${GREEN}$AGENT_PROCESS_DIR/process/ap_release_central_sync.md${NC}"
 
-    if [[ -n "$CENTRAL_PATH" && "$CENTRAL_PATH" != "<CENTRAL_REPO_PATH>" ]]; then
-      echo ""
-      echo -e "  ${YELLOW}⚠ ACTION REQUIRED:${NC} Central repo has uncommitted changes"
-      echo -e "     Run these commands to sync the central repo:"
-      echo ""
-      echo -e "     ${BLUE}cd $CENTRAL_PATH${NC}"
-      echo -e "     ${BLUE}git add $PROJECT_FOLDER/${NC}"
-      echo -e "     ${BLUE}git commit -m \"chore($PROJECT_FOLDER): update to ai_agent_process v$(cat VERSION)\"${NC}"
-      echo -e "     ${BLUE}git push origin main${NC}"
-      echo -e "     ${BLUE}cd -${NC}"
-      echo ""
+    # Check if .agent_process is a symlink (central repo setup)
+    if [[ "$AGENT_PROCESS_IS_SYMLINK" == true ]]; then
+      # Read central repo path from config
+      CENTRAL_PATH=$(grep "CENTRAL_REPO_PATH:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" | sed 's/CENTRAL_REPO_PATH: *//' | tr -d ' ')
+      PROJECT_FOLDER=$(grep "PROJECT_FOLDER:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" | sed 's/PROJECT_FOLDER: *//' | tr -d ' ')
+
+      if [[ -n "$CENTRAL_PATH" && "$CENTRAL_PATH" != "<CENTRAL_REPO_PATH>" && "$CENTRAL_PATH" != "<not_configured>" ]]; then
+        echo ""
+        echo -e "  ${YELLOW}⚠ ACTION REQUIRED:${NC} Central repo may have uncommitted changes"
+        echo -e "     Run these commands to sync the central repo:"
+        echo ""
+        echo -e "     ${BLUE}cd $CENTRAL_PATH${NC}"
+        echo -e "     ${BLUE}git add $PROJECT_FOLDER/${NC}"
+        echo -e "     ${BLUE}git commit -m \"chore($PROJECT_FOLDER): update to ai_agent_process v$(cat VERSION)\"${NC}"
+        echo -e "     ${BLUE}git push origin main${NC}"
+        echo -e "     ${BLUE}cd -${NC}"
+        echo ""
+      fi
     fi
+  else
+    echo -e "  ${YELLOW}⊙${NC} Central repo sync: ${YELLOW}disabled${NC}"
+    echo -e "     This project manages .agent_process/ locally"
   fi
   echo ""
 fi
