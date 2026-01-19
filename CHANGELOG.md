@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.1.3] - 2026-01-19
+
+### Fixed
+- **Migration from old central sync format** in install.sh
+  - Detects old format (no ENABLED field but has real paths)
+  - Automatically migrates to new format with `ENABLED: true`
+  - Prevents silent failures and unwanted user prompts
+  - Handles three scenarios: old format, new enabled, new disabled
+
+### Details
+Old format (pre-v3.1.2):
+```
+CENTRAL_REPO_PATH: ~/path/to/repo
+PROJECT_FOLDER: project-name
+```
+
+New format (v3.1.2+):
+```
+ENABLED: true
+CENTRAL_REPO_PATH: ~/path/to/repo
+PROJECT_FOLDER: project-name
+```
+
+Install now automatically migrates old → new without user intervention.
+
+---
+
 ## [3.1.2] - 2026-01-19
 
 ### Changed

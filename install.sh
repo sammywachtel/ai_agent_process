@@ -199,19 +199,42 @@ fi
 echo ""
 echo -e "${BLUE}▸${NC} Central repository sync configuration..."
 
-# Check if config already exists with ENABLED: true
+# Check if config already exists
 EXISTING_ENABLED=""
 EXISTING_CENTRAL_REPO_PATH=""
 EXISTING_PROJECT_FOLDER=""
 
 if [[ -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" ]]; then
-  # Extract existing values
-  EXISTING_ENABLED=$(grep "ENABLED:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" | sed 's/ENABLED: *//' | tr -d ' ')
-  EXISTING_CENTRAL_REPO_PATH=$(grep "CENTRAL_REPO_PATH:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" | sed 's/CENTRAL_REPO_PATH: *//' | tr -d ' ')
-  EXISTING_PROJECT_FOLDER=$(grep "PROJECT_FOLDER:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" | sed 's/PROJECT_FOLDER: *//' | tr -d ' ')
+  # Extract existing values (with error handling for set -e)
+  EXISTING_ENABLED=$(grep "ENABLED:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" 2>/dev/null | sed 's/ENABLED: *//' | tr -d ' ') || true
+  EXISTING_CENTRAL_REPO_PATH=$(grep "CENTRAL_REPO_PATH:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" 2>/dev/null | sed 's/CENTRAL_REPO_PATH: *//' | tr -d ' ') || true
+  EXISTING_PROJECT_FOLDER=$(grep "PROJECT_FOLDER:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" 2>/dev/null | sed 's/PROJECT_FOLDER: *//' | tr -d ' ') || true
 
-  # Check if it's enabled with real values (not placeholders)
-  if [[ "$EXISTING_ENABLED" == "true" && -n "$EXISTING_CENTRAL_REPO_PATH" && "$EXISTING_CENTRAL_REPO_PATH" != "<CENTRAL_REPO_PATH>" ]]; then
+  # Check if this is the old format (no ENABLED field but has real paths)
+  if [[ -z "$EXISTING_ENABLED" && -n "$EXISTING_CENTRAL_REPO_PATH" && "$EXISTING_CENTRAL_REPO_PATH" != "<CENTRAL_REPO_PATH>" && "$EXISTING_CENTRAL_REPO_PATH" != "<not_configured>" ]]; then
+    echo "" >&2
+    echo -e "${RED}  ✗ ERROR: Old central sync config format detected${NC}" >&2
+    echo "" >&2
+    echo -e "${YELLOW}  Missing ENABLED: field in:${NC}" >&2
+    echo -e "  $AGENT_PROCESS_DIR/process/ap_release_central_sync.md" >&2
+    echo "" >&2
+    echo -e "${YELLOW}  To fix, add this line after '## Configuration' section:${NC}" >&2
+    echo -e "  ${GREEN}ENABLED: true${NC}" >&2
+    echo "" >&2
+    echo -e "  Current format:" >&2
+    echo -e "  ${YELLOW}CENTRAL_REPO_PATH: $EXISTING_CENTRAL_REPO_PATH${NC}" >&2
+    echo -e "  ${YELLOW}PROJECT_FOLDER: $EXISTING_PROJECT_FOLDER${NC}" >&2
+    echo "" >&2
+    echo -e "  Should be:" >&2
+    echo -e "  ${GREEN}ENABLED: true${NC}" >&2
+    echo -e "  ${GREEN}CENTRAL_REPO_PATH: $EXISTING_CENTRAL_REPO_PATH${NC}" >&2
+    echo -e "  ${GREEN}PROJECT_FOLDER: $EXISTING_PROJECT_FOLDER${NC}" >&2
+    echo "" >&2
+    echo -e "  Then run install.sh again." >&2
+    echo "" >&2
+    exit 1
+  elif [[ "$EXISTING_ENABLED" == "true" && -n "$EXISTING_CENTRAL_REPO_PATH" && "$EXISTING_CENTRAL_REPO_PATH" != "<CENTRAL_REPO_PATH>" && "$EXISTING_CENTRAL_REPO_PATH" != "<not_configured>" ]]; then
+    # New format with enabled config - update template
     echo -e "${YELLOW}  ⊙${NC} Updating template, preserving enabled config"
     cp "$SOURCE_DIR/process/ap_release_central_sync.md" "$AGENT_PROCESS_DIR/process/"
     sed -i.bak "s|ENABLED:.*|ENABLED: true|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
@@ -220,8 +243,18 @@ if [[ -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" ]]; then
     rm -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md.bak"
     echo -e "${GREEN}  ✓${NC} Updated central sync config (enabled: $EXISTING_PROJECT_FOLDER)"
     EXISTING_ENABLED="true"  # Keep this set so we don't prompt below
+  elif [[ "$EXISTING_ENABLED" == "false" ]]; then
+    # Already has disabled config - update template but keep disabled
+    echo -e "${YELLOW}  ⊙${NC} Updating template, keeping disabled state"
+    cp "$SOURCE_DIR/process/ap_release_central_sync.md" "$AGENT_PROCESS_DIR/process/"
+    sed -i.bak "s|ENABLED:.*|ENABLED: false|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|CENTRAL_REPO_PATH:.*|CENTRAL_REPO_PATH: <not_configured>|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|PROJECT_FOLDER:.*|PROJECT_FOLDER: <not_configured>|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    rm -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md.bak"
+    echo -e "${GREEN}  ✓${NC} Updated central sync config (disabled)"
+    EXISTING_ENABLED="false"  # Set so we don't prompt below
   else
-    # Has file but disabled or no real values - treat as new install
+    # Has file but no real values - treat as new install
     EXISTING_ENABLED=""
   fi
 fi
