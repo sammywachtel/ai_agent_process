@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.1.4] - 2026-01-19
+
+### Fixed
+- **Command deployment issues** in install.sh
+  - ap_project.md was not being deployed to `.claude/commands/`
+  - Commands were incorrectly copied to source directory (`.claude/`) instead of template directory (`claude/`)
+  - Duplicate command files in `.agent_process/claude/commands/` (old installs)
+  - Recursive copy was duplicating all template files unnecessarily
+
+### Changed
+- **Command file structure** now properly separated:
+  - `.claude/commands/*.md` - actual command files (where Claude Code looks)
+  - `.agent_process/claude/commands/README.md` - placeholder pointing users to `.claude/`
+  - `.agent_process/claude/*.md` - documentation only (commands.md, hooks.md)
+- Install script now cleans up duplicate commands from previous installations
+
+### Added
+- `claude/commands/README.md` placeholder in template for reference
+
+---
+
 ## [3.1.3] - 2026-01-19
 
 ### Fixed

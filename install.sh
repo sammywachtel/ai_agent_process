@@ -218,7 +218,7 @@ fi
 # Documentation files are already installed above (commands.md, hooks.md, README.md)
 echo ""
 echo -e "${BLUE}▸${NC} Installing documentation..."
-echo -e "${GREEN}  ✓${NC} Installed documentation files
+echo -e "${GREEN}  ✓${NC} Installed documentation files"
 
 # Copy main README to .agent_process/
 if [[ -f "$SOURCE_DIR/README.md" ]]; then
