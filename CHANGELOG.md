@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.1.1] - 2026-01-19
+
+### Fixed
+- **Central repo sync reminder** in install.sh
+  - Installation now detects symlinked `.agent_process` directories
+  - Displays actionable reminder to commit/push central repo after updates
+  - Prevents uncommitted changes from accumulating in central repo
+  - Shows exact commands needed to sync central repo
+  - Only triggers when both symlink and central sync config exist
+
+---
+
 ## [3.1.0] - 2026-01-19
 
 ### Changed

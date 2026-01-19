@@ -286,6 +286,26 @@ echo ""
 if [[ -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" ]]; then
   echo -e "  ${GREEN}✓${NC} Central repo sync configured"
   echo -e "     Config: ${GREEN}$AGENT_PROCESS_DIR/process/ap_release_central_sync.md${NC}"
+
+  # Check if .agent_process is a symlink (central repo setup)
+  if [[ "$AGENT_PROCESS_IS_SYMLINK" == true ]]; then
+    # Read central repo path from config
+    CENTRAL_PATH=$(grep "CENTRAL_REPO_PATH:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" | sed 's/CENTRAL_REPO_PATH: *//' | tr -d ' ')
+    PROJECT_FOLDER=$(grep "PROJECT_FOLDER:" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" | sed 's/PROJECT_FOLDER: *//' | tr -d ' ')
+
+    if [[ -n "$CENTRAL_PATH" && "$CENTRAL_PATH" != "<CENTRAL_REPO_PATH>" ]]; then
+      echo ""
+      echo -e "  ${YELLOW}⚠ ACTION REQUIRED:${NC} Central repo has uncommitted changes"
+      echo -e "     Run these commands to sync the central repo:"
+      echo ""
+      echo -e "     ${BLUE}cd $CENTRAL_PATH${NC}"
+      echo -e "     ${BLUE}git add $PROJECT_FOLDER/${NC}"
+      echo -e "     ${BLUE}git commit -m \"chore($PROJECT_FOLDER): update to ai_agent_process v$(cat VERSION)\"${NC}"
+      echo -e "     ${BLUE}git push origin main${NC}"
+      echo -e "     ${BLUE}cd -${NC}"
+      echo ""
+    fi
+  fi
   echo ""
 fi
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
