@@ -153,16 +153,32 @@ echo -e "${BLUE}▸${NC} Installing orchestration files..."
 cp -r "$SOURCE_DIR"/orchestration/* "$AGENT_PROCESS_DIR/orchestration/"
 echo -e "${GREEN}  ✓${NC} Installed $(find "$SOURCE_DIR/orchestration" -type f | wc -l | tr -d ' ') orchestration files"
 
-# Install process files (excluding central sync config - configured separately below)
+# Install process files (with special handling for user-configurable files)
 echo ""
 echo -e "${BLUE}▸${NC} Installing process files..."
 
 for process_file in "$SOURCE_DIR"/process/*; do
   filename="$(basename "$process_file")"
-  # Skip the central sync config - it's configured with user prompts below
-  if [[ "$filename" != "ap_release_central_sync.md" ]]; then
-    cp "$process_file" "$AGENT_PROCESS_DIR/process/"
+  target_file="$AGENT_PROCESS_DIR/process/$filename"
+
+  # Skip central sync config - it's configured with user prompts below
+  if [[ "$filename" == "ap_release_central_sync.md" ]]; then
+    continue
   fi
+
+  # Install local_environment_instructions.md only if it doesn't exist (preserve user config)
+  if [[ "$filename" == "local_environment_instructions.md" ]]; then
+    if [[ ! -f "$target_file" ]]; then
+      cp "$process_file" "$target_file"
+      echo -e "${GREEN}  ✓${NC} Installed local environment instructions template"
+    else
+      echo -e "${YELLOW}  ⊙${NC} Preserving existing local environment instructions"
+    fi
+    continue
+  fi
+
+  # Install all other process files normally
+  cp "$process_file" "$target_file"
 done
 echo -e "${GREEN}  ✓${NC} Installed process files"
 

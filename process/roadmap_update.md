@@ -174,7 +174,24 @@ Read `.agent_process/roadmap/master_roadmap.md` and update all relevant sections
 % Complete = (Complete Requirements / Total Requirements) × 100
 ```
 
-#### 4. Capture Follow-up Items
+#### 4. Update Status Banners
+
+When a requirement's status changes in the roadmap, update banners in all related files:
+
+**Files to update:**
+1. Requirement file: `requirements_docs/{category}/{requirement}.md`
+2. Current iteration results: `.agent_process/work/{scope}/{iteration}/results.md`
+3. Any related sub-requirements or breakdown files
+
+**Banner rules:**
+- Status changed to 🚧 IN PROGRESS → Add/update with `[!NOTE]` in-progress banner
+- Status changed to ✅ COMPLETE → Add/update with `[!TIP]` complete banner
+- Status changed to ❌ BLOCKED → Add/update with `[!WARNING]` blocked banner
+- Status changed to 🗄️ ARCHIVED → Add/update with `[!CAUTION]` archived banner
+
+See **Status Change Banners** section below for detailed banner formats and examples.
+
+#### 5. Capture Follow-up Items
 
 If results.md contains "Follow-up" or "Known Issues" sections:
 - Add HIGH priority items to `.agent_process/roadmap/backlog.md`
@@ -186,6 +203,216 @@ If roadmap files are missing or malformed:
 1. Note the issue in results.md
 2. Continue with iteration completion normally
 3. User can run `/ap_project sync` to rebuild
+
+---
+
+## Status Change Banners
+
+**Principle:** When a requirement's status changes in the roadmap, **mark all related source files** with status banners to maintain consistency between documentation and implementation.
+
+This ensures developers can see at a glance whether a requirement file is active, complete, blocked, or archived without checking the roadmap.
+
+### When to Add/Update Banners
+
+Add or update status banners when:
+- A requirement changes status (📋 → 🚧 → ✅ or ❌)
+- An iteration completes and updates the requirement's aggregate status
+- A requirement is archived via `/ap_project archive`
+- A requirement is unblocked and returns to active work
+
+### Banner Format
+
+Add the banner immediately after the frontmatter (or at the very top if no frontmatter).
+
+**Template:**
+```markdown
+> [!{TYPE}]
+> **{ICON} {STATUS}** — *{Context}*
+>
+> {Additional information}
+> {Reference to roadmap or related documentation}
+```
+
+### Status-Specific Banners
+
+| Status | Alert Type | Icon | When to Use |
+|--------|-----------|------|-------------|
+| In Progress | `NOTE` | 🚧 | Active work on this requirement |
+| Complete | `TIP` | ✅ | All work scopes completed successfully |
+| Blocked | `WARNING` | ❌ | Cannot proceed due to blockers |
+| Archived | `CAUTION` | 🗄️ | Superseded, abandoned, or out of scope |
+
+### Banner Examples
+
+#### In Progress Banner
+
+```markdown
+> [!NOTE]
+> **🚧 IN PROGRESS** — *Active development*
+>
+> This requirement is currently being implemented.
+> See: `.agent_process/roadmap/master_roadmap.md` for current status.
+```
+
+#### Complete Banner
+
+```markdown
+> [!TIP]
+> **✅ COMPLETE** — *Implemented and validated*
+>
+> All acceptance criteria met. Work completed in 2 iterations.
+> See: `.agent_process/work/{scope}/iteration_02/results.md` for details.
+```
+
+#### Blocked Banner
+
+```markdown
+> [!WARNING]
+> **❌ BLOCKED** — *Waiting on: {blocker description}*
+>
+> Cannot proceed until {specific blocker} is resolved.
+> See: `.agent_process/roadmap/master_roadmap.md` → Blocked Items section.
+```
+
+#### Archived Banners (Type-Specific)
+
+**Superseded:**
+```markdown
+> [!CAUTION]
+> **🗄️ ARCHIVED** — *Superseded by {replacement}*
+>
+> This requirement has been replaced by a newer implementation.
+> See: `.agent_process/roadmap/archived_roadmap.md` for details.
+```
+
+**Abandoned:**
+```markdown
+> [!CAUTION]
+> **🗄️ ARCHIVED** — *Abandoned: {reason}*
+>
+> This requirement is no longer being pursued.
+> See: `.agent_process/roadmap/archived_roadmap.md` for details.
+```
+
+**Completed:**
+```markdown
+> [!CAUTION]
+> **🗄️ ARCHIVED** — *Completed and archived*
+>
+> This requirement was successfully completed and has been archived.
+> See: `.agent_process/roadmap/archived_roadmap.md` for details.
+```
+
+**Out of Scope:**
+```markdown
+> [!CAUTION]
+> **🗄️ ARCHIVED** — *Out of scope: {reason}*
+>
+> This requirement falls outside the project's current scope.
+> See: `.agent_process/roadmap/archived_roadmap.md` for details.
+```
+
+### Files to Update
+
+When a status changes, update banners in **all** of these locations:
+
+1. **Requirement file** (`requirements_docs/{category}/{requirement}.md`)
+2. **Related work scope results** (`.agent_process/work/{scope}/iteration_*/results.md`)
+3. **Breakdown files** (if this is a parent requirement with sub-requirements)
+4. **All sub-requirement files** (if this requirement has a breakdown)
+
+### Banner Management Strategy
+
+**Adding banners:**
+- First status change: Add banner at the top (after frontmatter)
+- Subsequent changes: Replace existing banner with new status
+
+**Removing banners:**
+- When returning to "Not Started" (📋): Remove banner entirely
+- When unblocking: Replace blocked banner with in-progress banner
+
+**Multiple status transitions:**
+- Only keep the **current** status banner
+- Historical status is tracked in `results.md` files and roadmap, not in requirement files
+
+### Example: Full Status Lifecycle
+
+**Initial state (no banner):**
+```markdown
+---
+id: user-authentication
+title: User Authentication System
+---
+
+# User Authentication System
+
+[Requirement content...]
+```
+
+**After first iteration starts:**
+```markdown
+---
+id: user-authentication
+title: User Authentication System
+---
+
+> [!NOTE]
+> **🚧 IN PROGRESS** — *Active development*
+>
+> This requirement is currently being implemented.
+> See: `.agent_process/roadmap/master_roadmap.md` for current status.
+
+# User Authentication System
+
+[Requirement content...]
+```
+
+**After hitting a blocker:**
+```markdown
+> [!WARNING]
+> **❌ BLOCKED** — *Waiting on: OAuth provider approval*
+>
+> Cannot proceed until OAuth provider credentials are obtained.
+> See: `.agent_process/roadmap/master_roadmap.md` → Blocked Items section.
+```
+
+**After completing all work:**
+```markdown
+> [!TIP]
+> **✅ COMPLETE** — *Implemented and validated*
+>
+> All acceptance criteria met. Work completed in 3 iterations.
+> See: `.agent_process/work/user_authentication_scope_03/iteration_01/results.md` for details.
+```
+
+**After archiving (superseded):**
+```markdown
+> [!CAUTION]
+> **🗄️ ARCHIVED** — *Superseded by unified-auth-system requirement*
+>
+> This requirement has been replaced by a newer, more comprehensive auth approach.
+> See: `.agent_process/roadmap/archived_roadmap.md` for details.
+```
+
+### Automation Guidelines
+
+**During orchestration:**
+- After writing `results.md`, check if requirement status changed
+- If changed, update banners in requirement file and all related work files
+- Use Edit tool to replace existing banner or add new one
+
+**During `/ap_project` commands:**
+- Commands like `archive`, `set-status` should update banners automatically
+- `sync` command should verify banner consistency and offer to fix mismatches
+- Status override in `.roadmap_config.json` should trigger banner updates
+
+### Consistency Checks
+
+Banners should always match the roadmap status. To verify:
+1. Read requirement's status from `master_roadmap.md`
+2. Read banner from requirement file (if present)
+3. If mismatch: Update banner to match roadmap
+4. If no banner but status ≠ 📋: Add appropriate banner
 
 ---
 

@@ -23,3 +23,19 @@ Commands are invoked with the `/` prefix in Claude Code:
 ```
 
 See each command file in `.claude/commands/` for detailed usage.
+
+## Customization
+
+### Local Environment Instructions
+
+If your project has unique workflow requirements (polyrepo, custom CI/CD, etc.), customize command behavior using:
+
+**File:** `../.agent_process/process/local_environment_instructions.md`
+
+Commands like `/ap_release` automatically check this file for project-specific:
+- Extended command arguments
+- Multi-repository coordination
+- Custom validation steps
+- Environment-specific setup
+
+This file is preserved across re-installations, allowing you to maintain project-specific workflows without modifying the core template files.

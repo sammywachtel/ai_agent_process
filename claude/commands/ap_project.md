@@ -751,6 +751,23 @@ From the roadmap files, extract:
 - Blocked items requiring attention
 - Recent activity (Last 7 days)
 
+### Step 2.5: Check Work Scope Existence
+
+**CRITICAL:** Before suggesting next actions, verify which requirements have work scopes:
+
+```bash
+# For each requirement ID, check if work scope exists
+for req_id in $(grep -o '\| [a-z_0-9]* \|' .agent_process/roadmap/master_roadmap.md | tr -d '| '); do
+  if [[ -d ".agent_process/work/${req_id}" ]]; then
+    echo "HAS_WORK: ${req_id}"
+  else
+    echo "NO_WORK: ${req_id}"
+  fi
+done
+```
+
+**Store this information** to use when generating next action recommendations in Step 4.
+
 ### Step 3: Display Summary
 
 Present a concise status summary:
@@ -780,10 +797,25 @@ Recent: [N] completions in last 7 days
 
 ### Step 4: Identify Action Items
 
-Recommend next actions:
-- Requirements ready to start (dependencies met)
-- Blocked items needing attention
-- Backlog items that should become requirements
+Recommend next actions based on actual work scope state:
+
+**For requirements with NO work scope (only requirements doc exists):**
+- Suggest orchestrator planning workflow
+- Example: "To start work on '{requirement_id}', use the orchestrator planning process: Copy the requirement content into `.agent_process/orchestration/01_plan_scope_prompt.md` and run it through your orchestrator agent to create a proper work scope with validation, acceptance criteria, etc."
+- DO NOT suggest `/ap_exec` (no work scope exists yet)
+
+**For requirements WITH work scope (work/{scope_name}/ exists):**
+- Check latest iteration status from results.md
+- If not complete: suggest continuing with `/ap_exec {scope_name} {next_iteration}`
+- If complete: note completion, don't suggest continuing
+
+**For blocked items:**
+- Identify what's blocking them
+- Suggest next steps to unblock
+
+**For backlog items:**
+- Consider which should become formal requirements
+- Suggest priority based on impact and effort
 
 {% elif action == "add-todo" %}
 

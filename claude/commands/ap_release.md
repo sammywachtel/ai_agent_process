@@ -3,6 +3,27 @@ description: Update changelog, create PR, and optionally tag a release
 argument-hint: [noscope] pr | beta | release [patch|minor|major]
 ---
 
+## Local Environment Instructions
+
+**BEFORE proceeding with any release workflow steps, check for local environment instructions:**
+
+```bash
+cat .agent_process/process/local_environment_instructions.md 2>/dev/null
+```
+
+If this file exists and contains instructions beyond the default placeholder, **follow those instructions in addition to this workflow**. Local environment instructions may specify:
+
+- Additional environment setup steps
+- Project-specific pre-release checks
+- Custom validation requirements
+- Environment-specific configuration
+- Multi-repository coordination (polyrepo)
+- Extended arguments or workflow modifications
+
+These instructions are additive - they augment but do not replace the standard workflow below.
+
+---
+
 ## Arguments
 
 **`$1` (context)** - Optional. Use `noscope` to skip scope context and analyze git diff instead.

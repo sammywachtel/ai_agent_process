@@ -39,6 +39,7 @@ A structured workflow template for AI-powered development with Claude Code, feat
 - **Execution Tools:** Slash commands for implementation
 - **Review Tools:** Iteration feedback templates
 - **Validation Tools:** Scoped testing scripts
+- **Environment Customization:** Local environment instructions for project-specific workflows
 
 ---
 
@@ -129,12 +130,40 @@ npm test           # Fails on 10 unrelated tests
 
 ---
 
+## Customization
+
+### Local Environment Instructions
+
+For projects with unique requirements (polyrepo, custom CI/CD, multi-step validation), customize the release workflow using:
+
+**File:** `.agent_process/process/local_environment_instructions.md`
+
+This file is checked by `/ap_release` and other commands to apply project-specific:
+- Extended arguments and command-line options
+- Multi-repository coordination (polyrepo architectures)
+- Custom validation or deployment steps
+- Environment-specific configuration requirements
+- Release ordering and dependency management
+
+**Installation behavior:**
+- Template installed on first setup
+- Preserved on re-installation (never overwritten)
+- See nap project for polyrepo example
+
+**Usage:**
+1. Edit `.agent_process/process/local_environment_instructions.md`
+2. Document your project's specific workflow modifications
+3. Commands will read and follow these instructions automatically
+
+---
+
 ## Documentation
 
 - **Process Evaluation:** `.local_docs/process/agent-process-evaluation.md`
 - **Scope Sizing Guide:** `.local_docs/process/scope-sizing-quick-reference.md`
 - **Orchestration Instructions:** `orchestration/01_plan_scope_instructions.md`, `orchestration/02_review_iteration_instructions.md`
 - **Validation Patterns:** `process/validation-playbook.md`
+- **Environment Customization:** `.agent_process/process/local_environment_instructions.md`
 
 ---
 
@@ -142,10 +171,27 @@ npm test           # Fails on 10 unrelated tests
 
 This template is designed to be copied into your project:
 
-1. Copy this directory structure to your project
-2. Customize `requirements_docs/` for your project
-3. Update `scripts/after_edit/` with your validation scripts
-4. Start planning your first scope!
+```bash
+# From within your project directory
+/path/to/ai_agent_process/install.sh
+
+# Or specify target directory
+/path/to/ai_agent_process/install.sh /path/to/your/project
+```
+
+After installation:
+
+1. Review installed files in `.claude/commands/` and `.agent_process/`
+2. Customize `.agent_process/process/local_environment_instructions.md` if needed
+3. Create requirements in `.agent_process/requirements_docs/`
+4. Set up validation scripts in `.agent_process/scripts/after_edit/`
+5. Start planning your first scope!
+
+**Note:** Re-running install.sh will update template files but preserve:
+- Your work in `.agent_process/work/`
+- Your local environment instructions
+- Your central sync configuration
+- Your existing requirements documents
 
 ---
 
