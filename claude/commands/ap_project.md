@@ -388,7 +388,7 @@ try:
 except:
     status_markers = {"complete": ["✅ COMPLETE"], "blocked": ["BLOCKED"]}
 
-def get_status(content):
+def get_iteration_status(content):
     """Detect status from results.md content using configured markers."""
     for marker in status_markers.get("complete", []):
         if marker in content:
@@ -400,6 +400,29 @@ def get_status(content):
         if marker in content:
             return "FAILED"
     return "IN_PROGRESS"
+
+def get_approval_state(plan_content):
+    """Extract approval decision from iteration_plan.md.
+
+    Returns tuple: (decision, state)
+    - decision: APPROVE, ITERATE, PIVOT, BLOCK, or None
+    - state: APPROVED, NEEDS_REVIEW, IN_PROGRESS, BLOCKED, or None
+    """
+    if not plan_content:
+        return None, None
+
+    # Look for Decision marker (e.g., "- Decision: ✅ APPROVE (2026-01-16)")
+    decision_match = re.search(r'Decision:\s*(?:✅|🔄|🔀|🚫)?\s*(APPROVE|ITERATE|PIVOT|BLOCK)', plan_content, re.IGNORECASE)
+    if decision_match:
+        decision = decision_match.group(1).upper()
+        if decision == "APPROVE":
+            return decision, "APPROVED"
+        elif decision in ["ITERATE", "PIVOT"]:
+            return decision, "NEEDS_REVIEW"
+        elif decision == "BLOCK":
+            return decision, "BLOCKED"
+
+    return None, None
 
 def get_latest_iteration(work_path):
     """Find the latest iteration directory (handles two-level iteration model).
@@ -422,28 +445,80 @@ for scope_dir in work_dir.iterdir():
         continue
 
     scope_id = scope_dir.name
+
+    # Check iteration_plan.md for approval state (orchestrator decision)
+    plan_file = scope_dir / "iteration_plan.md"
+    approval_decision = None
+    scope_state = None
+    if plan_file.exists():
+        try:
+            plan_content = plan_file.read_text()
+            approval_decision, scope_state = get_approval_state(plan_content)
+        except:
+            pass
+
+    # Get latest iteration info
     latest_iter, iter_count = get_latest_iteration(scope_dir)
 
     if not latest_iter:
-        print(f"{scope_id}|0|NOT_STARTED|")
+        # No iterations yet - scope planned but not executed
+        state = scope_state or "NOT_STARTED"
+        print(f"{scope_id}|0|{state}|||{approval_decision or 'PENDING'}")
         continue
 
+    # Check iteration results
     results_file = latest_iter / "results.md"
     if not results_file.exists():
-        print(f"{scope_id}|{iter_count}|IN_PROGRESS|{latest_iter.name}")
+        # Iteration started but no results yet
+        state = scope_state or "IN_PROGRESS"
+        print(f"{scope_id}|{iter_count}|{state}|{latest_iter.name}||{approval_decision or 'PENDING'}")
         continue
 
     try:
-        content = results_file.read_text()
-        status = get_status(content)
+        results_content = results_file.read_text()
+        iter_status = get_iteration_status(results_content)
         mtime = datetime.fromtimestamp(results_file.stat().st_mtime).strftime("%Y-%m-%d")
+
+        # Determine overall scope state
+        # Priority: approval decision > iteration status
+        if scope_state:
+            # Orchestrator made a decision - use that
+            final_state = scope_state
+        elif iter_status == "COMPLETE":
+            # Iteration complete but no orchestrator decision yet
+            final_state = "NEEDS_REVIEW"
+        else:
+            # In progress or blocked at iteration level
+            final_state = iter_status
+
     except:
-        status = "IN_PROGRESS"
+        iter_status = "IN_PROGRESS"
+        final_state = scope_state or "IN_PROGRESS"
         mtime = ""
 
-    print(f"{scope_id}|{iter_count}|{status}|{latest_iter.name}|{mtime}")
+    print(f"{scope_id}|{iter_count}|{final_state}|{latest_iter.name}|{mtime}|{approval_decision or 'PENDING'}")
 PYEOF
 ```
+
+**Output format (pipe-delimited):**
+```
+{scope_id}|{iter_count}|{final_state}|{latest_iter_name}|{mtime}|{approval_decision}
+```
+
+**Fields:**
+1. `scope_id` - Work scope directory name
+2. `iter_count` - Total number of iterations (major + sub)
+3. `final_state` - Overall scope status: APPROVED, NEEDS_REVIEW, IN_PROGRESS, BLOCKED, NOT_STARTED
+4. `latest_iter_name` - Most recent iteration directory name (e.g., iteration_01_b)
+5. `mtime` - Last modified date of results.md (YYYY-MM-DD)
+6. `approval_decision` - Orchestrator decision from iteration_plan.md: APPROVE, ITERATE, PIVOT, BLOCK, or PENDING
+
+**State determination logic:**
+- **APPROVED** - iteration_plan.md shows "Decision: APPROVE"
+- **NEEDS_REVIEW** - Iteration complete but no orchestrator decision yet, OR "Decision: ITERATE/PIVOT"
+- **IN_PROGRESS** - Iteration in progress, no results yet
+- **BLOCKED** - "Decision: BLOCK" or iteration blocked
+- **NOT_STARTED** - No iterations executed yet (plan only)
 
 **Why Python instead of shell:**
 - Shell globs and pipes break with complex paths and special characters
@@ -822,10 +897,20 @@ Recommend next actions based on actual work scope state:
 **For requirements WITH work scope (work/{scope_name}/ directory exists):**
 - Verify directory exists: `ls .agent_process/work/{scope_name}/ 2>/dev/null`
 - If exists:
-  - Check latest iteration status from results.md
-  - If not complete: `Ready to continue: /ap_exec {scope_name} {next_iteration}`
-  - If complete: Note completion, don't suggest continuing
+  - Check iteration_plan.md for Decision marker (APPROVE, ITERATE, PIVOT, BLOCK)
+  - Check latest iteration results.md for iteration status
+  - **If iteration COMPLETE but no Decision:** `Needs orchestrator review`
+    - Tell user to run orchestrator review (NOT /ap_project set-status)
+    - Orchestrator adds Decision to iteration_plan.md
+    - Next sync automatically picks up the decision
+  - **If Decision = APPROVE:** `Scope complete ✓`
+  - **If Decision = ITERATE:** `Continue with sub-iteration: /ap_exec {scope} {current}_a`
+  - **If Decision = PIVOT:** `Continue with new iteration: /ap_exec {scope} {next_major}`
+  - **If Decision = BLOCK:** `Blocked - resolve issues first`
+  - **If iteration IN_PROGRESS:** `Continue: /ap_exec {scope} {current_iteration}`
 - If doesn't exist: Treat as "NO work scope" case above
+
+**NEVER suggest `/ap_project set-status` for orchestration-managed work.** Status comes from orchestrator decisions in iteration_plan.md, not manual overrides.
 
 **For blocked items:**
 - Identify what's blocking them
@@ -839,31 +924,52 @@ Recommend next actions based on actual work scope state:
 ```
 ## Next Actions
 
-### Ready to Execute (work scope exists)
+### ✓ Approved & Complete
 
-1. **Requirement:** rose2_adopt_shared_data_patterns
+1. **Requirement:** rose2_patient_data_tab
+   **Work Scope:** work/rose2_patient_data_tab/ ✓ (exists)
+   **Status:** iteration_01_c (COMPLETE)
+   **Approval:** APPROVE ✓ (2026-01-16)
+   **Next:** Scope complete, no further action needed
+
+### 🔍 Needs Review (iteration complete, awaiting decision)
+
+2. **Requirement:** rose2_dashboard_enhancement
+   **Work Scope:** work/rose2_dashboard_enhancement/ ✓ (exists)
+   **Status:** iteration_02 (COMPLETE)
+   **Approval:** PENDING (awaiting orchestrator review)
+   **Next:** Review iteration_02 results with orchestrator
+
+### 🚧 In Progress (continue execution)
+
+3. **Requirement:** rose2_adopt_shared_data_patterns
    **Work Scope:** work/rose2_adopt_shared_data_patterns/ ✓ (exists)
+   **Status:** iteration_01 (IN_PROGRESS)
+   **Approval:** PENDING
    **Command:** /ap_exec rose2_adopt_shared_data_patterns iteration_01
 
-### Needs Planning (no work scope yet)
+### 📋 Needs Planning (no work scope yet)
 
-2. **Requirement:** ailab_import_pattern_cleanup_02_prevail_scripts_and_mace_imports
+4. **Requirement:** ailab_import_pattern_cleanup_02_prevail_scripts_and_mace_imports
    **Work Scope:** work/ailab_import_pattern_cleanup_02_prevail_scripts_and_mace_imports/ ✗ (missing)
+   **Approval:** N/A (no work yet)
    **Next Steps:**
    - Copy requirement to .agent_process/orchestration/01_plan_scope_prompt.md
    - Run through orchestrator to create iteration plan
    - Orchestrator creates the work scope directory
    - Then execute with /ap_exec {scope_name} iteration_01
 
-### Blocked
+### ❌ Blocked
 
-3. **Requirement:** {blocked_requirement}
+5. **Requirement:** {blocked_requirement}
    **Work Scope:** work/{scope}/ ✓ (exists)
+   **Status:** iteration_01 (BLOCKED)
+   **Approval:** BLOCK
    **Blocker:** {description}
    **Next Steps:** Resolve blocker first
 ```
 
-**Key principle:** Show requirement ID, work scope path, and existence check to make the mapping obvious.
+**Key principle:** Show requirement ID, work scope path, approval state, and existence check to make status completely clear.
 
 {% elif action == "add-todo" %}
 
@@ -1532,6 +1638,7 @@ Show which requirements need planning with clear mapping:
 1. **Requirement:** ailab_import_pattern_cleanup_02_prevail_scripts_and_mace_imports
    **Expected Work Scope:** work/ailab_import_pattern_cleanup_02/ ✗ (missing)
    **Status:** Needs orchestrator planning first
+   **Approval:** N/A (no work scope yet)
 
    Next steps:
    1. Copy requirement to .agent_process/orchestration/01_plan_scope_prompt.md
@@ -1543,6 +1650,7 @@ Show which requirements need planning with clear mapping:
 
 2. **Requirement:** {requirement_id_2}
    **Expected Work Scope:** work/{requirement_id_2}/ ✗ (missing)
+   **Approval:** N/A (no work scope yet)
    ...
 ```
 
@@ -1557,22 +1665,48 @@ If yes, I'll:
 4. Then you can execute with /ap_exec {scope_name} iteration_01
 ```
 
+**CRITICAL - Do NOT suggest:**
+- ❌ `/ap_project set-status "{requirement} complete"` - Bypasses orchestration
+- ❌ "Mark as complete" - Orchestrator makes this decision
+- ❌ Manual status changes for orchestrated work
+
+**DO suggest:**
+- ✓ "Run orchestrator review on iteration_01_a"
+- ✓ "Orchestrator will add Decision: APPROVE to iteration_plan.md"
+- ✓ "Next sync will automatically update status"
+
 **For requirements IN PROGRESS (incomplete work scopes):**
 
-Show clear mapping between requirement and work scope:
+Show clear mapping between requirement, work scope, and approval state:
 ```
 🚧 In Progress Work:
 
 1. **Requirement:** rose2_adopt_shared_data_patterns
    **Work Scope:** work/rose2_adopt_shared_data_patterns/ ✓ (exists)
-   **Current:** iteration_01 (not complete)
-   **Command:** /ap_exec rose2_adopt_shared_data_patterns iteration_02
+   **Current:** iteration_01 (COMPLETE)
+   **Approval:** NEEDS_REVIEW (no orchestrator decision yet)
+   **Next:** Review with orchestrator before continuing
 
-2. **Requirement:** {requirement_2}
-   **Work Scope:** work/{scope_2}/ ✓ (exists)
-   **Current:** {iteration} ({status})
-   **Command:** /ap_exec {scope_2} {next_iteration}
+2. **Requirement:** infrastructure_cleanup
+   **Work Scope:** work/infrastructure_cleanup/ ✓ (exists)
+   **Current:** iteration_01_b (IN_PROGRESS)
+   **Approval:** ITERATE (orchestrator requested fixes)
+   **Next:** Complete iteration_01_b, then review again
+
+3. **Requirement:** {requirement_3}
+   **Work Scope:** work/{scope_3}/ ✓ (exists)
+   **Current:** {iteration} ({iter_status})
+   **Approval:** APPROVED ✓
+   **Status:** Scope complete, ready for next requirement
 ```
+
+**Approval state meanings:**
+- **PENDING** - Iteration not complete yet, no decision needed
+- **NEEDS_REVIEW** - Iteration complete, awaiting orchestrator review
+- **ITERATE** - Orchestrator wants fixes in sub-iteration (e.g., _a, _b)
+- **PIVOT** - Orchestrator changed criteria, new major iteration needed (e.g., 02)
+- **APPROVE** - Orchestrator approved scope, work complete ✓
+- **BLOCK** - Cannot proceed, scope blocked
 
 **For ORPHANED WORK (work directory but no matching requirement):**
 ```
