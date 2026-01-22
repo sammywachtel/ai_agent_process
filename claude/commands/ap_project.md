@@ -797,17 +797,35 @@ Recent: [N] completions in last 7 days
 
 ### Step 4: Identify Action Items
 
+**CRITICAL:** Check if work scope directories actually exist before suggesting `/ap_exec`.
+
 Recommend next actions based on actual work scope state:
 
-**For requirements with NO work scope (only requirements doc exists):**
-- Suggest orchestrator planning workflow
-- Example: "To start work on '{requirement_id}', use the orchestrator planning process: Copy the requirement content into `.agent_process/orchestration/01_plan_scope_prompt.md` and run it through your orchestrator agent to create a proper work scope with validation, acceptance criteria, etc."
-- DO NOT suggest `/ap_exec` (no work scope exists yet)
+**For requirements with NO work scope (only requirements doc exists, no work/{scope}/ directory):**
+- These need orchestrator planning FIRST
+- Example output:
+  ```
+  📋 {requirement_id}
+     Status: Needs orchestrator planning
 
-**For requirements WITH work scope (work/{scope_name}/ exists):**
-- Check latest iteration status from results.md
-- If not complete: suggest continuing with `/ap_exec {scope_name} {next_iteration}`
-- If complete: note completion, don't suggest continuing
+     Next steps:
+     1. Copy requirement to .agent_process/orchestration/01_plan_scope_prompt.md
+     2. Run through orchestrator to create iteration plan
+     3. Orchestrator creates work/{scope_name}/iteration_01/
+     4. Then execute with /ap_exec {scope_name} iteration_01
+
+     DO NOT run /ap_exec yet - no work scope exists
+  ```
+- DO NOT suggest `/ap_exec {requirement_id} iteration_01` (no work scope exists yet)
+- Offer to populate the orchestration prompt file for the user
+
+**For requirements WITH work scope (work/{scope_name}/ directory exists):**
+- Verify directory exists: `ls .agent_process/work/{scope_name}/ 2>/dev/null`
+- If exists:
+  - Check latest iteration status from results.md
+  - If not complete: `Ready to continue: /ap_exec {scope_name} {next_iteration}`
+  - If complete: Note completion, don't suggest continuing
+- If doesn't exist: Treat as "NO work scope" case above
 
 **For blocked items:**
 - Identify what's blocking them
@@ -816,6 +834,36 @@ Recommend next actions based on actual work scope state:
 **For backlog items:**
 - Consider which should become formal requirements
 - Suggest priority based on impact and effort
+
+**Format for action items (show the mapping clearly):**
+```
+## Next Actions
+
+### Ready to Execute (work scope exists)
+
+1. **Requirement:** rose2_adopt_shared_data_patterns
+   **Work Scope:** work/rose2_adopt_shared_data_patterns/ ✓ (exists)
+   **Command:** /ap_exec rose2_adopt_shared_data_patterns iteration_01
+
+### Needs Planning (no work scope yet)
+
+2. **Requirement:** ailab_import_pattern_cleanup_02_prevail_scripts_and_mace_imports
+   **Work Scope:** work/ailab_import_pattern_cleanup_02_prevail_scripts_and_mace_imports/ ✗ (missing)
+   **Next Steps:**
+   - Copy requirement to .agent_process/orchestration/01_plan_scope_prompt.md
+   - Run through orchestrator to create iteration plan
+   - Orchestrator creates the work scope directory
+   - Then execute with /ap_exec {scope_name} iteration_01
+
+### Blocked
+
+3. **Requirement:** {blocked_requirement}
+   **Work Scope:** work/{scope}/ ✓ (exists)
+   **Blocker:** {description}
+   **Next Steps:** Resolve blocker first
+```
+
+**Key principle:** Show requirement ID, work scope path, and existence check to make the mapping obvious.
 
 {% elif action == "add-todo" %}
 
@@ -1100,10 +1148,16 @@ Add new requirement to master roadmap with NOT_STARTED status.
 ### Step 6: Suggest Next Steps
 
 Recommend:
-- Fill in the requirement details
-- Set appropriate priority
-- Run `/ap_exec {requirement_id} iteration_01` when ready to start
+- Fill in the requirement details with acceptance criteria and scope
+- Set appropriate priority based on impact and effort
+- **Use orchestrator planning workflow** when ready:
+  1. Copy requirement content to `.agent_process/orchestration/01_plan_scope_prompt.md`
+  2. Run through orchestrator to create iteration plan with validation
+  3. Orchestrator will create work scope directory and iteration_01/
+  4. Then use `/ap_exec {scope_name} iteration_01` to execute the plan
 - If criteria change after review, use PIVOT to create iteration_02, etc.
+
+**Note:** Do NOT run `/ap_exec` directly - orchestrator must plan the scope first.
 
 {% elif action == "import-requirement" %}
 
@@ -1462,6 +1516,75 @@ Check that updated roadmap is consistent:
 - Work scope counts match directories
 - Status logic is valid
 - Timestamps are reasonable
+
+### Step 7: Suggest Next Actions
+
+**IMPORTANT:** `/ap_project sync` is a discovery and status tool only. It does NOT create work directories or plan scopes.
+
+Based on sync findings, provide guidance:
+
+**For requirements with MISSING WORK (requirement exists but no work scope):**
+
+Show which requirements need planning with clear mapping:
+```
+📋 Requirements Ready for Planning:
+
+1. **Requirement:** ailab_import_pattern_cleanup_02_prevail_scripts_and_mace_imports
+   **Expected Work Scope:** work/ailab_import_pattern_cleanup_02/ ✗ (missing)
+   **Status:** Needs orchestrator planning first
+
+   Next steps:
+   1. Copy requirement to .agent_process/orchestration/01_plan_scope_prompt.md
+   2. Run through orchestrator to create iteration plan
+   3. Orchestrator creates work/{scope_name}/iteration_01/
+   4. Then execute with /ap_exec {scope_name} iteration_01
+
+   DO NOT run /ap_exec yet - no work scope directory exists.
+
+2. **Requirement:** {requirement_id_2}
+   **Expected Work Scope:** work/{requirement_id_2}/ ✗ (missing)
+   ...
+```
+
+**Offer to help:**
+```
+Would you like me to populate the orchestration prompt for one of these? (yes/no)
+
+If yes, I'll:
+1. Update .agent_process/orchestration/01_plan_scope_prompt.md with the requirement
+2. You run it through your orchestrator (separate agent/process)
+3. Orchestrator creates the work scope and iteration_01/
+4. Then you can execute with /ap_exec {scope_name} iteration_01
+```
+
+**For requirements IN PROGRESS (incomplete work scopes):**
+
+Show clear mapping between requirement and work scope:
+```
+🚧 In Progress Work:
+
+1. **Requirement:** rose2_adopt_shared_data_patterns
+   **Work Scope:** work/rose2_adopt_shared_data_patterns/ ✓ (exists)
+   **Current:** iteration_01 (not complete)
+   **Command:** /ap_exec rose2_adopt_shared_data_patterns iteration_02
+
+2. **Requirement:** {requirement_2}
+   **Work Scope:** work/{scope_2}/ ✓ (exists)
+   **Current:** {iteration} ({status})
+   **Command:** /ap_exec {scope_2} {next_iteration}
+```
+
+**For ORPHANED WORK (work directory but no matching requirement):**
+```
+⚠️  Orphaned Work Detected:
+
+- {work_scope_1} (no matching requirement found)
+
+Consider:
+1. Create requirement: `/ap_project add-requirement` to document this work
+2. Update project_mappings in .roadmap_config.json if naming mismatch
+3. Archive if work is obsolete
+```
 
 {% elif action == "report" %}
 
