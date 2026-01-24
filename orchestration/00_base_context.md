@@ -56,7 +56,7 @@
 - **Choose exactly one:** APPROVE / ITERATE / BLOCK / PIVOT
 
 ### 4. Converge (Forced)
-- **If iteration_01_c:** Must escalate to human (no iteration_01_d)
+- **If iteration_01_c:** Can APPROVE if criteria met, must BLOCK if not (no iteration_01_d)
 - **If external blocker:** Choose BLOCK, escalate immediately
 - **If wrong approach:** Choose PIVOT, get human approval
 - **No silent failures:** Every iteration must have explicit decision
@@ -79,8 +79,8 @@ iteration_01_b: Second revision (if needed)
 iteration_01_c: Final attempt (if needed)
 
 After iteration_01_c:
-→ MUST select BLOCK
-→ Escalate to human: ship/pivot/abort
+→ Can APPROVE if all criteria met
+→ MUST select BLOCK if criteria not met (escalate to human: ship as-is/pivot/abort)
 → NO iteration_01_d creation allowed
 ```
 
@@ -227,7 +227,7 @@ npm test -- --testPathPattern="ScopeTests"
 
 ### ❌ Creating iteration_01_d
 - Iteration budget is max 3 sub-iterations
-- After iteration_01_c, must BLOCK and escalate
+- After iteration_01_c: Can APPROVE if criteria met, must BLOCK if not (cannot ITERATE to _d)
 
 ### ❌ Adding criteria mid-iteration
 - Criteria frozen at start

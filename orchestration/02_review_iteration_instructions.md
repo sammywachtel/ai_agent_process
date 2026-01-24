@@ -16,8 +16,8 @@ iteration_01_b → Second revision (if ITERATE decision)
 iteration_01_c → Final attempt (if ITERATE decision)
 
 After iteration_01_c:
-→ MUST select BLOCK
-→ Escalate to human: ship as-is / change scope / abort
+→ Can APPROVE if all criteria met
+→ MUST select BLOCK if criteria not met (escalate: ship as-is / change scope / abort)
 → NO iteration_01_d creation allowed
 ```
 
@@ -507,11 +507,12 @@ NOT expected (full validation):
 | iteration_01 | 1 of 4 | 3 (a,b,c) | Yes |
 | iteration_01_a | 2 of 4 | 2 (b,c) | Yes |
 | iteration_01_b | 3 of 4 | 1 (c) | Yes |
-| iteration_01_c | 4 of 4 | 0 | No - Must BLOCK |
+| iteration_01_c | 4 of 4 | 0 | No - Can APPROVE if criteria met |
 
 **If iteration_01_c:**
-- Cannot select ITERATE
-- Must select BLOCK and escalate to human
+- Cannot select ITERATE (no _d iteration)
+- Can select APPROVE if all criteria met
+- Must select BLOCK if criteria not met (escalate to human)
 
 ---
 
@@ -661,7 +662,7 @@ Create <next_iteration>/ folder and hand back to implementation session
 - Framework limitation discovered
 - API/service unavailable
 - Design decision needed from human
-- **OR attempts exhausted (iteration_01_c)**
+- **OR attempts exhausted AND criteria not met (iteration_01_c)**
 
 **Actions:**
 1. Stop immediately
@@ -699,8 +700,10 @@ Escalate to human for go/no-go decision
 ```
 
 **Must be used if:**
-- Already used 4 attempts (iteration_01_c)
+- Already used 4 attempts AND criteria not met (iteration_01_c)
 - External issue blocks progress
+
+**Note:** If iteration_01_c meets all criteria, use APPROVE instead of BLOCK
 
 ---
 
@@ -964,11 +967,11 @@ Should I update iteration_plan.md with the proposed scope change (requires your 
 
 | Situation | Decision | Next Step |
 |-----------|----------|-----------|
-| All criteria met | ✅ APPROVE | Mark complete, next iteration/scope |
+| All criteria met (any iteration) | ✅ APPROVE | Mark complete, next iteration/scope |
 | Fixable issues, attempts left | 🔄 ITERATE | Create sub-iteration (a/b/c) |
 | External blocker | 🚫 BLOCK | Escalate to human |
 | Wrong approach | 🔀 PIVOT | Get human approval for change |
-| 4 attempts used (iteration_01_c) | 🚫 BLOCK | Escalate to human |
+| Criteria not met after iteration_01_c | 🚫 BLOCK | Escalate to human (attempts exhausted) |
 | Criteria need change mid-iteration | 🔀 PIVOT | Get human approval |
 
 ---
@@ -977,7 +980,7 @@ Should I update iteration_plan.md with the proposed scope change (requires your 
 
 ### ❌ Creating iteration_01_d
 - Iteration budget is max 3 sub-iterations (a/b/c)
-- After iteration_01_c, must BLOCK and escalate
+- After iteration_01_c: Can APPROVE if criteria met, must BLOCK if not (cannot ITERATE to _d)
 
 ### ❌ Adding new criteria during review
 - Criteria were LOCKED at iteration start

@@ -64,12 +64,12 @@ Follow the complete workflow in `02_review_iteration_instructions.md`.
 
 3. **Enforce iteration budget**
    - Max 3 sub-iterations (a/b/c)
-   - If iteration_01_c: Must BLOCK, cannot ITERATE
+   - If iteration_01_c: Can APPROVE if criteria met, cannot ITERATE (must BLOCK if criteria not met)
 
 4. **Choose exactly one decision**
-   - ✅ APPROVE - All criteria met, code verified
-   - 🔄 ITERATE - Fixable issues, attempts remaining (specify 1-3 fixes)
-   - 🚫 BLOCK - External blocker OR attempts exhausted
+   - ✅ APPROVE - All criteria met, code verified (allowed at any iteration including _c)
+   - 🔄 ITERATE - Fixable issues, attempts remaining (NOT allowed at _c - no _d iteration)
+   - 🚫 BLOCK - External blocker OR criteria not met after iteration_01_c
    - 🔀 PIVOT - Scope change needed (requires human approval)
 
 ---
