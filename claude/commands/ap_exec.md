@@ -3,6 +3,26 @@ description: Execute one iteration - implement changes, validate, and document r
 argument-hint: [scope] [iteration]
 ---
 
+## Local Environment Instructions
+
+**BEFORE proceeding with iteration execution, check for local environment instructions:**
+
+```bash
+cat .agent_process/process/local_environment_instructions.md 2>/dev/null
+```
+
+If this file exists and contains instructions beyond the default placeholder, **follow those instructions in addition to this workflow**. Local environment instructions may specify:
+
+- Multi-repository branch verification (polyrepo projects)
+- Additional validation or setup steps
+- Project-specific file scoping rules
+- Environment-specific configuration
+- Custom pre-implementation checks
+
+These instructions are additive - they augment but do not replace the standard workflow below.
+
+---
+
 ## Arguments
 
 **`$1` (scope)** - Required. Scope folder name under `.agent_process/work/`.
@@ -143,6 +163,44 @@ fi
 - Makes it easy to identify what branch corresponds to which scope
 - Enables clean PR workflow (one scope per PR)
 - Prevents accidental work on wrong branch
+
+**Ensure current_iteration.conf is correct:**
+
+The validation hook reads `.agent_process/work/current_iteration.conf` to determine which scope's validator to run. Verify it matches this execution and update if needed:
+
+```bash
+# Check if current_iteration.conf matches what we're executing
+CONFIG_FILE=".agent_process/work/current_iteration.conf"
+EXPECTED_SCOPE="{scope}"
+EXPECTED_ITERATION="{iteration}"
+
+if [[ -f "$CONFIG_FILE" ]]; then
+  CURRENT_SCOPE=$(grep "^SCOPE=" "$CONFIG_FILE" | cut -d'=' -f2)
+  CURRENT_ITERATION=$(grep "^ITERATION=" "$CONFIG_FILE" | cut -d'=' -f2)
+
+  if [[ "$CURRENT_SCOPE" != "$EXPECTED_SCOPE" ]] || [[ "$CURRENT_ITERATION" != "$EXPECTED_ITERATION" ]]; then
+    echo "⚠️  current_iteration.conf is stale: $CURRENT_SCOPE/$CURRENT_ITERATION"
+    echo "✅ Updating to: $EXPECTED_SCOPE/$EXPECTED_ITERATION"
+    cat > "$CONFIG_FILE" <<EOF
+SCOPE=$EXPECTED_SCOPE
+ITERATION=$EXPECTED_ITERATION
+EOF
+  else
+    echo "✅ current_iteration.conf already correct: $EXPECTED_SCOPE/$EXPECTED_ITERATION"
+  fi
+else
+  echo "⚠️  current_iteration.conf does not exist, creating it"
+  cat > "$CONFIG_FILE" <<EOF
+SCOPE=$EXPECTED_SCOPE
+ITERATION=$EXPECTED_ITERATION
+EOF
+fi
+```
+
+**Why this matters:**
+- The `hook_after_edit.sh` script reads this file to run the correct scope validator
+- Without this check, running `/ap_exec` for a different scope would use the old scope's validator
+- This ensures validation feedback always matches the scope being executed
 
 ---
 
