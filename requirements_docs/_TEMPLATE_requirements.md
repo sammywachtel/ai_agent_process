@@ -1,7 +1,7 @@
 # Requirements: [Scope Name]
 
 **Date:** YYYY-MM-DD
-**Author:** [Human name]
+**Author:** {{ git_author }}
 **Priority:** HIGH | MEDIUM | LOW
 
 ---

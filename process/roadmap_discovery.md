@@ -44,7 +44,7 @@ for md_file in req_dir.rglob("*.md"):
 3. **Priority** - From frontmatter `priority:` field, OR parse from `**Priority:**` field
 4. **Category** - From frontmatter `category:` field, OR from parent directory path
 5. **Status Override** - If `**Status:**` present
-6. **Metadata** - Date, Author, Timeline if present
+6. **Metadata** - Date, Author (auto-populated from `git config user.name`), Timeline if present
 
 **Frontmatter example:**
 ```yaml

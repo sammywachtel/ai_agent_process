@@ -1,25 +1,75 @@
 # Claude Code Commands
 
-Copy the command files from this directory into your project's `.claude/commands/` folder.
+This framework provides slash commands that integrate with Claude Code. After installation, these commands are available in your project.
+
+## Installation
+
+The install script copies command files to `.claude/commands/` in your project. After installation, restart Claude Code (or reload commands) so the new shortcuts are available.
 
 ## Available Commands
 
+### Project Management
+
+- **ap_project.md** – `/ap_project <action> [details]` – Manages roadmap, requirements, and backlog.
+
+  **Actions:**
+  - `init` – Initialize roadmap infrastructure
+  - `discover` – Scan project and build/update roadmap
+  - `status` – Show current project status summary
+  - `add-todo "description"` – Add item to backlog
+  - `add-requirement "name"` – Create new requirement from template
+  - `import-requirement "path"` – Import existing file as requirement
+  - `set-status "req_id status reason"` – Manually set requirement status
+  - `archive "req_id type reason"` – Archive a requirement
+  - `archive-completed` – Bulk archive all approved work scopes
+  - `sync` – Reconcile roadmap with actual work/ status
+  - `report [type]` – Generate stakeholder report (executive/detailed/weekly)
+  - `help` – Show detailed help
+
 ### Iteration Workflow
 
-- **ap_exec.md** – `/ap_exec <scope> <iteration>` – Performs implementation and validation for a single iteration, then triggers `/ap_iteration_results`.
+- **ap_exec.md** – `/ap_exec <scope> <iteration>` – Executes implementation for a single iteration.
+
+  **What it does:**
+  1. Reads iteration plan and frozen criteria
+  2. Selects appropriate specialized agent for the work
+  3. Implements changes within scope boundaries
+  4. Runs scoped validation (automatic via hook)
+  5. Creates results artifacts via `/ap_iteration_results`
+  6. Reports completion status
+
+  **Examples:**
+  ```
+  /ap_exec user_auth iteration_01
+  /ap_exec user_auth iteration_01_a
+  ```
 
 - **ap_iteration_results.md** – `/ap_iteration_results <scope> <iteration>` – Documents iteration results using `test-output.txt`.
 
 ### Release Workflow
 
-- **ap_release.md** – `/ap_release <mode> [version-type]` – Updates changelog, creates PR, and optionally tags a release. Run after orchestrator approves scope work.
+- **ap_release.md** – `/ap_release [noscope] <mode> [version-type]` – Updates changelog, creates PR, and optionally tags a release.
 
-  **Modes:**
-  - `pr` – Add to [Unreleased] changelog, create PR, no tag
+  **Context Modes:**
+  - Default: Reads from `.agent_process/work/` after orchestrator approval
+  - `noscope`: Analyzes git diff for ad-hoc releases
+
+  **Release Modes:**
+  - `pr` – Add to [Unreleased] changelog, create PR, no version tag
   - `beta` – Move [Unreleased] to beta version, create beta tag (vX.Y.Z-beta.N), create PR
-  - `release patch|minor|major` – Move [Unreleased] to new version, update version files, tag release
+  - `release patch` – Patch release (1.0.0 → 1.0.1)
+  - `release minor` – Minor release (1.0.0 → 1.1.0)
+  - `release major` – Major release (1.0.0 → 2.0.0)
 
-- **ap_changelog_init.md** – `/ap_changelog_init [starting-version]` – Initialize CHANGELOG.md from git history for projects that haven't been tracking releases. One-time setup command.
+  **Examples:**
+  ```
+  /ap_release pr                    # Scope mode, PR only
+  /ap_release noscope pr            # No-scope mode, PR only
+  /ap_release release minor         # Scope mode, minor release
+  /ap_release noscope release patch # No-scope mode, patch release
+  ```
+
+- **ap_changelog_init.md** – `/ap_changelog_init [starting-version]` – Initialize CHANGELOG.md from git history for projects not yet tracking releases.
 
   **What it does:**
   - Analyzes git tags and commit history
@@ -27,6 +77,52 @@ Copy the command files from this directory into your project's `.claude/commands
   - Sets up [Unreleased] section for future `/ap_release` use
   - Links to full git history for transparency
 
-## Setup
+## Command Workflow Overview
 
-After copying, restart Claude Code (or reload commands) so the new shortcuts are available.
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      TYPICAL WORKFLOW                           │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  /ap_project init         # One-time: set up roadmap           │
+│  /ap_project discover     # Optional: scan existing project    │
+│                                                                 │
+│  /ap_project add-requirement "feature_name"                     │
+│                           # Create new requirement              │
+│                                                                 │
+│  [Plan scope with orchestration/01_plan_scope_prompt.md]        │
+│                                                                 │
+│  /ap_exec feature_name iteration_01                             │
+│                           # Execute implementation              │
+│                                                                 │
+│  [Review with orchestration/02_review_iteration_prompt.md]      │
+│                                                                 │
+│  /ap_release pr           # Create PR with changelog            │
+│                                                                 │
+│  /ap_project archive-completed                                  │
+│                           # Clean up approved work              │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Customization
+
+### Local Environment Instructions
+
+For projects with unique workflow requirements (polyrepo, custom CI/CD, multi-step validation), customize command behavior in:
+
+**File:** `.agent_process/process/local_environment_instructions.md`
+
+Commands check this file for project-specific:
+- Extended command arguments
+- Multi-repository coordination
+- Custom validation steps
+- Environment-specific setup
+
+This file is preserved across re-installations.
+
+## See Also
+
+- **README.md** – Full framework documentation
+- **orchestration/00_base_context.md** – Quick onboarding for orchestration
+- **process/validation-playbook.md** – Testing patterns

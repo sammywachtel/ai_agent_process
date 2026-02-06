@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Comprehensive README rewrite** - Complete documentation overhaul with improved structure
+  - Added table of contents for easier navigation
+  - New "Overview" section explaining the problem this framework solves
+  - Added ASCII workflow diagram showing the high-level process
+  - New "Roles & Responsibilities" section clarifying Human/Orchestrator/Implementation separation
+  - Expanded "Key Concepts" with tables explaining iteration model, budgets, and decisions
+  - Added "Slash Commands Reference" with all commands and examples
+  - New "Directory Structure" diagram showing installed file layout
+  - Step-by-step "Getting Started Guide" for new users
+  - Added "Success Metrics" tables with targets and warning signs
+  - Reorganized documentation references into categorized tables
+
+- **Updated `claude/commands.md`** - Comprehensive command documentation
+  - Added `/ap_project` command documentation (was missing)
+  - Added workflow overview ASCII diagram
+  - Improved command examples and context modes documentation
+  - Added "See Also" section linking to related docs
+
+- **Updated `claude/commands/README.md`** - Quick reference improvements
+  - Converted to table format for available commands
+  - Added quick reference section with common commands
+  - Improved documentation cross-references
+
+---
+
+## [3.2.0] - 2026-01-25
+
+### Added
+- **`/ap_project archive-completed` command** - Automated bulk archiving of approved work scopes
+  - Scans `work/` for scopes with "Decision: APPROVE" in iteration_plan.md
+  - Shows archive plan and asks for confirmation before proceeding
+  - Moves scopes using `git mv` to preserve complete git history
+  - Updates requirement frontmatter with approval metadata:
+    - `status: approved`
+    - `approved_date: [date from orchestrator decision]`
+    - `work_location: work_archive/approved/[scope]/`
+  - Generates/updates `completed_work.md` historical record grouped by category
+  - Creates atomic git commit for all archive operations
+  - Replaces manual Python script workflow with integrated command
+
+### Technical Details
+The archive-completed command automates what was previously a manual Python script process:
+- **Identification**: Reads iteration_plan.md for "Decision: ✅ APPROVE" markers
+- **History preservation**: Uses `git mv` for tracked files (falls back to `mv` + `git add` for untracked)
+- **Requirement updates**: Modifies frontmatter YAML to track approval state and archive location
+- **Historical record**: Groups completed work by category in `completed_work.md`
+- **Safety**: Only processes explicitly approved scopes - in-progress or blocked work remains in `work/`
+
+### Usage
+```bash
+/ap_project archive-completed   # Interactive bulk archive with confirmation
+```
+
+**Use this command to**:
+- Declutter active `work/` directory after completing multiple scopes
+- Maintain clean project metrics for status reports
+- Create structured historical record of completed work
+- Prepare for project milestones or quarterly reviews
+
 ---
 
 ## [3.1.5] - 2026-01-19

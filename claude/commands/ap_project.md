@@ -1,7 +1,7 @@
 ---
 name: ap_project
 description: Generic project roadmap and requirements management for .agent_process projects
-argument-hint: init | discover | status | set-status | archive | add-todo | add-requirement | import-requirement | sync | report | help ["details"]
+argument-hint: init | discover | status | set-status | archive | archive-completed | add-todo | add-requirement | import-requirement | sync | report | help ["details"]
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, TodoWrite]
 arguments:
   - name: action
@@ -14,6 +14,7 @@ arguments:
       - status: Show current project status summary
       - set-status: Manually set requirement status (complete|in-progress|blocked|on-hold)
       - archive: Archive a requirement (completed|abandoned|superseded|out-of-scope)
+      - archive-completed: Move all approved work scopes from work/ to work_archive/approved/
       - add-todo: Add item to backlog
       - add-requirement: Create new requirement from template
       - import-requirement: Import existing file as requirement (adds frontmatter, standardizes name)
@@ -44,6 +45,18 @@ Before proceeding, familiarize yourself with the process documentation:
 - **Discovery process:** `.agent_process/process/roadmap_discovery.md`
 - **Schema specification:** `.agent_process/process/roadmap_schema.md`
 - **Update procedures:** `.agent_process/process/roadmap_update.md`
+
+## Template Variables
+
+When generating files from templates, resolve these variables before writing:
+
+| Variable | Resolution | Example |
+|----------|------------|---------|
+| `{{ current_date }}` | Today's date in `YYYY-MM-DD` format | `2025-06-15` |
+| `{{ git_author }}` | Run `git config user.name` in the project directory | `Jane Smith` |
+| `{{ details }}` | The `details` argument passed to the command | (user-provided) |
+
+**`{{ git_author }}` fallback:** If `git config user.name` returns empty, fall back to `git config user.email`. If both are empty, use `[Unknown — run git config user.name to set]`.
 
 ## Quick Reference
 
@@ -325,8 +338,12 @@ for md_file in req_dir.rglob("*.md"):
     except:
         continue
 
-    # FRONTMATTER FIRST - check for id, category, priority
+    # FRONTMATTER FIRST - check for id, category, priority, archived status
     fm = parse_frontmatter(content)
+
+    # Skip archived requirements
+    if fm and fm.get("archived"):
+        continue
 
     if fm and fm.get("id"):
         # Use frontmatter values (preferred)
@@ -797,12 +814,127 @@ PYEOF
 - `todo_requirements.md` can be deleted once migration is verified
 - This consolidates to a single todo system
 
-### Step 7: Report Discovery Results
+### Step 7: Update Requirements Frontmatter Status
+
+**IMPORTANT:** After determining status from work directories, update each requirement file's frontmatter to match.
+
+```python
+python3 << 'PYEOF'
+import re
+import yaml
+from pathlib import Path
+from datetime import datetime
+
+def parse_frontmatter(content):
+    """Extract YAML frontmatter if present."""
+    if not content.startswith('---'):
+        return None, None
+
+    end_match = re.search(r'\n---\s*\n', content[3:])
+    if not end_match:
+        return None, None
+
+    end_pos = end_match.end() + 3
+    yaml_content = content[3:end_match.start() + 3]
+    body = content[end_pos:]
+
+    try:
+        fm = yaml.safe_load(yaml_content) or {}
+        return fm, body
+    except:
+        return None, None
+
+def update_frontmatter_status(file_path, new_status):
+    """Update status field in frontmatter. Returns True if updated."""
+    content = file_path.read_text()
+    fm, body = parse_frontmatter(content)
+
+    if fm is None:
+        return False
+
+    # Normalize status values
+    status_map = {
+        "APPROVED": "complete",
+        "COMPLETE": "complete",
+        "NEEDS_REVIEW": "needs_review",
+        "IN_PROGRESS": "in_progress",
+        "BLOCKED": "blocked",
+        "NOT_STARTED": "not_started"
+    }
+    normalized_status = status_map.get(new_status.upper(), new_status.lower().replace(" ", "_"))
+
+    # Only update if status changed
+    current_status = fm.get("status", "").lower().replace(" ", "_").replace("-", "_")
+    if current_status == normalized_status:
+        return False
+
+    fm["status"] = normalized_status
+
+    # Write updated frontmatter
+    new_content = "---\n" + yaml.dump(fm, default_flow_style=False, sort_keys=False) + "---\n" + body
+    file_path.write_text(new_content)
+    return True
+
+# Read requirements and their statuses from previous discovery
+# This assumes you've built a requirements dict with status info
+req_dir = Path(".agent_process/requirements_docs")
+roadmap_file = Path(".agent_process/roadmap/master_roadmap.md")
+
+if not roadmap_file.exists():
+    print("No roadmap found - skipping frontmatter update")
+    exit(0)
+
+# Parse roadmap to extract requirement statuses
+roadmap_content = roadmap_file.read_text()
+status_updates = {}
+
+# Extract status from roadmap Requirements by Category sections
+# Format: | ✅ | HIGH | requirement_name | 3 |
+status_icons = {
+    "✅": "complete",
+    "🚧": "in_progress",
+    "❌": "blocked",
+    "📋": "not_started",
+    "🔍": "needs_review",
+    "⏸️": "on_hold"
+}
+
+for line in roadmap_content.split("\n"):
+    if line.startswith("| ") and any(icon in line for icon in status_icons):
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) >= 4:
+            icon = parts[1]
+            req_link = parts[3]  # Requirement column
+
+            # Extract requirement ID from markdown link [display](path)
+            match = re.search(r'\[([^\]]+)\]\(([^\)]+)\)', req_link)
+            if match:
+                req_path = match.group(2)
+                status = next((s for i, s in status_icons.items() if i == icon), "not_started")
+                status_updates[req_path] = status
+
+# Update requirement files
+updated_count = 0
+for req_path, new_status in status_updates.items():
+    file_path = Path(".agent_process") / req_path
+    if file_path.exists():
+        if update_frontmatter_status(file_path, new_status):
+            updated_count += 1
+            print(f"Updated {file_path.name}: {new_status}")
+
+print(f"\n✅ Updated {updated_count} requirement frontmatter status fields")
+PYEOF
+```
+
+**This ensures requirement files are the source of truth for status information.**
+
+### Step 8: Report Discovery Results
 
 Provide summary:
 - Requirements found and categorized
 - Work directories matched/orphaned
 - Status distribution
+- Frontmatter status fields updated
 - Recommended next actions
 
 {% elif action == "status" %}
@@ -1201,7 +1333,7 @@ Use the requirement template from `.agent_process/requirements_docs/_TEMPLATE_re
 # Requirements: {{ details }}
 
 **Date:** {{ current_date }}
-**Author:** [Human name]
+**Author:** {{ git_author }}
 **Priority:** [CRITICAL | HIGH | MEDIUM | LOW]
 
 ---
@@ -1615,6 +1747,116 @@ Regenerate roadmap from current state:
 
 Preserve configuration in `.roadmap_config.json` (category prefix_mappings, project_mappings, status_overrides).
 
+### Step 5.5: Update Requirements Frontmatter Status
+
+**IMPORTANT:** After reconciling status, update each requirement file's frontmatter to match the discovered/computed status.
+
+Use the same Python script from `discover` Step 7 to update frontmatter status fields based on the regenerated roadmap:
+
+```python
+python3 << 'PYEOF'
+import re
+import yaml
+from pathlib import Path
+
+def parse_frontmatter(content):
+    """Extract YAML frontmatter if present."""
+    if not content.startswith('---'):
+        return None, None
+
+    end_match = re.search(r'\n---\s*\n', content[3:])
+    if not end_match:
+        return None, None
+
+    end_pos = end_match.end() + 3
+    yaml_content = content[3:end_match.start() + 3]
+    body = content[end_pos:]
+
+    try:
+        fm = yaml.safe_load(yaml_content) or {}
+        return fm, body
+    except:
+        return None, None
+
+def update_frontmatter_status(file_path, new_status):
+    """Update status field in frontmatter. Returns True if updated."""
+    content = file_path.read_text()
+    fm, body = parse_frontmatter(content)
+
+    if fm is None:
+        return False
+
+    # Normalize status values
+    status_map = {
+        "APPROVED": "complete",
+        "COMPLETE": "complete",
+        "NEEDS_REVIEW": "needs_review",
+        "IN_PROGRESS": "in_progress",
+        "BLOCKED": "blocked",
+        "NOT_STARTED": "not_started"
+    }
+    normalized_status = status_map.get(new_status.upper(), new_status.lower().replace(" ", "_"))
+
+    # Only update if status changed
+    current_status = fm.get("status", "").lower().replace(" ", "_").replace("-", "_")
+    if current_status == normalized_status:
+        return False
+
+    fm["status"] = normalized_status
+
+    # Write updated frontmatter
+    new_content = "---\n" + yaml.dump(fm, default_flow_style=False, sort_keys=False) + "---\n" + body
+    file_path.write_text(new_content)
+    return True
+
+roadmap_file = Path(".agent_process/roadmap/master_roadmap.md")
+
+if not roadmap_file.exists():
+    print("No roadmap found - skipping frontmatter update")
+    exit(0)
+
+# Parse roadmap to extract requirement statuses
+roadmap_content = roadmap_file.read_text()
+status_updates = {}
+
+# Extract status from roadmap Requirements by Category sections
+status_icons = {
+    "✅": "complete",
+    "🚧": "in_progress",
+    "❌": "blocked",
+    "📋": "not_started",
+    "🔍": "needs_review",
+    "⏸️": "on_hold"
+}
+
+for line in roadmap_content.split("\n"):
+    if line.startswith("| ") and any(icon in line for icon in status_icons):
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) >= 4:
+            icon = parts[1]
+            req_link = parts[3]
+
+            match = re.search(r'\[([^\]]+)\]\(([^\)]+)\)', req_link)
+            if match:
+                req_path = match.group(2)
+                status = next((s for i, s in status_icons.items() if i == icon), "not_started")
+                status_updates[req_path] = status
+
+# Update requirement files
+updated_count = 0
+for req_path, new_status in status_updates.items():
+    file_path = Path(".agent_process") / req_path
+    if file_path.exists():
+        if update_frontmatter_status(file_path, new_status):
+            updated_count += 1
+            print(f"Updated {file_path.name}: {new_status}")
+
+print(f"\n✅ Updated {updated_count} requirement frontmatter status fields")
+PYEOF
+```
+
+**This ensures requirement files stay in sync with the discovered status.**
+
 ### Step 6: Validate Consistency
 
 Check that updated roadmap is consistent:
@@ -1897,6 +2139,92 @@ Append to `.agent_process/roadmap/.roadmap_audit.jsonl`:
 
 Re-run discovery aggregation to update `master_roadmap.md` with the new status (respecting manual override).
 
+### Step 6.5: Update Requirement Frontmatter Status
+
+**IMPORTANT:** Update the requirement file's frontmatter to match the manually set status.
+
+```python
+python3 << 'PYEOF'
+import re
+import yaml
+import json
+from pathlib import Path
+
+req_id = "{{ details }}".split()[0] if "{{ details }}" else ""
+new_status = "{{ details }}".split()[1] if len("{{ details }}".split()) > 1 else ""
+
+def parse_frontmatter(content):
+    """Extract YAML frontmatter if present."""
+    if not content.startswith('---'):
+        return None, None
+
+    end_match = re.search(r'\n---\s*\n', content[3:])
+    if not end_match:
+        return None, None
+
+    end_pos = end_match.end() + 3
+    yaml_content = content[3:end_match.start() + 3]
+    body = content[end_pos:]
+
+    try:
+        fm = yaml.safe_load(yaml_content) or {}
+        return fm, body
+    except:
+        return None, None
+
+def update_frontmatter_status(file_path, new_status):
+    """Update status field in frontmatter."""
+    content = file_path.read_text()
+    fm, body = parse_frontmatter(content)
+
+    if fm is None:
+        print(f"WARNING: {file_path.name} has no frontmatter - cannot update status")
+        return False
+
+    # Normalize status value
+    normalized_status = new_status.lower().replace(" ", "_").replace("-", "_")
+
+    old_status = fm.get("status", "not_started")
+    fm["status"] = normalized_status
+
+    # Write updated frontmatter
+    new_content = "---\n" + yaml.dump(fm, default_flow_style=False, sort_keys=False) + "---\n" + body
+    file_path.write_text(new_content)
+
+    print(f"✅ Updated frontmatter: {file_path.name}")
+    print(f"   status: {old_status} → {normalized_status}")
+    return True
+
+# Find requirement file by ID
+req_dir = Path(".agent_process/requirements_docs")
+req_file = None
+
+# Search for file matching requirement ID
+for candidate in req_dir.rglob("*.md"):
+    if candidate.stem == req_id:
+        req_file = candidate
+        break
+
+    # Also check frontmatter id field
+    try:
+        content = candidate.read_text()
+        fm, _ = parse_frontmatter(content)
+        if fm and fm.get("id") == req_id:
+            req_file = candidate
+            break
+    except:
+        pass
+
+if req_file and req_file.exists():
+    update_frontmatter_status(req_file, new_status)
+else:
+    print(f"WARNING: Could not find requirement file for '{req_id}'")
+    print(f"Searched in: {req_dir}")
+PYEOF
+```
+
+**This ensures the requirement file's frontmatter status stays in sync with the manual override.**
+
 ### Step 7: Confirm Change
 
 Report the change:
@@ -1906,6 +2234,7 @@ Report the change:
    New: complete
    Reason: Implementation finished
    Logged to: .roadmap_audit.jsonl
+   Frontmatter: Updated in requirement file
 ```
 
 {% elif action == "archive" %}
@@ -1934,14 +2263,24 @@ Same validation as set-status.
 
 ### Step 3: Pre-Archive Validation
 
-**Check for dependencies:**
+**Check for related work directories:**
 ```python
 python3 << 'PYEOF'
 import json
 from pathlib import Path
 
 req_id = "{{ details }}".split()[0] if "{{ details }}" else ""
+archive_type = "{{ details }}".split()[1] if len("{{ details }}".split()) > 1 else "unknown"
 work_dir = Path(f".agent_process/work")
+
+# Archive type to folder mapping
+type_to_folder = {
+    "completed": "approved",
+    "superseded": "superseded",
+    "abandoned": "abandoned",
+    "out-of-scope": "out-of-scope"
+}
+dest_folder = type_to_folder.get(archive_type, archive_type)
 
 # Check if any work directories reference this requirement
 related_work = [d.name for d in work_dir.iterdir() if d.is_dir() and req_id in d.name]
@@ -1950,9 +2289,15 @@ if related_work:
     print(f"INFO: Found {len(related_work)} related work directories:")
     for w in related_work[:5]:
         print(f"  - {w}")
-    print("These will be preserved but excluded from active metrics.")
+    if len(related_work) > 5:
+        print(f"  ... and {len(related_work) - 5} more")
+    print(f"\nThese will be moved to: work_archive/{dest_folder}/")
+else:
+    print("INFO: No related work directories found in work/")
 PYEOF
 ```
+
+**Also check `.roadmap_config.json` project_mappings** for work directories that map to this requirement but don't contain the requirement ID in their name.
 
 **Confirmation required for:**
 - Archiving requirements with IN_PROGRESS work
@@ -2007,7 +2352,41 @@ Add to `.agent_process/roadmap/.roadmap_config.json` under `archived_requirement
 }
 ```
 
-### Step 6: Log to Audit Trail
+### Step 6: Move Related Work Directories
+
+**IMPORTANT:** Move all related work directories to the appropriate archive folder based on archive type.
+
+**Archive folder mapping:**
+| Archive Type | Destination Folder |
+|--------------|-------------------|
+| `completed` | `work_archive/approved/` |
+| `superseded` | `work_archive/superseded/` |
+| `abandoned` | `work_archive/abandoned/` |
+| `out-of-scope` | `work_archive/out-of-scope/` |
+
+**Steps:**
+1. Create the destination folder if it doesn't exist:
+   ```bash
+   mkdir -p .agent_process/work_archive/{type}/
+   ```
+
+2. Move each related work directory using `git mv` to preserve history:
+   ```bash
+   git mv .agent_process/work/{work_dir} .agent_process/work_archive/{type}/
+   ```
+
+3. Update `archived_roadmap.md` to note the archive location for each work directory.
+
+**Example for superseded requirement:**
+```bash
+mkdir -p .agent_process/work_archive/superseded
+git mv .agent_process/work/lexical_epic_06_scope_01 .agent_process/work_archive/superseded/
+git mv .agent_process/work/lexical_epic_06_scope_02 .agent_process/work_archive/superseded/
+```
+
+**Note:** Use `git mv` instead of `mv` to preserve file history for archaeology purposes.
+
+### Step 7: Log to Audit Trail
 
 Append to `.agent_process/roadmap/.roadmap_audit.jsonl`:
 
@@ -2015,11 +2394,103 @@ Append to `.agent_process/roadmap/.roadmap_audit.jsonl`:
 {"timestamp": "2026-01-17T22:30:00Z", "action": "archive", "requirement": "req_id", "type": "abandoned", "reason": "User reason"}
 ```
 
-### Step 7: Update Roadmap
+### Step 8: Update Requirement Frontmatter
+
+**IMPORTANT:** Mark the requirement file's frontmatter as archived.
+
+```python
+python3 << 'PYEOF'
+import re
+import yaml
+from pathlib import Path
+from datetime import datetime
+
+req_id = "{{ details }}".split()[0] if "{{ details }}" else ""
+archive_type = "{{ details }}".split()[1] if len("{{ details }}".split()) > 1 else ""
+reason = " ".join("{{ details }}".split()[2:]) if len("{{ details }}".split()) > 2 else ""
+
+def parse_frontmatter(content):
+    """Extract YAML frontmatter if present."""
+    if not content.startswith('---'):
+        return None, None
+
+    end_match = re.search(r'\n---\s*\n', content[3:])
+    if not end_match:
+        return None, None
+
+    end_pos = end_match.end() + 3
+    yaml_content = content[3:end_match.start() + 3]
+    body = content[end_pos:]
+
+    try:
+        fm = yaml.safe_load(yaml_content) or {}
+        return fm, body
+    except:
+        return None, None
+
+def update_frontmatter_archived(file_path, archive_type, reason):
+    """Mark requirement as archived in frontmatter."""
+    content = file_path.read_text()
+    fm, body = parse_frontmatter(content)
+
+    if fm is None:
+        print(f"WARNING: {file_path.name} has no frontmatter - cannot update")
+        return False
+
+    # Add archive metadata
+    fm["archived"] = True
+    fm["archive_type"] = archive_type
+    fm["archived_date"] = datetime.now().strftime("%Y-%m-%d")
+    if reason:
+        fm["archive_reason"] = reason
+
+    # Set status based on archive type
+    if archive_type == "completed":
+        fm["status"] = "complete"
+    else:
+        fm["status"] = "archived"
+
+    # Write updated frontmatter
+    new_content = "---\n" + yaml.dump(fm, default_flow_style=False, sort_keys=False) + "---\n" + body
+    file_path.write_text(new_content)
+
+    print(f"✅ Updated frontmatter: {file_path.name}")
+    print(f"   archived: true")
+    print(f"   archive_type: {archive_type}")
+    return True
+
+# Find requirement file
+req_dir = Path(".agent_process/requirements_docs")
+req_file = None
+
+for candidate in req_dir.rglob("*.md"):
+    if candidate.stem == req_id:
+        req_file = candidate
+        break
+
+    try:
+        content = candidate.read_text()
+        fm, _ = parse_frontmatter(content)
+        if fm and fm.get("id") == req_id:
+            req_file = candidate
+            break
+    except:
+        pass
+
+if req_file and req_file.exists():
+    update_frontmatter_archived(req_file, archive_type, reason)
+else:
+    print(f"WARNING: Could not find requirement file for '{req_id}'")
+PYEOF
+```
+
+**This marks the requirement file as archived so discovery can skip it.**
+
+### Step 9: Update Roadmap
 
 Re-run discovery to exclude archived requirements from active metrics.
 
-### Step 8: Confirm Archive
+### Step 10: Confirm Archive
 
 Report the change:
 ```
@@ -2027,9 +2498,385 @@ Report the change:
    Type: abandoned
    Reason: Superseded by new approach
    Related work preserved: 2 directories
+   Frontmatter: Marked as archived
    Logged to: .roadmap_audit.jsonl
 
    To restore: /ap_project restore "old_feature_requirement"
+```
+
+{% elif action == "archive-completed" %}
+
+## Archive Completed Work Scopes
+
+Move all approved work scopes from `work/` to `work_archive/approved/`. This preserves git history and updates requirement frontmatter with archive location.
+
+### Step 1: Ensure Archive Directory Exists
+
+```bash
+mkdir -p .agent_process/work_archive/approved
+```
+
+### Step 2: Scan for Approved Scopes
+
+Find all work scopes with "Decision: APPROVE" in their iteration_plan.md:
+
+```python
+python3 << 'PYEOF'
+import os
+import re
+import yaml
+from pathlib import Path
+from datetime import datetime
+
+WORK_DIR = Path(".agent_process/work")
+ARCHIVE_DIR = Path(".agent_process/work_archive/approved")
+REQ_DIR = Path(".agent_process/requirements_docs")
+
+def parse_frontmatter(content):
+    """Extract YAML frontmatter from markdown content."""
+    if not content.startswith('---'):
+        return None
+    try:
+        end_match = re.search(r'\n---\s*\n', content[3:])
+        if not end_match:
+            return None
+        yaml_content = content[3:end_match.start() + 3]
+        return yaml.safe_load(yaml_content)
+    except:
+        return None
+
+def is_approved(scope_dir):
+    """Check if scope has Decision: APPROVE in iteration_plan.md."""
+    plan_file = scope_dir / "iteration_plan.md"
+    if not plan_file.exists():
+        return False
+    try:
+        content = plan_file.read_text()
+        if re.search(r'Decision:\s*(?:✅\s*)?APPROVE', content, re.IGNORECASE):
+            return True
+    except:
+        pass
+    return False
+
+def get_approval_date(scope_dir):
+    """Extract approval date from iteration_plan.md."""
+    plan_file = scope_dir / "iteration_plan.md"
+    if not plan_file.exists():
+        return datetime.now().strftime("%Y-%m-%d")
+    try:
+        content = plan_file.read_text()
+        # Look for date in decision line: "Decision: ✅ APPROVE (2026-01-16)"
+        match = re.search(r'Decision:\s*(?:✅\s*)?APPROVE\s*\((\d{4}-\d{2}-\d{2})\)', content, re.IGNORECASE)
+        if match:
+            return match.group(1)
+    except:
+        pass
+    return datetime.now().strftime("%Y-%m-%d")
+
+def find_requirement_by_id(scope_id):
+    """Find requirement file matching this scope ID."""
+    for md_file in REQ_DIR.rglob("*.md"):
+        if "_TEMPLATE_" in str(md_file) or "/bugs/" in str(md_file):
+            continue
+        try:
+            content = md_file.read_text()
+            fm = parse_frontmatter(content)
+            if fm and fm.get("id") == scope_id:
+                return md_file, fm
+        except:
+            continue
+    return None, None
+
+# Scan for approved scopes
+approved_scopes = []
+if WORK_DIR.exists():
+    for scope_dir in sorted(WORK_DIR.iterdir()):
+        if not scope_dir.is_dir():
+            continue
+        if is_approved(scope_dir):
+            scope_id = scope_dir.name
+            approval_date = get_approval_date(scope_dir)
+            req_file, req_fm = find_requirement_by_id(scope_id)
+            category = req_fm.get("category", "unknown") if req_fm else "unknown"
+            approved_scopes.append({
+                "scope_id": scope_id,
+                "scope_dir": str(scope_dir),
+                "approval_date": approval_date,
+                "req_file": str(req_file) if req_file else None,
+                "category": category
+            })
+
+# Output results
+if not approved_scopes:
+    print("NO_APPROVED_SCOPES")
+else:
+    print(f"FOUND:{len(approved_scopes)}")
+    for scope in approved_scopes:
+        print(f"SCOPE|{scope['scope_id']}|{scope['approval_date']}|{scope['category']}|{scope['req_file'] or 'NO_REQ'}")
+PYEOF
+```
+
+### Step 3: Show Archive Plan
+
+Display what will be archived and ask for confirmation:
+
+```
+📦 Archive Plan
+
+Found [N] approved work scopes ready for archive:
+
+| Scope ID | Approved Date | Category | Requirement |
+|----------|---------------|----------|-------------|
+| scope_1  | 2026-01-24    | lexical  | ✓ linked    |
+| scope_2  | 2026-01-24    | ai_radar | ✓ linked    |
+| scope_3  | 2026-01-23    | unknown  | ✗ no match  |
+
+Actions to perform:
+1. Move work scopes from work/ to work_archive/approved/ (using git mv)
+2. Update linked requirement frontmatter with:
+   - status: approved
+   - approved_date: [date]
+   - work_location: work_archive/approved/[scope]/
+3. Generate/update completed_work.md
+4. Create atomic git commit
+
+Proceed with archive? (yes/no)
+```
+
+### Step 4: Execute Archive
+
+If user confirms, run the archive operation:
+
+```python
+python3 << 'PYEOF'
+import os
+import re
+import yaml
+import subprocess
+from pathlib import Path
+from datetime import datetime
+from collections import defaultdict
+
+WORK_DIR = Path(".agent_process/work")
+ARCHIVE_DIR = Path(".agent_process/work_archive/approved")
+REQ_DIR = Path(".agent_process/requirements_docs")
+ROADMAP_DIR = Path(".agent_process/roadmap")
+
+def parse_frontmatter(content):
+    """Extract YAML frontmatter from markdown content."""
+    if not content.startswith('---'):
+        return None
+    try:
+        end_match = re.search(r'\n---\s*\n', content[3:])
+        if not end_match:
+            return None
+        yaml_content = content[3:end_match.start() + 3]
+        return yaml.safe_load(yaml_content)
+    except:
+        return None
+
+def update_frontmatter(file_path, updates):
+    """Update frontmatter fields in a markdown file."""
+    content = file_path.read_text()
+    if not content.startswith('---'):
+        return False
+
+    end_match = re.search(r'\n---\s*\n', content[3:])
+    if not end_match:
+        return False
+
+    end_pos = end_match.end() + 3
+    yaml_content = content[3:end_match.start() + 3]
+    body = content[end_pos:]
+
+    try:
+        fm = yaml.safe_load(yaml_content) or {}
+    except:
+        return False
+
+    fm.update(updates)
+    new_yaml = yaml.dump(fm, default_flow_style=False, sort_keys=False)
+    new_content = f"---\n{new_yaml}---\n{body}"
+    file_path.write_text(new_content)
+    return True
+
+def is_approved(scope_dir):
+    """Check if scope has Decision: APPROVE in iteration_plan.md."""
+    plan_file = scope_dir / "iteration_plan.md"
+    if not plan_file.exists():
+        return False
+    try:
+        content = plan_file.read_text()
+        if re.search(r'Decision:\s*(?:✅\s*)?APPROVE', content, re.IGNORECASE):
+            return True
+    except:
+        pass
+    return False
+
+def get_approval_date(scope_dir):
+    """Extract approval date from iteration_plan.md."""
+    plan_file = scope_dir / "iteration_plan.md"
+    if not plan_file.exists():
+        return datetime.now().strftime("%Y-%m-%d")
+    try:
+        content = plan_file.read_text()
+        match = re.search(r'Decision:\s*(?:✅\s*)?APPROVE\s*\((\d{4}-\d{2}-\d{2})\)', content, re.IGNORECASE)
+        if match:
+            return match.group(1)
+    except:
+        pass
+    return datetime.now().strftime("%Y-%m-%d")
+
+def find_requirement_by_id(scope_id):
+    """Find requirement file matching this scope ID."""
+    for md_file in REQ_DIR.rglob("*.md"):
+        if "_TEMPLATE_" in str(md_file) or "/bugs/" in str(md_file):
+            continue
+        try:
+            content = md_file.read_text()
+            fm = parse_frontmatter(content)
+            if fm and fm.get("id") == scope_id:
+                return md_file, fm
+        except:
+            continue
+    return None, None
+
+# Collect approved scopes
+scopes_to_archive = []
+for scope_dir in sorted(WORK_DIR.iterdir()):
+    if not scope_dir.is_dir():
+        continue
+    if is_approved(scope_dir):
+        scope_id = scope_dir.name
+        approval_date = get_approval_date(scope_dir)
+        req_file, req_fm = find_requirement_by_id(scope_id)
+        category = req_fm.get("category", "unknown") if req_fm else "unknown"
+        scopes_to_archive.append({
+            "scope_id": scope_id,
+            "scope_dir": scope_dir,
+            "approval_date": approval_date,
+            "req_file": req_file,
+            "category": category
+        })
+
+if not scopes_to_archive:
+    print("Nothing to archive.")
+    exit(0)
+
+# Execute archive
+success = []
+failed = []
+
+for scope in scopes_to_archive:
+    scope_id = scope["scope_id"]
+    source = scope["scope_dir"]
+    target = ARCHIVE_DIR / scope_id
+
+    try:
+        # Try git mv first (preserves history)
+        result = subprocess.run(
+            ["git", "mv", str(source), str(target)],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            # Fallback to regular mv + git add (for untracked dirs)
+            subprocess.run(["mv", str(source), str(target)], check=True)
+            subprocess.run(["git", "add", str(target)], check=True)
+
+        # Update requirement frontmatter if linked
+        if scope["req_file"]:
+            updates = {
+                "status": "approved",
+                "approved_date": scope["approval_date"],
+                "work_location": f"work_archive/approved/{scope_id}/"
+            }
+            update_frontmatter(scope["req_file"], updates)
+
+        success.append(scope)
+        print(f"✓ Archived: {scope_id}")
+
+    except Exception as e:
+        failed.append({"scope_id": scope_id, "error": str(e)})
+        print(f"✗ Failed: {scope_id} - {e}")
+
+# Generate completed_work.md
+if success:
+    by_category = defaultdict(list)
+    for scope in success:
+        by_category[scope["category"]].append(scope)
+
+    completed_file = ROADMAP_DIR / "completed_work.md"
+    lines = [
+        "# Completed Work Archive",
+        "",
+        "> Historical record of all approved and archived work scopes.",
+        "",
+        f"**Last Updated:** {datetime.now().strftime('%Y-%m-%d')}",
+        f"**Total Archived:** {len(success)} scopes",
+        "",
+        "## Completed Scopes by Category",
+        ""
+    ]
+
+    for category in sorted(by_category.keys()):
+        scopes = by_category[category]
+        lines.append(f"### {category} ({len(scopes)} scopes)")
+        lines.append("")
+        lines.append("| Scope ID | Approved Date | Requirement |")
+        lines.append("|----------|---------------|-------------|")
+        for s in sorted(scopes, key=lambda x: x["approval_date"], reverse=True):
+            req_link = f"`{s['req_file'].name}`" if s["req_file"] else "—"
+            lines.append(f"| {s['scope_id']} | {s['approval_date']} | {req_link} |")
+        lines.append("")
+
+    completed_file.write_text("\n".join(lines))
+    print(f"\n✓ Updated: {completed_file}")
+
+# Summary
+print(f"\n📦 Archive Complete")
+print(f"   Archived: {len(success)} scopes")
+if failed:
+    print(f"   Failed: {len(failed)} scopes")
+    for f in failed:
+        print(f"     - {f['scope_id']}: {f['error']}")
+print(f"\nReminder: Run 'git commit -m \"Archive {len(success)} completed work scopes\"' to finalize.")
+PYEOF
+```
+
+### Step 5: Create Git Commit
+
+After successful archive, commit the changes:
+
+```bash
+git add .agent_process/work_archive/
+git add .agent_process/requirements_docs/
+git add .agent_process/roadmap/completed_work.md
+git commit -m "$(cat <<'EOF'
+Archive [N] completed work scopes
+
+Move approved work scopes from work/ to work_archive/approved/
+- Preserves git history via git mv
+- Updates requirement frontmatter with archive location
+- Generates completed_work.md historical record
+EOF
+)"
+```
+
+### Step 6: Report Results
+
+```
+✅ Archive operation complete
+
+📦 Summary:
+- Scopes archived: [N]
+- Requirements updated: [M]
+- Git commit created: [hash]
+
+📁 Archive location: .agent_process/work_archive/approved/
+
+📊 Active work remaining: [X] scopes in work/
+
+Run `/ap_project status` to see updated project state.
 ```
 
 {% elif action == "help" %}
@@ -2085,6 +2932,45 @@ Archive a requirement, removing it from active roadmap while preserving history.
 /ap_project archive "old_feature abandoned Replaced by new approach"
 /ap_project archive "lexical_epic_00 completed All work verified"
 ```
+
+---
+
+### `/ap_project archive-completed`
+Bulk archive all approved work scopes from `work/` to `work_archive/approved/`. Preserves git history, updates requirement frontmatter, and generates a historical record.
+
+**Usage:** `/ap_project archive-completed`
+
+**What it does:**
+1. Scans `work/` for scopes with "Decision: APPROVE" in iteration_plan.md
+2. Shows archive plan and asks for confirmation
+3. Moves scopes using `git mv` (preserves history)
+4. Updates linked requirement frontmatter with:
+   - `status: approved`
+   - `approved_date: [date from decision]`
+   - `work_location: work_archive/approved/[scope]/`
+5. Generates/updates `completed_work.md` historical record
+6. Creates atomic git commit
+
+**Example output:**
+```
+📦 Archive Plan
+
+Found 5 approved work scopes ready for archive:
+
+| Scope ID | Approved Date | Category |
+|----------|---------------|----------|
+| lexical_epic_01 | 2026-01-24 | lexical_editor |
+| ai_radar_scope_18 | 2026-01-24 | ai_radar |
+
+Proceed with archive? (yes/no)
+```
+
+**When to use:**
+- After completing several work scopes to declutter `work/`
+- Before generating project reports (cleaner metrics)
+- Periodically as part of project maintenance
+
+**Note:** Only archives scopes with explicit "Decision: APPROVE" from orchestrator review. In-progress or unapproved work remains in `work/`.
 
 ---
 

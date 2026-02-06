@@ -1,7 +1,7 @@
 # Master Requirements Document
 
 **Date:** [Date]
-**Author:** [Your Name]
+**Author:** {{ git_author }}
 **Purpose:** Define project requirements and scope
 
 ---

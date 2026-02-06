@@ -40,8 +40,8 @@ Before proceeding, use the Read tool to load these files:
 
 ## Iteration to Review
 
-**Scope:** lexical_stress_rendering_containment
-**Iteration:** iteration_02_c
+**Scope:** {scope_name}
+**Iteration:** iteration_01
 **Notes:** See QA results in results.md
 
 ---
