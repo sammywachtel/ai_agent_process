@@ -8,11 +8,9 @@
 
 ## Core Principle
 
-**Every `.md` file in `requirements_docs/` is either:**
-1. **A requirement** (most files) - Describes work to be done
-2. **A sub-roadmap/index file** - Organizes or lists other requirements (e.g., README.md, index files)
+**Only files with `type: requirement` in YAML frontmatter are treated as requirements.**
 
-The discovery process treats all markdown files as potential requirements, using heuristics to distinguish organizational files from actual requirements.
+All other `.md` files in `requirements_docs/` (READMEs, planning docs, session logs, implementation guides, index files) are silently ignored. There is no heuristic-based fallback — the `type` field is the sole discriminator.
 
 ---
 
@@ -37,75 +35,57 @@ for md_file in req_dir.rglob("*.md"):
     # Process file...
 ```
 
-**Extract from each file (FRONTMATTER FIRST):**
+**Strict filter:** Only process files with `type: requirement` in YAML frontmatter. All other files are skipped.
 
-1. **Requirement ID** - From frontmatter `id:` field, OR derived from file path/name
+**Extract from each matching file:**
+
+1. **Requirement ID** - From frontmatter `id:` field (required — skip file if missing)
 2. **Display Name** - From filename or first `# heading`
-3. **Priority** - From frontmatter `priority:` field, OR parse from `**Priority:**` field
+3. **Priority** - From frontmatter `priority:` field (default: MEDIUM)
 4. **Category** - From frontmatter `category:` field, OR from parent directory path
-5. **Status Override** - If `**Status:**` present
+5. **Status** - From frontmatter `status:` field
 6. **Metadata** - Date, Author (auto-populated from `git config user.name`), Timeline if present
 
-**Frontmatter example:**
+**Frontmatter example (all required fields shown):**
 ```yaml
 ---
 id: lexical_epic_06_save       # Explicit ID (matches work directory names)
+type: requirement              # MANDATORY — files without this are skipped
 category: lexical_editor       # Explicit category
+status: not_started            # Current status
 priority: HIGH                 # CRITICAL, HIGH, MEDIUM, LOW
 ---
 # Requirements: Save Behavior
 ```
 
-**When frontmatter is present:** Use frontmatter values directly - no path parsing needed.
-**When frontmatter is missing:** Fall back to path-based ID generation and markdown parsing.
+**Files without `type: requirement` in frontmatter are silently ignored.** This includes READMEs, planning docs, session logs, index files, breakdown parent files (`type: breakdown`), and any other non-requirement markdown. No path-based ID generation fallback exists.
 
-**Exclusions:**
-- `*/bugs/` directory (informal scratch space, if present)
-- Template files (`_TEMPLATE_*`)
-- Non-requirement content (`artifacts/`, `designs/` subdirectories)
+To include a file in discovery, add the required frontmatter using `/ap_project import-requirement`.
 
-**Detecting Index/Roadmap Files:**
+**Additional exclusions (belt and suspenders):**
+- Template files (`_TEMPLATE_*`) — excluded even though they contain `type: requirement` as template boilerplate
+- Archived requirements (`archived: true` in frontmatter)
 
-Some files organize other requirements rather than being requirements themselves:
-- Files named `README.md` in subdirectories
-- Files with names like `*_index.md`, `*_overview.md`, `*_roadmap.md`
-- Files whose content is primarily tables or lists of other requirements
-
-These should be flagged as `type: index` and used for metadata extraction, not counted as requirements.
+**Stats reporting:**
+Discovery reports how many files were processed vs. skipped:
+```
+# Scanned: 45 requirements, 23 skipped (no type: requirement), 2 archived
+```
 
 ### ID Generation Rules
 
 **Full specification:** See `naming_conventions.md` for complete ID formatting rules.
 
-**PREFERRED: Use frontmatter `id:` field.**
+**Requirement:** Use frontmatter `id:` field. There is no fallback.
 
-This gives explicit control over the requirement ID, making it easy to match work directories.
+The `id:` field gives explicit control over the requirement ID, making it easy to match work directories. Files with `type: requirement` but no `id:` field are skipped with a warning.
 
-**FALLBACK: Generate normalized ID from file path** (when no frontmatter):
-
-```
-Path: requirements_docs/feature_name.md
-→ ID: feature_name
-
-Path: requirements_docs/category/subcategory/scope_name.md
-→ ID: category_subcategory_scope_name
-
-Path: requirements_docs/category/scopes/numbered_01_description.md
-→ ID: category_numbered_01_description
-```
-
-**Normalization (path-based only):**
-- Replace path separators with underscores
-- Remove `requirements_docs/` prefix
-- Remove `.md` extension
-- Convert hyphens to underscores for consistency
-- Preserve numbering patterns (01_, 02_, etc.)
-
-**Why frontmatter IDs are better:**
+**Benefits of mandatory frontmatter IDs:**
 - No fuzzy matching needed - IDs match work directories exactly
 - No category prefix_mappings needed - category is explicit
 - No priority regex parsing needed - priority is explicit
 - Works with any directory structure (flat, nested, hierarchical)
+- No false positives from READMEs, planning docs, or other markdown files
 
 ### Phase 2: Work Directory Discovery
 
@@ -154,7 +134,12 @@ def detect_status(work_dir, config):
     content = read(results)
     markers = config.get("status_markers", {})
 
-    # Check for COMPLETE markers first (highest priority)
+    # Check for APPROVED markers first (highest priority — reviewed and accepted)
+    for marker in markers.get("approved", ["✅ APPROVED"]):
+        if marker in content:
+            return "APPROVED"
+
+    # Check for COMPLETE markers (implementation done, awaiting review)
     for marker in markers.get("complete", ["✅ COMPLETE"]):
         if marker in content:
             return "COMPLETE"
@@ -173,6 +158,7 @@ def detect_status(work_dir, config):
 
 | Status | Common Patterns |
 |--------|----------------|
+| approved | `**Status:** APPROVED`, `✅ APPROVED` |
 | complete | `**Status:** COMPLETE`, `**Status**: ✅ COMPLETED`, `✅ COMPLETE` |
 | blocked | `BLOCKED`, `🚫 BLOCKED` |
 | in_progress | `IN PROGRESS`, `WIP` (usually just the default) |
@@ -325,7 +311,8 @@ When the algorithm fails (common with hierarchical requirements), add explicit m
 A requirement is considered:
 - **NOT_STARTED**: No work directories found
 - **IN_PROGRESS**: Has work directories, but not all complete
-- **COMPLETE**: All associated work scopes are complete
+- **COMPLETE**: All associated work scopes are complete (awaiting review)
+- **APPROVED**: All associated work scopes are approved (reviewed and accepted)
 - **BLOCKED**: Any work scope is blocked
 
 **Completion calculation:**
@@ -408,7 +395,8 @@ If the project has existing sub-roadmap files (README.md files that list scopes,
 ## File Format Support
 
 **Requirements files must be markdown (`.md`) with:**
-- Either YAML frontmatter OR markdown metadata (`**Field:**` patterns)
+- YAML frontmatter containing `type: requirement` (mandatory)
+- `id:` field in frontmatter (mandatory)
 - First heading used as display name if no explicit title
 - Any organizational structure (flat, nested, categorized)
 
@@ -422,4 +410,4 @@ If the project has existing sub-roadmap files (README.md files that list scopes,
 
 ---
 
-This process is designed to handle any `.agent_process` project structure without requiring specific naming conventions or folder names.
+This process is designed to handle any `.agent_process` project structure without requiring specific naming conventions or folder names. The only hard requirement is `type: requirement` in YAML frontmatter.

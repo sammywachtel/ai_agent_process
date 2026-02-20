@@ -1,8 +1,12 @@
-# Requirements: [Scope Name]
+---
+id: {requirement_id}
+type: requirement
+category: {category_name}
+status: not_started
+priority: HIGH
+---
 
-**Date:** YYYY-MM-DD
-**Author:** {{ git_author }}
-**Priority:** HIGH | MEDIUM | LOW
+# Requirements: [Scope Name]
 
 ---
 

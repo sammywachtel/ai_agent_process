@@ -12,7 +12,7 @@ arguments:
       - init: Initialize roadmap infrastructure (empty or from discovery)
       - discover: Scan requirements_docs/ and work/, build/update roadmap
       - status: Show current project status summary
-      - set-status: Manually set requirement status (complete|in-progress|blocked|on-hold)
+      - set-status: Manually set requirement status (approved|completed|in-progress|blocked|on-hold)
       - archive: Archive a requirement (completed|abandoned|superseded|out-of-scope)
       - archive-completed: Move all approved work scopes from work/ to work_archive/approved/
       - add-todo: Add item to backlog
@@ -72,7 +72,7 @@ When generating files from templates, resolve these variables before writing:
 /ap_project import-requirement "path/to/draft.md"  # Import existing file
 
 # Status management
-/ap_project set-status "lexical_epic_05 complete All tests passing"
+/ap_project set-status "lexical_epic_05 approved All tests passing, reviewed"
 /ap_project set-status "ai_radar_scope_18 blocked Waiting for API"
 /ap_project archive "old_feature abandoned Replaced by new approach"
 
@@ -111,27 +111,29 @@ mkdir -p .agent_process/roadmap
 
 ### Step 3: Verify Requirement Frontmatter
 
-**IMPORTANT:** For discovery to work efficiently, requirements should use YAML frontmatter:
+**IMPORTANT:** Discovery requires `type: requirement` in YAML frontmatter. Files without it are ignored.
 
 ```yaml
 ---
 id: lexical_epic_06_save       # Used for matching work directories
+type: requirement              # MANDATORY — discovery skips files without this
 category: lexical_editor       # Used for grouping
+status: not_started            # Current status
 priority: HIGH                 # CRITICAL, HIGH, MEDIUM, LOW
 ---
 # Requirements: Save Behavior
 ```
 
-**Check how many requirements have frontmatter:**
+**Check how many requirements have the required frontmatter:**
 
 ```bash
-# Count requirements with frontmatter
-grep -l "^---" .agent_process/requirements_docs/**/*.md 2>/dev/null | wc -l
-# Count total requirements
+# Count requirements with type: requirement
+grep -l "type: requirement" .agent_process/requirements_docs/**/*.md 2>/dev/null | wc -l
+# Count total .md files (excluding templates)
 find .agent_process/requirements_docs -name "*.md" ! -path "*/_TEMPLATE_*" ! -path "*/bugs/*" | wc -l
 ```
 
-**If most requirements lack frontmatter:** The discover step will fall back to path-based IDs, but this causes fuzzy matching issues with hierarchical structures. Consider running a migration to add frontmatter (see `/ap_project help frontmatter-migration`).
+**If files are missing `type: requirement`:** They will be silently ignored by discover and sync. Use `/ap_project import-requirement` to add frontmatter interactively, or add it manually.
 
 ### Step 4: Create Initial Files
 
@@ -151,7 +153,8 @@ Create roadmap files with proper structure. Note: Previous versions used separat
 
 | Status | Count | Percentage |
 |--------|-------|------------|
-| ✅ Complete | 0 | 0% |
+| ✅ Approved | 0 | 0% |
+| 🔍 Completed (Review Pending) | 0 | 0% |
 | 🚧 In Progress | 0 | 0% |
 | ❌ Blocked | 0 | 0% |
 | 📋 Not Started | 0 | 0% |
@@ -244,6 +247,7 @@ Create roadmap files with proper structure. Note: Previous versions used separat
   },
   "status_markers": {
     "_comment": "STANDARDIZED markers. All new results.md files MUST use these exact formats.",
+    "approved": ["**Status:** APPROVED", "**Status:** ✅ APPROVED"],
     "complete": ["**Status:** COMPLETE", "**Status:** ✅ COMPLETE"],
     "blocked": ["**Status:** BLOCKED"],
     "in_progress": ["**Status:** IN_PROGRESS"],
@@ -320,11 +324,7 @@ def get_category_fallback(req_id, rel_path):
     parts = rel_path.parts
     return parts[0] if len(parts) > 1 else "root"
 
-def get_path_based_id(rel_path):
-    """Generate ID from path (fallback when no frontmatter id)."""
-    return str(rel_path.with_suffix("")).replace("/", "_").replace("-", "_")
-
-stats = {"with_frontmatter": 0, "without_frontmatter": 0}
+stats = {"processed": 0, "skipped_no_type": 0, "skipped_archived": 0}
 
 for md_file in req_dir.rglob("*.md"):
     path_str = str(md_file)
@@ -338,26 +338,29 @@ for md_file in req_dir.rglob("*.md"):
     except:
         continue
 
-    # FRONTMATTER FIRST - check for id, category, priority, archived status
+    # STRICT: only process files with type: requirement in frontmatter
     fm = parse_frontmatter(content)
 
-    # Skip archived requirements
-    if fm and fm.get("archived"):
+    if not fm or fm.get("type") != "requirement":
+        stats["skipped_no_type"] += 1
         continue
 
-    if fm and fm.get("id"):
-        # Use frontmatter values (preferred)
-        req_id = fm["id"]
-        category = fm.get("category", get_category_fallback(req_id, rel_path))
-        priority = fm.get("priority", "MEDIUM").upper()
-        stats["with_frontmatter"] += 1
-    else:
-        # Fall back to path-based extraction
-        req_id = get_path_based_id(rel_path)
-        category = get_category_fallback(req_id, rel_path)
-        priority_match = re.search(r'\*\*Priority[:\*]*\*?\s*(\w+)', content)
-        priority = priority_match.group(1).upper() if priority_match else "MEDIUM"
-        stats["without_frontmatter"] += 1
+    # Skip archived requirements
+    if fm.get("archived"):
+        stats["skipped_archived"] += 1
+        continue
+
+    # Use frontmatter values — type: requirement guarantees frontmatter exists
+    req_id = fm.get("id")
+    if not req_id:
+        # type: requirement present but no id — warn and skip
+        import sys
+        print(f"# WARNING: {rel_path} has type: requirement but no id field — skipping", file=sys.stderr)
+        continue
+
+    category = fm.get("category", get_category_fallback(req_id, rel_path))
+    priority = fm.get("priority", "MEDIUM").upper()
+    stats["processed"] += 1
 
     # Read first heading for display name
     heading_match = re.search(r'^#\s+(.+)$', content, re.MULTILINE)
@@ -365,23 +368,23 @@ for md_file in req_dir.rglob("*.md"):
 
     print(f"{req_id}|{category}|{priority}|{display_name[:50]}")
 
-# Report frontmatter coverage
+# Report scanning stats
 import sys
-print(f"# Frontmatter: {stats['with_frontmatter']} with, {stats['without_frontmatter']} without", file=sys.stderr)
-if stats["without_frontmatter"] > stats["with_frontmatter"]:
-    print("# WARNING: Most requirements lack frontmatter. Consider adding frontmatter for better matching.", file=sys.stderr)
+print(f"# Scanned: {stats['processed']} requirements, {stats['skipped_no_type']} skipped (no type: requirement), {stats['skipped_archived']} archived", file=sys.stderr)
+if stats["skipped_no_type"] > 0:
+    print(f"# INFO: {stats['skipped_no_type']} .md files ignored — add 'type: requirement' frontmatter to include them.", file=sys.stderr)
 PYEOF
 ```
 
+**Strict filtering:** Only files with `type: requirement` in YAML frontmatter are processed. All other `.md` files (READMEs, planning docs, session logs, etc.) are silently ignored.
+
 **What frontmatter provides:**
+- `type: requirement` - **Mandatory discriminator** — files without it are skipped
 - `id:` - Explicit requirement ID (matches work directory names directly)
 - `category:` - Explicit category (no prefix mapping needed)
 - `priority:` - Explicit priority (no regex parsing needed)
 
-**Fallback behavior** (when no frontmatter):
-- ID generated from file path (e.g., `ai_radar/scope_18/requirements.md` → `ai_radar_scope_18_requirements`)
-- Category from parent directory or prefix_mappings
-- Priority from `**Priority:**` markdown pattern
+**No fallback:** Files without `type: requirement` frontmatter are not processed. There is no path-based ID generation fallback. To include a file in discovery, add the required frontmatter (use `/ap_project import-requirement` to add it interactively).
 
 ### Step 2: Scan Work Directories
 
@@ -403,10 +406,14 @@ try:
     config = json.loads(config_file.read_text())
     status_markers = config.get("status_markers", {})
 except:
-    status_markers = {"complete": ["✅ COMPLETE"], "blocked": ["BLOCKED"]}
+    status_markers = {"approved": ["✅ APPROVED"], "complete": ["✅ COMPLETE"], "blocked": ["BLOCKED"]}
 
 def get_iteration_status(content):
     """Detect status from results.md content using configured markers."""
+    # Approved has highest priority — reviewed and accepted
+    for marker in status_markers.get("approved", []):
+        if marker in content:
+            return "APPROVED"
     for marker in status_markers.get("complete", []):
         if marker in content:
             return "COMPLETE"
@@ -854,8 +861,9 @@ def update_frontmatter_status(file_path, new_status):
 
     # Normalize status values
     status_map = {
-        "APPROVED": "complete",
-        "COMPLETE": "complete",
+        "APPROVED": "approved",
+        "COMPLETE": "approved",       # Legacy: old orchestrator used COMPLETE for approval
+        "COMPLETED": "completed",     # ap_exec done, awaiting orchestrator review
         "NEEDS_REVIEW": "needs_review",
         "IN_PROGRESS": "in_progress",
         "BLOCKED": "blocked",
@@ -891,11 +899,11 @@ status_updates = {}
 # Extract status from roadmap Requirements by Category sections
 # Format: | ✅ | HIGH | requirement_name | 3 |
 status_icons = {
-    "✅": "complete",
+    "✅": "approved",
+    "🔍": "completed",
     "🚧": "in_progress",
     "❌": "blocked",
     "📋": "not_started",
-    "🔍": "needs_review",
     "⏸️": "on_hold"
 }
 
@@ -913,16 +921,24 @@ for line in roadmap_content.split("\n"):
                 status = next((s for i, s in status_icons.items() if i == icon), "not_started")
                 status_updates[req_path] = status
 
-# Update requirement files
+# Update requirement files (only those with type: requirement)
 updated_count = 0
+skipped_count = 0
 for req_path, new_status in status_updates.items():
     file_path = Path(".agent_process") / req_path
     if file_path.exists():
+        content = file_path.read_text()
+        fm_check, _ = parse_frontmatter(content)
+        if not fm_check or fm_check.get("type") != "requirement":
+            skipped_count += 1
+            continue
         if update_frontmatter_status(file_path, new_status):
             updated_count += 1
             print(f"Updated {file_path.name}: {new_status}")
 
 print(f"\n✅ Updated {updated_count} requirement frontmatter status fields")
+if skipped_count:
+    print(f"# Skipped {skipped_count} files without type: requirement", file=sys.stderr)
 PYEOF
 ```
 
@@ -1330,11 +1346,15 @@ Location: Root level
 Use the requirement template from `.agent_process/requirements_docs/_TEMPLATE_requirements.md`:
 
 ```markdown
-# Requirements: {{ details }}
+---
+id: {{ requirement_id }}
+type: requirement
+category: {{ category }}
+status: not_started
+priority: {{ priority }}
+---
 
-**Date:** {{ current_date }}
-**Author:** {{ git_author }}
-**Priority:** [CRITICAL | HIGH | MEDIUM | LOW]
+# Requirements: {{ details }}
 
 ---
 
@@ -1378,6 +1398,8 @@ Use the requirement template from `.agent_process/requirements_docs/_TEMPLATE_re
 - [Risk 1 and mitigation strategy]
 - [Risk 2 and mitigation strategy]
 ```
+
+**Note:** The `type: requirement` field is mandatory — discovery and sync will ignore files without it.
 
 ### Step 5: Update Roadmap
 
@@ -1603,12 +1625,15 @@ Build complete frontmatter from confirmed values:
 ```yaml
 ---
 id: {confirmed_id}
+type: requirement
 category: {confirmed_category}
 status: not_started
 priority: {confirmed_priority}
 supersedes: {old_id if --supersedes else omit}
 ---
 ```
+
+**Note:** The `type: requirement` field is mandatory — discovery and sync will ignore files without it.
 
 ### Step 10: Determine Target Location
 
@@ -1702,11 +1727,13 @@ cp -r .agent_process/roadmap .agent_process/roadmap_backup_$(date +%Y%m%d_%H%M%S
 
 ### Step 2: Full Re-Discovery
 
-Run complete discovery process:
-1. Re-scan all requirements_docs/ files
+Run complete discovery process (same strict filtering as `discover`):
+1. Re-scan all requirements_docs/ files — **only files with `type: requirement` in frontmatter are processed**
 2. Re-scan all work/ directories
 3. Re-build fuzzy matches
 4. Re-calculate all status aggregations
+
+**Important:** Use the same scanning logic as `discover` Step 1. Files without `type: requirement` in frontmatter are skipped. There is no path-based fallback.
 
 ### Step 3: Compare with Current State
 
@@ -1788,8 +1815,9 @@ def update_frontmatter_status(file_path, new_status):
 
     # Normalize status values
     status_map = {
-        "APPROVED": "complete",
-        "COMPLETE": "complete",
+        "APPROVED": "approved",
+        "COMPLETE": "approved",       # Legacy: old orchestrator used COMPLETE for approval
+        "COMPLETED": "completed",     # ap_exec done, awaiting orchestrator review
         "NEEDS_REVIEW": "needs_review",
         "IN_PROGRESS": "in_progress",
         "BLOCKED": "blocked",
@@ -1821,11 +1849,11 @@ status_updates = {}
 
 # Extract status from roadmap Requirements by Category sections
 status_icons = {
-    "✅": "complete",
+    "✅": "approved",
+    "🔍": "completed",
     "🚧": "in_progress",
     "❌": "blocked",
     "📋": "not_started",
-    "🔍": "needs_review",
     "⏸️": "on_hold"
 }
 
@@ -1842,16 +1870,24 @@ for line in roadmap_content.split("\n"):
                 status = next((s for i, s in status_icons.items() if i == icon), "not_started")
                 status_updates[req_path] = status
 
-# Update requirement files
+# Update requirement files (only those with type: requirement)
 updated_count = 0
+skipped_count = 0
 for req_path, new_status in status_updates.items():
     file_path = Path(".agent_process") / req_path
     if file_path.exists():
+        content = file_path.read_text()
+        fm_check, _ = parse_frontmatter(content)
+        if not fm_check or fm_check.get("type") != "requirement":
+            skipped_count += 1
+            continue
         if update_frontmatter_status(file_path, new_status):
             updated_count += 1
             print(f"Updated {file_path.name}: {new_status}")
 
 print(f"\n✅ Updated {updated_count} requirement frontmatter status fields")
+if skipped_count:
+    print(f"# Skipped {skipped_count} files without type: requirement", file=sys.stderr)
 PYEOF
 ```
 
@@ -2060,7 +2096,7 @@ Manually override the status of a requirement. Manual overrides always win over 
 
 Extract from `{{ details }}`:
 - **requirement_id**: The requirement to update (required)
-- **status**: One of `complete`, `in-progress`, `blocked`, `on-hold`, `needs-review` (required)
+- **status**: One of `approved`, `completed`, `in-progress`, `blocked`, `on-hold` (required)
 - **reason**: Why the status is being changed (optional but recommended)
 
 **Example formats:**
@@ -2118,7 +2154,7 @@ Add to `.agent_process/roadmap/.roadmap_config.json` under `status_overrides`:
 {
   "status_overrides": {
     "requirement_id": {
-      "status": "complete",
+      "status": "approved",
       "reason": "User-provided reason",
       "set_by": "manual",
       "set_at": "2026-01-17T22:30:00Z"
@@ -2132,7 +2168,7 @@ Add to `.agent_process/roadmap/.roadmap_config.json` under `status_overrides`:
 Append to `.agent_process/roadmap/.roadmap_audit.jsonl`:
 
 ```json
-{"timestamp": "2026-01-17T22:30:00Z", "action": "set-status", "requirement": "req_id", "old_status": "in-progress", "new_status": "complete", "reason": "User reason"}
+{"timestamp": "2026-01-17T22:30:00Z", "action": "set-status", "requirement": "req_id", "old_status": "in-progress", "new_status": "approved", "reason": "User reason"}
 ```
 
 ### Step 6: Update Roadmap Display
@@ -2446,7 +2482,7 @@ def update_frontmatter_archived(file_path, archive_type, reason):
 
     # Set status based on archive type
     if archive_type == "completed":
-        fm["status"] = "complete"
+        fm["status"] = "approved"
     else:
         fm["status"] = "archived"
 
@@ -2909,11 +2945,12 @@ Manually set the status of a requirement. Manual overrides always win over autom
 
 **Usage:** `/ap_project set-status "<requirement_id> <status> [reason]"`
 
-**Statuses:** `complete`, `in-progress`, `blocked`, `on-hold`, `needs-review`
+**Statuses:** `approved`, `completed`, `in-progress`, `blocked`, `on-hold`
 
 **Examples:**
 ```
-/ap_project set-status "lexical_epic_05 complete All work finished"
+/ap_project set-status "lexical_epic_05 approved Reviewed and accepted"
+/ap_project set-status "auth_system completed Implementation done, awaiting review"
 /ap_project set-status "ai_radar_scope_18 blocked Waiting for API"
 /ap_project set-status "code_quality_epic on-hold Deprioritized"
 ```

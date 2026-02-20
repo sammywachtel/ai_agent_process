@@ -10,7 +10,7 @@
 
 ### 1. Iteration Completion (Automatic)
 
-**When:** After writing `results.md` with completion status (✅ COMPLETE, 🚫 BLOCKED, etc.)
+**When:** After writing `results.md` with completion status (✅ APPROVED, ✅ COMPLETE, 🚫 BLOCKED, etc.)
 
 **What gets updated:**
 - Requirement status and work scope counts in `master_roadmap.md`
@@ -60,7 +60,7 @@
 ```markdown
 # Instructions for Claude (in orchestration prompt)
 
-After writing results.md, check if status changed to ✅ COMPLETE, 🚫 BLOCKED, etc.
+After writing results.md, check if status changed to ✅ APPROVED, ✅ COMPLETE, 🚫 BLOCKED, etc.
 
 If status changed:
 1. Read current `.agent_process/roadmap/master_roadmap.md`
@@ -80,7 +80,8 @@ All updates are made to `master_roadmap.md`. The file contains consolidated sect
 ## Status Summary (recalculate)
 | Status | Count | Percentage |
 |--------|-------|------------|
-| ✅ Complete | [N] | [%] | ← Recalculate totals
+| ✅ Approved | [N] | [%] | ← Recalculate totals
+| 🔍 Completed (Review Pending) | [N] | [%] | ← Recalculate totals
 
 ## Category Breakdown (recalculate)
 | Category | Complete | In Progress | Blocked | Completion |
@@ -113,7 +114,7 @@ All updates are made to `master_roadmap.md`. The file contains consolidated sect
 
 Execute these steps **after** you have:
 1. Completed an iteration
-2. Written `results.md` with status (✅ COMPLETE, 🚫 BLOCKED, etc.)
+2. Written `results.md` with status (✅ APPROVED, ✅ COMPLETE, 🚫 BLOCKED, etc.)
 3. Validated all acceptance criteria
 
 **Skip if:**
@@ -151,7 +152,8 @@ Work: category_feature_scope_02_second_component
 Read `.agent_process/roadmap/master_roadmap.md` and update all relevant sections:
 
 **Status mapping:**
-- "✅ COMPLETE" in results.md → ✅ icon
+- "✅ APPROVED" in results.md → ✅ icon (Approved)
+- "✅ COMPLETE" in results.md → 🔍 icon (Completed — Review Pending)
 - "🚫 BLOCKED" → ❌ icon
 - "🚧 IN PROGRESS" → 🚧 icon
 
@@ -165,7 +167,8 @@ Read `.agent_process/roadmap/master_roadmap.md` and update all relevant sections
 6. **Last Updated timestamp** in header
 
 **Aggregate status logic:**
-- All scopes complete → ✅ Complete
+- All scopes approved → ✅ Approved
+- All scopes completed but not all approved → 🔍 Completed (Review Pending)
 - Any scope blocked → ❌ Blocked
 - Mix of complete/incomplete → 🚧 In Progress
 
@@ -185,7 +188,8 @@ When a requirement's status changes in the roadmap, update banners in all relate
 
 **Banner rules:**
 - Status changed to 🚧 IN PROGRESS → Add/update with `[!NOTE]` in-progress banner
-- Status changed to ✅ COMPLETE → Add/update with `[!TIP]` complete banner
+- Status changed to 🔍 COMPLETED → Add/update with `[!NOTE]` completed (review pending) banner
+- Status changed to ✅ APPROVED → Add/update with `[!TIP]` approved banner
 - Status changed to ❌ BLOCKED → Add/update with `[!WARNING]` blocked banner
 - Status changed to 🗄️ ARCHIVED → Add/update with `[!CAUTION]` archived banner
 
@@ -238,7 +242,8 @@ Add the banner immediately after the frontmatter (or at the very top if no front
 | Status | Alert Type | Icon | When to Use |
 |--------|-----------|------|-------------|
 | In Progress | `NOTE` | 🚧 | Active work on this requirement |
-| Complete | `TIP` | ✅ | All work scopes completed successfully |
+| Completed | `NOTE` | 🔍 | Implementation done, awaiting orchestrator review |
+| Approved | `TIP` | ✅ | Reviewed and accepted by orchestrator |
 | Blocked | `WARNING` | ❌ | Cannot proceed due to blockers |
 | Archived | `CAUTION` | 🗄️ | Superseded, abandoned, or out of scope |
 
@@ -254,13 +259,23 @@ Add the banner immediately after the frontmatter (or at the very top if no front
 > See: `.agent_process/roadmap/master_roadmap.md` for current status.
 ```
 
-#### Complete Banner
+#### Completed Banner (Review Pending)
+
+```markdown
+> [!NOTE]
+> **🔍 COMPLETED** — *Implementation done, awaiting review*
+>
+> All acceptance criteria addressed. Ready for orchestrator review.
+> See: `.agent_process/work/{scope}/{iteration}/results.md` for details.
+```
+
+#### Approved Banner
 
 ```markdown
 > [!TIP]
-> **✅ COMPLETE** — *Implemented and validated*
+> **✅ APPROVED** — *Reviewed and accepted*
 >
-> All acceptance criteria met. Work completed in 2 iterations.
+> All acceptance criteria met. Work approved in 2 iterations.
 > See: `.agent_process/work/{scope}/iteration_02/results.md` for details.
 ```
 
@@ -376,12 +391,21 @@ title: User Authentication System
 > See: `.agent_process/roadmap/master_roadmap.md` → Blocked Items section.
 ```
 
-**After completing all work:**
+**After completing implementation (awaiting review):**
+```markdown
+> [!NOTE]
+> **🔍 COMPLETED** — *Implementation done, awaiting review*
+>
+> All acceptance criteria addressed. Ready for orchestrator review.
+> See: `.agent_process/work/user_authentication_scope_03/iteration_01/results.md` for details.
+```
+
+**After orchestrator approval:**
 ```markdown
 > [!TIP]
-> **✅ COMPLETE** — *Implemented and validated*
+> **✅ APPROVED** — *Reviewed and accepted*
 >
-> All acceptance criteria met. Work completed in 3 iterations.
+> All acceptance criteria met. Work approved in 3 iterations.
 > See: `.agent_process/work/user_authentication_scope_03/iteration_01/results.md` for details.
 ```
 

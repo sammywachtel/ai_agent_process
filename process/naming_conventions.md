@@ -114,7 +114,7 @@ New categories can be created as needed. Keep them broad enough to group related
 
 ### Format
 
-Work directory names should match requirement IDs:
+Work directory names **must match** the requirement's frontmatter `id:` field. The orchestration planning step reads `id:` directly from frontmatter — it does not derive folder names from file paths.
 
 ```
 work/
@@ -127,7 +127,9 @@ work/
 
 ### When Names Diverge
 
-Sometimes legacy work directories don't match requirement IDs. Use `project_mappings` in `.roadmap_config.json`:
+Legacy work directories (created before this convention) may not match requirement IDs. A common source of mismatch was the old path-based derivation, which prepended the category directory name to the filename, creating redundant prefixes like `lexical_editor_lexical_epic_06_save` instead of just `lexical_epic_06_save`.
+
+For these cases, use `project_mappings` in `.roadmap_config.json`:
 
 ```json
 {
@@ -150,17 +152,25 @@ Sometimes legacy work directories don't match requirement IDs. Use `project_mapp
 ```yaml
 ---
 id: requirement_id_here
+type: requirement
 category: category_name
-status: not_started | in_progress | blocked | complete
+status: not_started | in_progress | blocked | complete | approved
 priority: low | medium | high | critical
 ---
 ```
+
+**Note:** The `type: requirement` field is mandatory. Discovery and sync will ignore files without it.
+
+**Breakdown files** use `type: breakdown` — these are parent files that were split into multiple
+smaller requirements. They preserve the original content for reference but are excluded from
+roadmap discovery. See `orchestration/01_plan_scope_instructions.md` § "Large Requirements File Breakdown".
 
 ### Optional Fields
 
 ```yaml
 ---
 id: lexical_save_state_navigation
+type: requirement
 category: lexical_editor
 status: not_started
 priority: high

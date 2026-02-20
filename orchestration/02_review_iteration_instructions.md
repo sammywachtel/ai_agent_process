@@ -907,8 +907,8 @@ Should I update iteration_plan.md with the proposed scope change (requires your 
 1. **Read the requirements source path** from `iteration_plan.md` → "Requirements Source" section
 
 2. **Update the top-level status field** (if present):
-   - Search for line matching `**Status:** TODO` or `**Status:** IN_PROGRESS`
-   - Replace with `**Status:** COMPLETED` (for APPROVE) or `**Status:** BLOCKED` (for BLOCK)
+   - Search for line matching `**Status:** TODO`, `**Status:** IN_PROGRESS`, or `**Status:** COMPLETED`
+   - Replace with `**Status:** APPROVED` (for APPROVE) or `**Status:** BLOCKED` (for BLOCK)
 
 3. **Append detailed status section** to the requirements document:
 
@@ -918,7 +918,7 @@ Should I update iteration_plan.md with the proposed scope change (requires your 
 
 ## Implementation Status
 
-**Status:** ✅ COMPLETED
+**Status:** ✅ APPROVED
 **Date:** YYYY-MM-DD
 **Work Folder:** `.agent_process/work/<scope_name>`
 **Iterations Used:** X of 4

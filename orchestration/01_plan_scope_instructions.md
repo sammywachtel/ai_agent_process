@@ -61,8 +61,20 @@ Outcome: Shippable feature or measurable improvement
 
    **Step C: Update the breakdown file**
 
-   Add header and references to new files:
+   **CRITICAL:** Change the frontmatter `type` from `requirement` to `breakdown`.
+   This prevents the roadmap discovery process from counting the breakdown file
+   as a separate requirement (which would duplicate the split files).
+
+   Replace the file's frontmatter and add header with references to new files:
    ```markdown
+   ---
+   id: [original_id]
+   type: breakdown
+   category: [original_category]
+   status: [original_status]
+   priority: [original_priority]
+   ---
+
    # [Original Title] - BREAKDOWN
 
    **Status:** This is the original requirements document. It has been
@@ -139,42 +151,23 @@ Outcome: Shippable feature or measurable improvement
 
 ### Step 2: Derive Work Folder Name
 
-**Derive the work folder name from the requirements path using this convention:**
+**Use the requirement's frontmatter `id:` as the work folder name.** This is the single source of truth — one requirement ID = one work folder name. See `process/naming_conventions.md`.
 
-#### Pattern
+#### Primary: Frontmatter ID (requirements with `type: requirement`)
+
+1. Read the requirement document's YAML frontmatter
+2. Extract the `id:` field
+3. Use it verbatim as the work folder name
+
 ```
-<area>_<path_numbers>_<task>
+Requirement frontmatter:  id: lexical_epic_08_navigation
+Work folder:              .agent_process/work/lexical_epic_08_navigation/
 ```
 
-#### Derivation Rules
+#### Fallback: Path-Based Derivation (ad-hoc work only)
 
-1. **Area**: First segment of requirements path
-   - Normalize: replace `-` with `_`, lowercase
-   - Example: `ai_radar-based_feedback_system` → `ai_radar`
-   - Example: `word_tools` → `word_tools`
+When there is no requirements doc (hotfixes, quick tasks), derive a name from context:
 
-2. **Path Numbers**: Extract all `##_` prefixed numbers from path segments, join with `_`
-   - `00_foundation/01_database_prefs` → `00_01`
-   - `epic_07/01_rewrites` → `07_01`
-   - `scopes/01_collection` → `01`
-
-3. **Task**: Final segment with leading `##_` stripped
-   - `01_database_preferences` → `database_preferences`
-   - `stress_toggle` → `stress_toggle`
-
-#### Examples
-
-| Requirements Path | Work Folder Name |
-|-------------------|------------------|
-| `word_tools/scopes/01_collection_model` | `word_tools_01_collection_model` |
-| `ai_radar.../00_foundation/01_db_prefs` | `ai_radar_00_01_db_prefs` |
-| `ai_radar.../01_ambient/07_stress_toggle` | `ai_radar_01_07_stress_toggle` |
-| `code_quality/epic_07/01_rewrites` | `code_quality_07_01_rewrites` |
-| `song_settings/03_boxes_system` | `song_settings_03_boxes_system` |
-
-#### Ad-hoc Work (No Requirements Doc)
-
-For bug fixes or quick work without a requirements doc:
 ```
 hotfix_<area>_<brief_description>
 ```
@@ -182,23 +175,23 @@ Example: `hotfix_lexical_cursor_jump`
 
 #### Good vs Bad Names
 
-**Good (specific, traceable):**
-- `word_tools_01_collection_model` (traces to requirements)
-- `ai_radar_01_07_stress_toggle` (includes hierarchy)
-- `hotfix_lexical_cursor_jump` (clear ad-hoc pattern)
+**Good (matches frontmatter ID):**
+- `lexical_epic_06_save` (matches `id: lexical_epic_06_save`)
+- `code_quality_scope_03_editor_ref` (matches `id: code_quality_scope_03_editor_ref`)
+- `hotfix_lexical_cursor_jump` (clear ad-hoc pattern, no requirement doc)
 
-**Bad (vague, untraceable):**
+**Bad (diverges from ID or is vague):**
+- `lexical_editor_lexical_epic_06_save` (redundant — derived from path instead of ID)
 - `lexical_cleanup` (what does "cleanup" mean?)
 - `improve_editor` (no boundary)
 - `fix_bugs` (which bugs?)
-- `ai_radar_based_feedback_system_scope_01_...` (redundant `scope_`)
 
 #### Naming Validation
 
 Before creating work folder, verify:
-- [ ] Name traces back to requirements path unambiguously
-- [ ] Numbers preserve order from requirements hierarchy
-- [ ] No redundant words (`scope_` prefix not needed)
+- [ ] Folder name matches the requirement's frontmatter `id:` exactly
+- [ ] No category prefix was accidentally doubled from path derivation
+- [ ] Ad-hoc work (no requirement doc) uses the `hotfix_` prefix
 
 **Create directory:**
 ```bash

@@ -128,6 +128,51 @@ Example of what I need:
 
 **Only proceed if fixes are specific enough to execute confidently.**
 
+**Update requirement status to in_progress:**
+
+Read `iteration_plan.md` and extract the "Requirements Source" path to find the requirement file. Update its frontmatter `status:` to `in_progress` and add/update the status banner:
+
+```python
+python3 << 'PYEOF'
+import re, yaml
+from pathlib import Path
+
+# Read iteration_plan.md to find the requirement file
+plan = Path(".agent_process/work/{scope}/iteration_plan.md").read_text()
+req_match = re.search(r'Requirements Source[:\s]*[`]?([^\n`]+)[`]?', plan)
+
+if req_match:
+    req_path = Path(req_match.group(1).strip())
+    if req_path.exists():
+        content = req_path.read_text()
+        # Parse frontmatter
+        if content.startswith("---"):
+            end = content.index("---", 3)
+            fm = yaml.safe_load(content[3:end])
+            body = content[end+3:]
+            fm["status"] = "in_progress"
+            new_content = "---\n" + yaml.dump(fm, default_flow_style=False, sort_keys=False) + "---" + body
+
+            # Add/update status banner (after frontmatter, before first heading)
+            banner = '''
+> [!NOTE]
+> **🚧 IN PROGRESS** — *Active development*
+>
+> This requirement is currently being implemented.
+> See: `.agent_process/roadmap/master_roadmap.md` for current status.
+'''
+            # Remove existing banner if present
+            new_content = re.sub(r'\n> \[!(NOTE|TIP|WARNING|CAUTION)\]\n> \*\*[^\n]+\n(> [^\n]*\n)*', '', new_content, count=1)
+            # Insert banner after frontmatter
+            parts = new_content.split("---\n", 2)
+            if len(parts) >= 3:
+                new_content = "---\n" + parts[1] + "---\n" + banner + parts[2]
+
+            req_path.write_text(new_content)
+            print(f"✅ Updated {req_path} status to in_progress")
+PYEOF
+```
+
 **Create iteration folder if needed:**
 ```bash
 mkdir -p .agent_process/work/{scope}/{iteration}
@@ -602,6 +647,67 @@ This command will:
 - Note any known issues
 
 **Do NOT create results.md manually** - let /ap_iteration_results do it.
+
+---
+
+## Step 5.5: Update Requirement Status Based on Results
+
+**After results.md is created, promote requirement status if ready for review:**
+
+Read the results.md that `/ap_iteration_results` just created. If it shows "Ready for Review: YES", update the requirement frontmatter to `completed` (implementation done, awaiting orchestrator review). If "Ready for Review: NO", leave as `in_progress`.
+
+```python
+python3 << 'PYEOF'
+import re, yaml
+from pathlib import Path
+
+# Read results.md to check readiness
+results_path = Path(".agent_process/work/{scope}/{iteration}/results.md")
+if not results_path.exists():
+    print("⚠️  No results.md found — skipping status update")
+    exit(0)
+
+results = results_path.read_text()
+ready = bool(re.search(r'Ready for Review[:\s]*YES', results, re.IGNORECASE))
+
+if not ready:
+    print("ℹ️  Not ready for review — leaving status as in_progress")
+    exit(0)
+
+# Find requirement file from iteration_plan.md
+plan = Path(".agent_process/work/{scope}/iteration_plan.md").read_text()
+req_match = re.search(r'Requirements Source[:\s]*[`]?([^\n`]+)[`]?', plan)
+
+if req_match:
+    req_path = Path(req_match.group(1).strip())
+    if req_path.exists():
+        content = req_path.read_text()
+        if content.startswith("---"):
+            end = content.index("---", 3)
+            fm = yaml.safe_load(content[3:end])
+            body = content[end+3:]
+            fm["status"] = "completed"
+            new_content = "---\n" + yaml.dump(fm, default_flow_style=False, sort_keys=False) + "---" + body
+
+            # Add/update status banner
+            banner = '''
+> [!NOTE]
+> **🔍 COMPLETED** — *Implementation done, awaiting review*
+>
+> All acceptance criteria addressed. Ready for orchestrator review.
+> See: `.agent_process/work/{scope}/{iteration}/results.md` for details.
+'''
+            # Remove existing banner
+            new_content = re.sub(r'\n> \[!(NOTE|TIP|WARNING|CAUTION)\]\n> \*\*[^\n]+\n(> [^\n]*\n)*', '', new_content, count=1)
+            # Insert banner after frontmatter
+            parts = new_content.split("---\n", 2)
+            if len(parts) >= 3:
+                new_content = "---\n" + parts[1] + "---\n" + banner + parts[2]
+
+            req_path.write_text(new_content)
+            print(f"✅ Updated {req_path} status to completed (ready for review)")
+PYEOF
+```
 
 ---
 

@@ -40,7 +40,8 @@ This is the single source of truth for project status. It contains all informati
 
 | Status | Count | Percentage |
 |--------|-------|------------|
-| ✅ Complete | [N] | [%] |
+| ✅ Approved | [N] | [%] |
+| 🔍 Completed (Review Pending) | [N] | [%] |
 | 🚧 In Progress | [N] | [%] |
 | ❌ Blocked | [N] | [%] |
 | 📋 Not Started | [N] | [%] |
@@ -85,7 +86,7 @@ This is the single source of truth for project status. It contains all informati
 ```
 
 **Field Definitions:**
-- **Status icons**: ✅ Complete | 🚧 In Progress | ❌ Blocked | 📋 Not Started
+- **Status icons**: ✅ Approved | 🔍 Completed (Review Pending) | 🚧 In Progress | ❌ Blocked | 📋 Not Started
 - **Priority**: CRITICAL | HIGH | MEDIUM | LOW
 - **Work Scopes**: Count of work directories matched to this requirement
 - **Matching Statistics**: Shows how work directories were matched (direct = frontmatter ID match, project_mapping = manual override, fuzzy = algorithmic fallback)
@@ -132,6 +133,49 @@ See existing resolved todo file (if present) or note completions inline.
 
 ---
 
+## Requirement Frontmatter Schema
+
+**Location:** Each `.md` file in `requirements_docs/`
+
+Discovery and sync **only process** files with `type: requirement` in YAML frontmatter. All other markdown files are ignored.
+
+### Required Fields
+
+```yaml
+---
+id: lexical_epic_06_save       # Unique requirement identifier (matches work directory names)
+type: requirement              # MANDATORY — discriminator for discovery/sync filtering
+category: lexical_editor       # Category for grouping in roadmap
+status: not_started            # not_started | in_progress | blocked | completed | approved
+priority: HIGH                 # CRITICAL | HIGH | MEDIUM | LOW
+---
+```
+
+### Optional Fields
+
+```yaml
+---
+supersedes: old_requirement_id   # If this replaces another requirement
+archived: true                   # Marks requirement as archived (excluded from discovery)
+---
+```
+
+### Field Details
+
+| Field | Required | Values | Purpose |
+|-------|----------|--------|---------|
+| `id` | Yes | `{category}_{descriptor}` | Unique ID, must match filename |
+| `type` | Yes | `requirement`, `breakdown` | Discriminator — only `requirement` is processed; `breakdown` marks split parent files |
+| `category` | Yes | `lowercase_underscores` | Grouping in roadmap tables |
+| `status` | Yes | `not_started`, `in_progress`, `blocked`, `completed`, `approved` | Current state |
+| `priority` | Yes | `CRITICAL`, `HIGH`, `MEDIUM`, `LOW` | Importance ranking |
+| `supersedes` | No | Another requirement ID | Links to replaced requirement |
+| `archived` | No | `true` | Excludes from active discovery |
+
+**See also:** `naming_conventions.md` for ID formatting rules and file naming conventions.
+
+---
+
 ## Roadmap Configuration
 
 **File:** `.roadmap_config.json`
@@ -174,6 +218,7 @@ See existing resolved todo file (if present) or note completions inline.
     }
   },
   "status_markers": {
+    "approved": ["✅ APPROVED", "**Status:** APPROVED"],
     "complete": ["✅ COMPLETE", "**Status:** COMPLETE"],
     "blocked": ["BLOCKED"],
     "in_progress": ["IN PROGRESS", "WIP"],
