@@ -529,7 +529,11 @@ NOT expected (full validation):
 **Actions:**
 1. Mark iteration complete in iteration_plan.md
 2. Update "Latest iteration" to next iteration or "complete"
-3. Proceed to next iteration/scope
+3. Sync the requirement source document referenced by `iteration_plan.md`:
+   - Update YAML frontmatter `status:` to `approved` (not `completed`)
+   - Replace stale "awaiting review" / "completed" review-note wording with "approved"
+   - Ensure any implementation-status section reflects APPROVE
+4. Proceed to next iteration/scope
 
 **Output template:**
 ```markdown
@@ -852,10 +856,12 @@ On human approval:
 
 **If APPROVE:**
 ```
-Should I mark the scope complete and update iteration_plan.md?
+Should I mark the scope complete and update iteration_plan.md and the requirement doc status?
 ```
 On human approval:
 - Update iteration_plan.md to mark scope complete
+- Update the requirement source document to `status: approved`
+- Update any stale requirement note/body text so it says approved/reviewed, not completed/awaiting review
 - Or plan next numbered iteration (iteration_02) if scope continues
 
 **After APPROVE is confirmed, suggest the release workflow:**
@@ -906,11 +912,18 @@ Should I update iteration_plan.md with the proposed scope change (requires your 
 
 1. **Read the requirements source path** from `iteration_plan.md` → "Requirements Source" section
 
-2. **Update the top-level status field** (if present):
-   - Search for line matching `**Status:** TODO`, `**Status:** IN_PROGRESS`, or `**Status:** COMPLETED`
-   - Replace with `**Status:** APPROVED` (for APPROVE) or `**Status:** BLOCKED` (for BLOCK)
+2. **Update YAML frontmatter status**:
+   - Requirement docs use YAML frontmatter at the top of the file
+   - Find the frontmatter line `status: ...`
+   - Replace it with `status: approved` (for APPROVE) or `status: blocked` (for BLOCK)
+   - Do **not** use `completed` for approved review outcomes unless the project explicitly uses that vocabulary everywhere
 
-3. **Append detailed status section** to the requirements document:
+3. **Update any stale summary/note near the top of the file**:
+   - Replace phrases like "awaiting review", "ready for orchestrator review", or "implementation done" with terminal review language
+   - For APPROVE, prefer "approved" wording consistently in headings, callouts, and summary notes
+   - For BLOCK, make the note clearly say blocked and why
+
+4. **Append or update detailed status section** in the requirements document:
 
 **For APPROVE:**
 ```markdown
@@ -951,15 +964,15 @@ Should I update iteration_plan.md with the proposed scope change (requires your 
 [Next steps - split scope, address blocker, or abandon]
 ```
 
-4. **Why this matters:**
+5. **Why this matters:**
    - Creates bidirectional traceability (requirements ↔ work)
-   - Top-level status enables quick scanning of requirements status
+   - Frontmatter status enables quick scanning of requirements status
    - Detailed Implementation Status preserves context and decisions
    - Future planners can see which requirements are done
    - Prevents duplicate work on completed requirements
    - Documents decisions for historical reference
 
-**Note:** If the requirements doc doesn't have a top-level `**Status:**` field, skip step 2 and just append the detailed Implementation Status section.
+**Note:** The frontmatter `status:` field is the source of truth. A body-level `**Status:**` line is optional and does not replace frontmatter updates.
 
 ---
 
@@ -1024,6 +1037,7 @@ Should I update iteration_plan.md with the proposed scope change (requires your 
 - [ ] If ITERATE: Verified attempts remaining
 - [ ] If BLOCK: Documented blocker clearly
 - [ ] If PIVOT: Will get human approval before updating plan
+- [ ] If APPROVE/BLOCK: Updated requirement source doc frontmatter/status note to terminal review state
 
 ---
 

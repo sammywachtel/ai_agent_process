@@ -64,6 +64,7 @@
 ### 5. Plan Forward (You)
 - Update `iteration_plan.md` "Latest iteration" pointer
 - If APPROVE: Mark scope complete or plan next numbered iteration
+- If APPROVE/BLOCK: Sync the requirement source document status and review note to the terminal state (`approved` or `blocked`) so work artifacts and requirement docs agree
 - If ITERATE: Create sub-iteration folder (a/b/c only)
 - If BLOCK/PIVOT: Escalate to human, do not proceed
 
@@ -98,6 +99,7 @@ After iteration_01_c:
 ### ✅ APPROVE
 - All original acceptance criteria met
 - Mark iteration complete
+- Update requirement source doc to `status: approved` (not `completed`) and remove stale "awaiting review" wording
 - Proceed to next iteration or scope
 
 ### 🔄 ITERATE (Only if attempts remaining)
@@ -110,6 +112,7 @@ After iteration_01_c:
 - External blocker prevents progress
 - Framework limitation, API down, design decision needed
 - Escalate to human immediately
+- Update requirement source doc to `status: blocked` when human confirms the terminal state
 - Do not create follow-up iteration
 
 ### 🔀 PIVOT
@@ -190,6 +193,7 @@ npm test -- --testPathPattern="ScopeTests"
 ### Keep Plan Current
 - Update "Latest iteration" pointer after each review
 - Record decisions (APPROVE/ITERATE/BLOCK/PIVOT)
+- Keep the requirement source doc synchronized with the review outcome; do not leave requirement frontmatter/status notes in a stale pre-review state
 - Update roadmap only with human coordination
 
 ### Align Artifacts
