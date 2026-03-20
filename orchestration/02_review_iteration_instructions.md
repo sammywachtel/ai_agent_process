@@ -474,6 +474,77 @@ Add integration assessment to decision rationale:
 
 ---
 
+### Step 3.7: Adversarial Review (Fresh Agent)
+
+**Spawn a fresh reviewer with zero implementation context to independently verify each criterion.**
+
+This step uses an independent agent that has never seen the implementation process. The reviewer checks each frozen criterion against the actual code with file:line evidence. Their verdict is *advisory input* to your 4-choice decision — not a replacement for your own judgment.
+
+#### Why Fresh Instance Matters
+
+- **No anchoring bias**: The reviewer can't be influenced by watching the implementation happen
+- **No context carryover**: Each sub-iteration gets a genuinely independent assessment
+- **Binary clarity**: PASS or FAIL per criterion, no hedging
+- **Evidence-based**: File:line citations, not "I think it's done"
+
+#### How to Run the Adversarial Review
+
+1. **Get the list of changed files:**
+   ```bash
+   git diff --name-only HEAD~1..HEAD
+   # Or if multiple commits:
+   git diff --name-only <base_branch>..HEAD
+   ```
+
+2. **Spawn a fresh Task agent** with this prompt (adapt from `templates/adversarial-review-prompt.md`):
+
+   ```
+   You are a fresh adversarial reviewer. Review these code changes against the
+   frozen acceptance criteria below. You have NO context about the implementation
+   process.
+
+   ACCEPTANCE CRITERIA (from iteration_plan.md):
+   - [ ] [Criterion 1 — paste exact text]
+   - [ ] [Criterion 2 — paste exact text]
+   - [ ] [Criterion 3 — paste exact text]
+
+   CHANGED FILES (from git diff --name-only):
+   - [file1]
+   - [file2]
+
+   Read each changed file. For each criterion, produce a PASS or FAIL verdict
+   with file:line evidence. Follow the verdict format in
+   templates/adversarial-review-prompt.md.
+   Do NOT assess code quality — only spec compliance.
+   ```
+
+3. **Important constraints:**
+   - Do NOT include `results.md` in the prompt — the reviewer must assess code, not claims
+   - Do NOT reuse a reviewer from a previous sub-iteration — always spawn fresh
+   - The reviewer is a Task agent, not a team member — it runs and returns a verdict
+
+4. **Record the verdict** in the `## Adversarial Review` section of `results.md`:
+   - Replace the PENDING placeholders with actual verdicts
+   - Include file:line evidence for each criterion
+   - Note the overall result (X/Y criteria PASS)
+
+#### How to Use the Verdict
+
+- **All PASS**: Strong signal toward APPROVE (still do your own verification)
+- **Any FAIL**: Read the evidence carefully — the reviewer might be wrong, but take it seriously
+- **FAIL with weak evidence**: Your judgment overrides — note why you disagree
+- **FAIL with strong evidence**: Likely warrants ITERATE with the reviewer's evidence as fix instructions
+
+**The adversarial review is advisory.** It informs your decision but does not make it. You are still responsible for the 4-choice call.
+
+#### When to Skip
+
+- **Trivial scopes**: 1-2 file changes with obvious criteria (e.g., "rename function X to Y")
+- **Documentation-only scopes**: No code to verify
+- Note in your review decision: "Adversarial review skipped — [reason]"
+
+---
+
 ### Step 4: Verify Scoped Validation
 
 **Check that validation was scoped (not entire codebase):**
@@ -533,7 +604,8 @@ NOT expected (full validation):
    - Update YAML frontmatter `status:` to `approved` (not `completed`)
    - Replace stale "awaiting review" / "completed" review-note wording with "approved"
    - Ensure any implementation-status section reflects APPROVE
-4. Proceed to next iteration/scope
+4. Deposit knowledge (see Step 9.5 below)
+5. Proceed to next iteration/scope
 
 **Output template:**
 ```markdown
@@ -544,6 +616,9 @@ NOT expected (full validation):
 
 **Code Verification:**
 [Summary of Step 3 findings - what was actually changed]
+
+**Adversarial Review:**
+[Summary of Step 3.7 findings - X/Y criteria PASS, or "Skipped — [reason]"]
 
 **Documentation Status:**
 [Summary of Step 3.5 findings - docs updated or justification why not needed]
@@ -561,6 +636,9 @@ NOT expected (full validation):
 - ✅ Criterion 1 met
 - ✅ Criterion 2 met
 - ✅ Criterion 3 met
+
+**Knowledge deposited:**
+[0-3 entries added to knowledge base, or "None — straightforward scope"]
 
 **Next step:**
 [Mark scope complete OR proceed to iteration_02 OR hand to human]
@@ -630,6 +708,9 @@ Each fix MUST include:
 
 **Code Verification:**
 [Summary of Step 3 findings - what's incomplete/incorrect]
+
+**Adversarial Review:**
+[Summary of Step 3.7 findings - which criteria FAIL with evidence, or "Skipped — [reason]"]
 
 **Documentation Status:**
 [Summary of Step 3.5 findings - what docs need updating]
@@ -976,6 +1057,55 @@ Should I update iteration_plan.md with the proposed scope change (requires your 
 
 ---
 
+### Step 9.5: Deposit Knowledge (APPROVE only)
+
+**After APPROVE, extract 0-3 learnings from the completed scope and append to the knowledge base.**
+
+This step compounds project wisdom across iterations. Each deposit makes future planning smarter.
+
+#### What to Deposit
+
+Ask these questions about the just-approved work:
+
+| Question | If yes, deposit to |
+|----------|-------------------|
+| Did we discover a reusable pattern? | `knowledge/patterns.jsonl` |
+| Did something non-obvious bite us? | `knowledge/gotchas.jsonl` |
+| Did we make an architectural choice with trade-offs? | `knowledge/decisions.jsonl` |
+| Did we try an approach that failed? | `knowledge/anti-patterns.jsonl` |
+
+#### Entry Format
+
+```json
+{"id": "unique_snake_case_id", "scope": "category_or_area", "summary": "One-line scannable description", "detail": "Full context: what, why, and evidence", "source_iteration": "scope_name/iteration_XX", "date": "YYYY-MM-DD"}
+```
+
+#### How to Deposit
+
+```bash
+# Append to the appropriate file
+echo '{"id": "auth_middleware_pattern", "scope": "auth", "summary": "Auth checks use Express middleware, not route decorators", "detail": "Decorators caused route ordering issues in Express 5. Middleware applied in app.ts before route registration.", "source_iteration": "auth_scope_01/iteration_02", "date": "2025-03-15"}' >> .agent_process/knowledge/patterns.jsonl
+```
+
+#### When to Deposit Nothing
+
+Not every scope produces learnings. If the work was straightforward with no surprises, deposit 0 entries. Don't force entries just to fill the knowledge base.
+
+**Include in APPROVE output:**
+```markdown
+**Knowledge deposited:**
+- patterns.jsonl: "Auth uses middleware pattern" (id: auth_middleware_pattern)
+- gotchas.jsonl: "Session tokens can't use localStorage" (id: session_storage_compliance)
+```
+Or:
+```markdown
+**Knowledge deposited:** None — straightforward scope, no novel learnings
+```
+
+**Reference:** See `process/knowledge-base.md` for the full knowledge base how-to guide.
+
+---
+
 ## Decision Matrix (Quick Reference)
 
 | Situation | Decision | Next Step |
@@ -1026,6 +1156,7 @@ Should I update iteration_plan.md with the proposed scope change (requires your 
 - [ ] Cross-checked results.md claims vs actual code
 - [ ] Verified documentation updates (Step 3.5)
 - [ ] Verified integration points with related code (Step 3.6)
+- [ ] Ran adversarial review or documented skip reason (Step 3.7)
 - [ ] Checked frontend/backend schema compatibility (if applicable)
 - [ ] Checked component interface compatibility (if applicable)
 - [ ] Counted attempts used (1/2/3/4 of 4)
@@ -1038,6 +1169,7 @@ Should I update iteration_plan.md with the proposed scope change (requires your 
 - [ ] If BLOCK: Documented blocker clearly
 - [ ] If PIVOT: Will get human approval before updating plan
 - [ ] If APPROVE/BLOCK: Updated requirement source doc frontmatter/status note to terminal review state
+- [ ] If APPROVE: Deposited 0-3 knowledge entries (Step 9.5)
 
 ---
 

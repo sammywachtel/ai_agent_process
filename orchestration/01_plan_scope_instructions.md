@@ -200,6 +200,46 @@ mkdir -p .agent_process/work/<scope_name>
 
 ---
 
+### Step 2.5: Query Knowledge Base
+
+**Before reviewing code, check for accumulated project wisdom:**
+
+The knowledge base (`.agent_process/knowledge/`) stores patterns, gotchas, decisions, and anti-patterns from previous iterations. Querying it before code review helps you know what to look for and what to avoid.
+
+**If knowledge directory exists:**
+
+1. **Extract search terms** from the requirement:
+   - Category name (e.g., `auth`, `frontend`, `lexical_editor`)
+   - Key component or file names from the requirements doc
+   - Technical concepts involved (e.g., "JWT", "caching", "API design")
+
+2. **Search all knowledge files:**
+   ```bash
+   # Search by category/scope
+   grep -i "<category>" .agent_process/knowledge/*.jsonl
+
+   # Search by keywords from the requirement
+   grep -i "<keyword1>\|<keyword2>" .agent_process/knowledge/*.jsonl
+   ```
+
+3. **Record findings** for the `## Known Patterns & Constraints` section of `iteration_plan.md`:
+   - Include the entry's `summary` and `source_iteration` for traceability
+   - Prioritize entries matching the scope's category over general entries
+   - Include gotchas and anti-patterns even if only tangentially related — they're cheap insurance
+
+4. **If no relevant entries found** (common for new categories or early in a project), note it:
+   ```markdown
+   ## Known Patterns & Constraints
+   *No relevant knowledge base entries for this scope.*
+   *Keywords searched: auth, session, login*
+   ```
+
+**If knowledge directory doesn't exist:** Skip this step. The knowledge base is created by `install.sh` and grows organically through APPROVE deposits.
+
+**Reference:** See `process/knowledge-base.md` for the full knowledge base how-to guide.
+
+---
+
 ### Step 3: Review Actual Code (Technical Feasibility)
 
 **Before creating scope structure, review the actual code:**

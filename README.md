@@ -47,6 +47,8 @@ The AI Agent Process solves a common problem: AI-assisted development often beco
 - **Iteration budgets** – Maximum 3 attempts before escalation prevents infinite loops
 - **Decision framework** – Every review ends with a clear decision (APPROVE/ITERATE/BLOCK/PIVOT)
 - **Scoped validation** – Only test what you changed, not the entire codebase
+- **Knowledge base** – Patterns, gotchas, and decisions compound across iterations
+- **Adversarial review** – Fresh agent verifies criteria without implementation bias
 
 ### What This Provides
 
@@ -57,6 +59,8 @@ The AI Agent Process solves a common problem: AI-assisted development often beco
 | **Iteration Templates** | Standardized artifacts for tracking work |
 | **Validation Tools** | Scoped testing scripts |
 | **Project Management** | Roadmap, backlog, and requirements tracking |
+| **Knowledge Base** | Accumulated patterns, gotchas, decisions across iterations |
+| **Adversarial Review** | Fresh-instance code review for unbiased criterion verification |
 
 ---
 
@@ -198,6 +202,36 @@ During iteration, discovered: Performance issue
 
 **Why?** Prevents scope creep and moving goalposts. New discoveries become backlog items.
 
+### Knowledge Base
+
+The project accumulates wisdom across iterations in `.agent_process/knowledge/`:
+
+```
+knowledge/
+├── patterns.jsonl       # Recommended approaches that worked
+├── gotchas.jsonl        # Non-obvious pitfalls that bit us
+├── decisions.jsonl      # Architectural choices with rationale
+└── anti-patterns.jsonl  # Approaches that failed
+```
+
+- **Planning phase** queries the knowledge base for entries matching the scope
+- **APPROVE decisions** deposit 0-3 learnings back into the knowledge base
+- Starts empty, grows organically — no manual population needed
+- Entries are JSONL (one JSON object per line) for easy grep/search
+
+See `process/knowledge-base.md` for full documentation.
+
+### Adversarial Review
+
+During the review phase, the orchestrator can spawn a **fresh reviewer agent** that has zero context about the implementation process. This reviewer:
+
+- Receives only the frozen criteria and the changed files (NOT results.md)
+- Produces a binary **PASS/FAIL** per criterion with **file:line evidence**
+- Cannot be influenced by watching the implementation (no anchoring bias)
+- Is **advisory input** to the orchestrator's 4-choice decision, not a replacement
+
+This is inspired by [metaswarm's](https://github.com/dsifry/metaswarm) adversarial review pattern. See `templates/adversarial-review-prompt.md` for the reviewer prompt template.
+
 ### Scoped Validation
 
 Only validate files you changed:
@@ -307,10 +341,17 @@ your-project/
     │   ├── 02_review_iteration_instructions.md
     │   └── 02_review_iteration_prompt.md
     │
+    ├── knowledge/          # Accumulated project wisdom (JSONL)
+    │   ├── patterns.jsonl
+    │   ├── gotchas.jsonl
+    │   ├── decisions.jsonl
+    │   └── anti-patterns.jsonl
+    │
     ├── process/            # Process documentation
     │   ├── validation-playbook.md
     │   ├── naming_conventions.md
     │   ├── roadmap_schema.md
+    │   ├── knowledge-base.md
     │   └── local_environment_instructions.md
     │
     ├── requirements_docs/  # Project requirements
@@ -478,6 +519,7 @@ For teams using this framework across multiple projects, you can configure centr
 
 | Document | Location | Purpose |
 |----------|----------|---------|
+| Knowledge Base | `process/knowledge-base.md` | Query, deposit, curate project knowledge |
 | Roadmap Schema | `process/roadmap_schema.md` | Roadmap file format |
 | Roadmap Discovery | `process/roadmap_discovery.md` | How discovery works |
 | Roadmap Update | `process/roadmap_update.md` | How updates work |
@@ -490,6 +532,7 @@ For teams using this framework across multiple projects, you can configure centr
 | Iteration Plan | `templates/iteration-plan.md` | Planning iterations |
 | Results | `templates/results.md` | Documenting outcomes |
 | Feedback | `templates/iteration-feedback.md` | Review feedback |
+| Adversarial Review | `templates/adversarial-review-prompt.md` | Fresh reviewer prompt |
 
 ---
 
@@ -505,6 +548,7 @@ For teams using this framework across multiple projects, you can configure centr
 
 **Re-running install.sh preserves:**
 - Your work in `.agent_process/work/`
+- Your knowledge base in `.agent_process/knowledge/`
 - Your local environment instructions
 - Your central sync configuration
 - Your existing requirements documents

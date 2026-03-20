@@ -25,6 +25,18 @@
 New issues discovered during iteration → backlog for future scopes.
 No mid-iteration scope creep allowed.
 
+## Known Patterns & Constraints
+
+*Populated from `.agent_process/knowledge/` — see `process/knowledge-base.md` for query instructions.*
+
+**From knowledge base:**
+- [List relevant patterns, gotchas, decisions, and anti-patterns found]
+- [Include source_iteration for traceability]
+
+**No matches found for:** [list keywords that returned nothing]
+
+*If knowledge base is empty or no relevant entries found, note: "No relevant knowledge base entries for this scope."*
+
 ## Technical Assessment (by Orchestrator)
 
 **Code Review Findings:**

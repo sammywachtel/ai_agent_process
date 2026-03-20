@@ -77,6 +77,23 @@ Based on original criteria from iteration_plan.md:
 
 ---
 
+## Adversarial Review
+
+*Populated by orchestrator during review phase — implementation leaves this blank.*
+
+**Reviewer:** Fresh instance (no implementation context)
+**Overall verdict:** PENDING
+**Per-criterion results:**
+- [ ] Criterion 1: PENDING
+- [ ] Criterion 2: PENDING
+- [ ] Criterion 3: PENDING
+
+**Blocking issues:** PENDING
+
+*See `templates/adversarial-review-prompt.md` for the review process.*
+
+---
+
 ## Next Steps
 
 [One of:]

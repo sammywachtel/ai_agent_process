@@ -102,6 +102,20 @@ else
   echo -e "${YELLOW}  ⊙${NC} Preserving existing .agent_process/work/ directory"
 fi
 
+# Only create knowledge/ if it doesn't exist (preserve accumulated learnings)
+if [[ ! -d "$AGENT_PROCESS_DIR/knowledge" ]]; then
+  mkdir -p "$AGENT_PROCESS_DIR/knowledge"
+  # Seed with schema-line-only JSONL files
+  for kb_file in patterns gotchas decisions anti-patterns; do
+    if [[ ! -f "$AGENT_PROCESS_DIR/knowledge/${kb_file}.jsonl" ]]; then
+      echo "{\"_schema\": \"v1\", \"_description\": \"${kb_file} knowledge entries. See process/knowledge-base.md for format.\"}" > "$AGENT_PROCESS_DIR/knowledge/${kb_file}.jsonl"
+    fi
+  done
+  echo -e "${GREEN}  ✓${NC} Created .agent_process/knowledge/ directory with JSONL files"
+else
+  echo -e "${YELLOW}  ⊙${NC} Preserving existing .agent_process/knowledge/ directory"
+fi
+
 # Install .claude/commands/ (Claude Code command scripts)
 echo ""
 echo -e "${BLUE}▸${NC} Installing Claude Code commands..."
