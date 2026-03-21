@@ -77,6 +77,22 @@ Based on original criteria from iteration_plan.md:
 
 ---
 
+## Work Unit Summary
+
+*Only populated when work unit decomposition was used (multi-domain scopes). Omit this section for single-pass executions.*
+
+| Unit | Description | Status | Files Changed | Validation |
+|------|-------------|--------|---------------|------------|
+| WU-001 | [description] | ✅ Complete | `file1.ts`, `file2.ts` | PASS |
+| WU-002 | [description] | ✅ Complete | `component.tsx` | PASS |
+| WU-003 | [description] | ✅ Complete | `test.test.ts` | PASS |
+
+**Decomposition trigger:** [3+ files across 2+ layers — list the layers]
+**Parallel groups executed:** [N]
+**Session recovery:** [Not needed | Resumed from WU-NNN]
+
+---
+
 ## Adversarial Review
 
 *Populated by orchestrator during review phase — implementation leaves this blank.*

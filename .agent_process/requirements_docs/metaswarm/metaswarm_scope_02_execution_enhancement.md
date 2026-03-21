@@ -2,7 +2,7 @@
 id: metaswarm_scope_02_execution_enhancement
 type: requirement
 category: metaswarm
-status: not_started
+status: in_progress
 priority: medium
 ---
 

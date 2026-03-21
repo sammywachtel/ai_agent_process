@@ -45,9 +45,10 @@
 
 ### 2. Execute (Implementation Session)
 - Implementation session runs `/ap_exec <scope> <iteration>`
-- Scoped validation runs (only files in scope)
+- For multi-domain scopes (3+ files across 2+ layers), `/ap_exec` may decompose into work units — a DAG of independently-executable units with per-unit agents and validation
+- Scoped validation runs (only files in scope, or per-unit if decomposed)
 - Time-boxed: 2-4 hours implementation max
-- Produces `results.md` and `test-output.txt`
+- Produces `results.md` (with Work Unit Summary if decomposed) and `test-output.txt`
 
 ### 3. Review (You)
 - Load `02_review_iteration_instructions.md`
@@ -60,6 +61,7 @@
 - **If external blocker:** Choose BLOCK, escalate immediately
 - **If wrong approach:** Choose PIVOT, get human approval
 - **No silent failures:** Every iteration must have explicit decision
+- **Knowledge deposits:** On APPROVE, deposit 0-3 code learnings. On BLOCK/PIVOT, deposit process observations if they meet qualification criteria
 
 ### 5. Plan Forward (You)
 - Update `iteration_plan.md` "Latest iteration" pointer
@@ -220,10 +222,11 @@ npm test -- --testPathPattern="ScopeTests"
 ### For Reviewing Iteration
 1. Load `02_review_iteration_instructions.md`
 2. Read `iteration_plan.md` (original criteria)
-3. Review results against ORIGINAL criteria
+3. Review results against ORIGINAL criteria (if decomposed, review all units together — not per-unit)
 4. Choose: APPROVE / ITERATE / BLOCK / PIVOT
-5. Enforce iteration budget (max 3 sub-iterations)
-6. Escalate if needed
+5. Deposit knowledge (Step 9.5 on APPROVE, Step 9.6 on BLOCK/PIVOT)
+6. Enforce iteration budget (max 3 sub-iterations)
+7. Escalate if needed
 
 ---
 
@@ -272,6 +275,9 @@ npm test -- --testPathPattern="ScopeTests"
 - **Planning:** `01_plan_scope_instructions.md`
 - **Reviewing:** `02_review_iteration_instructions.md`
 - **Validation:** `../process/validation-playbook.md`
+- **Knowledge Base:** `../process/knowledge-base.md`
+- **Work Unit Execution:** `../process/work-unit-execution.md`
+- **PR Shepherd:** `../process/pr-shepherd.md`
 - **Scope sizing:** `.local_docs/process/scope-sizing-quick-reference.md`
 - **Process evaluation:** `.local_docs/process/agent-process-evaluation.md`
 

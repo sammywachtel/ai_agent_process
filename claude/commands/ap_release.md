@@ -38,11 +38,15 @@ These instructions are additive - they augment but do not replace the standard w
 - `minor` - New features (1.0.0 → 1.1.0)
 - `major` - Breaking changes (1.0.0 → 2.0.0)
 
+**`--shepherd`** - Optional flag. After PR creation, launch a shepherd agent to monitor CI, respond to review comments, and report merge-readiness. Can be placed anywhere in the arguments.
+
 **Examples:**
 - `/ap_release pr` - Scope mode, PR only
+- `/ap_release pr --shepherd` - Scope mode, PR + shepherd monitoring
 - `/ap_release noscope pr` - No-scope mode, PR only
 - `/ap_release release minor` - Scope mode, minor release
 - `/ap_release noscope release patch` - No-scope mode, patch release
+- `/ap_release release minor --shepherd` - Minor release + shepherd
 
 ---
 
@@ -834,7 +838,95 @@ EOF
 
 ---
 
-### Step 9.5: Sync Agent Process Central Repo (OPTIONAL)
+### Step 9.5: PR Shepherd (OPTIONAL)
+
+**This step is OPTIONAL** — activate with `--shepherd` flag or when the user requests PR monitoring.
+
+After PR creation, the shepherd monitors the PR through CI and review until it's merge-ready.
+
+**Check if shepherd was requested:**
+- User passed `--shepherd` flag in the command
+- Or user explicitly asked for PR monitoring
+- If neither, skip to Step 9.6
+
+**Launch the shepherd:**
+
+```typescript
+Task({
+  subagent_type: "general-purpose",
+  description: "Shepherd PR through CI and review",
+  prompt: `You are a PR shepherd. Monitor this pull request until it's merge-ready.
+
+PR URL: {PR_URL}
+Branch: {branch_name}
+Scope: {scope_name} (if applicable)
+
+## Your responsibilities:
+
+### 1. Monitor CI Pipeline
+- Check CI status: \`gh pr checks {PR_NUMBER}\`
+- If checks fail, diagnose the failure:
+  - **Lint/formatting failures:** Fix them with a new commit on the branch
+  - **Type errors:** Fix them with a new commit on the branch
+  - **Test failures:** Diagnose and fix if the fix is within scope files. If the failing test is outside scope, report to user
+  - **Build failures:** Diagnose and report to user with specific failure context
+- Re-check after fixes: \`gh pr checks {PR_NUMBER}\`
+
+### 2. Respond to Review Comments
+- Check for comments: \`gh pr view {PR_NUMBER} --comments\`
+- For each comment:
+  - If it's a question: Draft a response explaining the implementation choice
+  - If it's a change request: Implement the change if it's within scope, commit to branch
+  - If it's out of scope: Note it for the user with explanation
+- Do NOT push changes without listing what you're changing first
+
+### 3. Report Merge-Readiness
+When ALL of the following are true, report merge-ready:
+- All CI checks pass
+- All review threads resolved (or no reviews yet)
+- No unaddressed change requests
+
+Report format:
+\`\`\`markdown
+## PR Shepherd Report
+
+**PR:** {PR_URL}
+**Status:** 🟢 MERGE-READY | 🟡 IN PROGRESS | 🔴 BLOCKED
+
+**CI Checks:** [all passing / N failing]
+**Review Status:** [approved / changes requested / no reviews]
+**Unresolved Threads:** [0 / N]
+
+**Actions Taken:**
+- [list any fixes committed]
+
+**Blockers (if any):**
+- [list items requiring human attention]
+\`\`\`
+
+## Boundaries:
+- Only modify files already changed in the PR (scope files)
+- New files require user approval before creating
+- Do NOT force-push or rebase without user approval
+- Do NOT merge — report readiness, human clicks merge
+- If stuck after 3 fix attempts on the same issue, report to user
+
+## Tools available:
+- \`gh pr checks\` — view CI status
+- \`gh pr view --comments\` — read review comments
+- \`gh pr comment\` — respond to reviewers
+- \`git commit\` + \`git push\` — push fixes to PR branch
+`
+})
+```
+
+**After shepherd completes (or if skipped), continue to Step 9.6.**
+
+**Reference:** See `process/pr-shepherd.md` for the full how-to guide.
+
+---
+
+### Step 9.6: Sync Agent Process Central Repo (OPTIONAL)
 
 **This step is OPTIONAL** - only execute if central repo sync is enabled.
 
@@ -849,6 +941,7 @@ The sync file will contain:
 - `PROJECT_FOLDER`: This project's folder name in the central repo (if enabled)
 
 **If `ENABLED: false`, skip to Step 10.** This project manages `.agent_process/` locally.
+
 
 **If `ENABLED: true`, proceed with sync:**
 

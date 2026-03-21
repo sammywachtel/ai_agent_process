@@ -61,6 +61,8 @@ The AI Agent Process solves a common problem: AI-assisted development often beco
 | **Project Management** | Roadmap, backlog, and requirements tracking |
 | **Knowledge Base** | Accumulated patterns, gotchas, decisions across iterations |
 | **Adversarial Review** | Fresh-instance code review for unbiased criterion verification |
+| **Work Unit Decomposition** | DAG-based parallel execution for multi-domain scopes |
+| **PR Shepherd** | Post-PR agent monitoring CI, reviews, and merge-readiness |
 
 ---
 
@@ -106,9 +108,10 @@ The AI Agent Process solves a common problem: AI-assisted development often beco
 /ap_exec <scope> <iteration>
 ```
 - Reads the iteration plan
-- Implements changes within scope boundaries
+- For multi-domain scopes (3+ files across 2+ layers), decomposes into work units — a DAG of independently-executable tasks with per-unit agents and validation
+- Implements changes within scope boundaries (parallel where possible)
 - Runs scoped validation (hook fires automatically)
-- Creates `results.md` and `test-output.txt`
+- Creates `results.md` (with Work Unit Summary if decomposed) and `test-output.txt`
 
 #### Step 3: Review (Orchestrator)
 - Evaluates results against **ORIGINAL** frozen criteria
@@ -232,6 +235,37 @@ During the review phase, the orchestrator can spawn a **fresh reviewer agent** t
 
 This is inspired by [metaswarm's](https://github.com/dsifry/metaswarm) adversarial review pattern. See `templates/adversarial-review-prompt.md` for the reviewer prompt template.
 
+### Work Unit Decomposition
+
+When a scope touches 3+ files across 2+ system layers (backend + frontend, schema + API + tests, etc.), `/ap_exec` automatically decomposes the scope into independently-executable work units:
+
+```
+WU-001: Schema + ORM model  ──┐
+                                ├──→ WU-003: API endpoint ──→ WU-004: Integration tests
+WU-002: Frontend component  ──┘
+```
+
+Each unit has its own files, agent selection, and validation. Independent units run in parallel; dependent units wait for prerequisites. The decomposition stays within frozen criteria — it's a tactical breakdown, not scope expansion.
+
+- **Trigger:** 3+ files AND 2+ system layers AND first iteration (not sub-iteration)
+- **Soft cap:** 3-6 units per scope
+- **Session recovery:** `current_work_unit.conf` tracks progress across interruptions
+- **Results:** `## Work Unit Summary` section in results.md
+
+See `process/work-unit-execution.md` for the full how-to guide.
+
+### PR Shepherd
+
+An optional post-PR agent activated with `--shepherd` that monitors the PR lifecycle:
+
+- **CI monitoring** — Checks pipeline status, auto-fixes lint/type failures
+- **Review response** — Drafts replies to reviewer comments, implements change requests within scope
+- **Merge-readiness** — Reports when all checks pass and threads are resolved
+
+The shepherd only modifies files already in the PR, never force-pushes, and never merges. It's a CI babysitter with commenting privileges — the human always clicks merge.
+
+See `process/pr-shepherd.md` for the full how-to guide.
+
 ### Scoped Validation
 
 Only validate files you changed:
@@ -292,15 +326,19 @@ Pre-existing issues are documented once in the iteration plan, not re-litigated 
 
 ```bash
 /ap_release pr                     # PR only (no version tag)
+/ap_release pr --shepherd          # PR + shepherd monitoring
 /ap_release beta                   # Beta tag + PR
 /ap_release release patch          # Patch release (1.0.0 → 1.0.1)
 /ap_release release minor          # Minor release (1.0.0 → 1.1.0)
 /ap_release release major          # Major release (1.0.0 → 2.0.0)
+/ap_release release minor --shepherd  # Release + shepherd monitoring
 
 # No-scope mode (analyze git diff instead of work/)
 /ap_release noscope pr
 /ap_release noscope release patch
 ```
+
+**`--shepherd` flag:** After PR creation, launches a shepherd agent that monitors CI status, responds to review comments, auto-fixes lint/type issues, and reports merge-readiness. The shepherd only modifies files already in the PR — it never merges (human clicks merge). See `process/pr-shepherd.md` for details.
 
 ### `/ap_iteration_results` – Document Results
 
@@ -352,6 +390,8 @@ your-project/
     │   ├── naming_conventions.md
     │   ├── roadmap_schema.md
     │   ├── knowledge-base.md
+    │   ├── work-unit-execution.md
+    │   ├── pr-shepherd.md
     │   └── local_environment_instructions.md
     │
     ├── requirements_docs/  # Project requirements
@@ -368,7 +408,8 @@ your-project/
     ├── templates/          # Iteration templates
     │   ├── iteration-plan.md
     │   ├── iteration-feedback.md
-    │   └── results.md
+    │   ├── results.md
+    │   └── work-unit-decomposition.md
     │
     └── work/               # Active iteration work
         └── <scope_name>/
@@ -520,6 +561,8 @@ For teams using this framework across multiple projects, you can configure centr
 | Document | Location | Purpose |
 |----------|----------|---------|
 | Knowledge Base | `process/knowledge-base.md` | Query, deposit, curate project knowledge |
+| Work Unit Execution | `process/work-unit-execution.md` | Multi-domain scope decomposition and DAG execution |
+| PR Shepherd | `process/pr-shepherd.md` | Post-PR CI monitoring and review response |
 | Roadmap Schema | `process/roadmap_schema.md` | Roadmap file format |
 | Roadmap Discovery | `process/roadmap_discovery.md` | How discovery works |
 | Roadmap Update | `process/roadmap_update.md` | How updates work |
@@ -533,6 +576,7 @@ For teams using this framework across multiple projects, you can configure centr
 | Results | `templates/results.md` | Documenting outcomes |
 | Feedback | `templates/iteration-feedback.md` | Review feedback |
 | Adversarial Review | `templates/adversarial-review-prompt.md` | Fresh reviewer prompt |
+| Work Unit Decomposition | `templates/work-unit-decomposition.md` | Architect Agent decomposition prompt |
 
 ---
 

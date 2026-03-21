@@ -249,6 +249,121 @@ fi
 
 ---
 
+## Step 1.25: Assess Work Unit Decomposition
+
+**Determine if this scope benefits from structured decomposition:**
+
+Work unit decomposition breaks a multi-domain scope into a DAG of independently-executable units. Each unit has its own files, agent, and validation. This adds coordination overhead, so it's only triggered when the overhead pays for itself.
+
+**Trigger conditions (ALL must be true):**
+1. Scope touches **3+ files** (from "Files in Scope" in iteration_plan.md)
+2. Files span **2+ system layers** (e.g., backend + frontend, schema + API + tests, infrastructure + application)
+3. This is a **first iteration** (not a sub-iteration — _a/_b/_c always execute directly against the specific fixes)
+
+**If trigger conditions are NOT met:** Skip to Step 1.5 and execute normally (single-pass, as before).
+
+**If trigger conditions ARE met:** Proceed to Step 1.3 for decomposition.
+
+**Layer detection heuristic:**
+
+| Pattern | Layer |
+|---------|-------|
+| `migrations/`, `.sql`, schema files | Database |
+| Backend API files, routes, services | Backend |
+| Frontend components, hooks, `.tsx` | Frontend |
+| Test files (`__tests__/`, `.test.`, `.spec.`) | Tests |
+| Config, Docker, CI/CD | Infrastructure |
+| Documentation (`docs/`, `*.md`) | Docs |
+
+Count distinct layers from the files in scope. If ≥2, decomposition is warranted.
+
+---
+
+## Step 1.3: Decompose into Work Units (optional)
+
+**Only execute this step if Step 1.25 triggered decomposition.**
+
+Analyze the acceptance criteria and files in scope to create a Directed Acyclic Graph (DAG) of work units.
+
+**Work unit format:**
+
+```markdown
+## Work Unit Decomposition
+
+### WU-001: [Description]
+- **Files:** `path/to/file1.ts`, `path/to/file2.ts`
+- **Layer:** Backend
+- **Dependencies:** None
+- **Criteria addressed:** AC1, AC2
+- **Agent:** backend-security:backend-expert
+
+### WU-002: [Description]
+- **Files:** `path/to/component.tsx`, `path/to/hook.ts`
+- **Layer:** Frontend
+- **Dependencies:** None (parallel with WU-001)
+- **Criteria addressed:** AC3
+- **Agent:** frontend-excellence:react-specialist
+
+### WU-003: [Description]
+- **Files:** `path/to/test.test.ts`
+- **Layer:** Tests
+- **Dependencies:** WU-001, WU-002 (must complete first)
+- **Criteria addressed:** AC4, AC5
+- **Agent:** dev-accelerator:test-automator
+
+### Execution Order
+WU-001 ──┐
+          ├──→ WU-003
+WU-002 ──┘
+```
+
+**Decomposition rules:**
+1. **Stay within frozen criteria** — work units are a tactical breakdown, not new scope. If you identify missing criteria, note them for the backlog, don't add them as work units
+2. **Soft cap: 3-6 work units** — more than 6 suggests the scope should have been split at the requirements level
+3. **Each unit must be independently validatable** — you should be able to run the scoped validation hook against the unit's files alone
+4. **Validate the DAG** — no cycles, no missing dependencies, every criterion addressed by at least one unit
+5. **Write the decomposition** into results.md's `## Work Unit Summary` section as you execute (not upfront in the plan)
+
+**Update session recovery tracking:**
+
+```bash
+# Create or update work unit tracking
+cat > .agent_process/work/{scope}/current_work_unit.conf <<EOF
+SCOPE={scope}
+ITERATION={iteration}
+CURRENT_UNIT=WU-001
+TOTAL_UNITS=3
+COMPLETED_UNITS=
+EOF
+```
+
+**Per-unit execution loop:**
+
+For each work unit in DAG order (respecting dependencies):
+
+1. **Check dependencies** — all prerequisite WUs must be in COMPLETED_UNITS
+2. **Select agent** — use the agent specified in the work unit (from Step 1.5 logic)
+3. **Execute** — launch Task agent scoped to this unit's files only
+4. **Validate** — run scoped validation against this unit's files
+5. **Update tracking:**
+   ```bash
+   # Mark unit complete in tracking file
+   sed -i '' "s/CURRENT_UNIT=.*/CURRENT_UNIT=WU-002/" .agent_process/work/{scope}/current_work_unit.conf
+   sed -i '' "s/COMPLETED_UNITS=.*/COMPLETED_UNITS=WU-001/" .agent_process/work/{scope}/current_work_unit.conf
+   ```
+6. **Proceed to next unit** or finish if all complete
+
+**Independent units execute in parallel** — launch their Task agents in a single response (same pattern as the multi-domain parallel agents in Step 2).
+
+**If session is interrupted mid-execution:**
+- Read `current_work_unit.conf` to find the last completed unit
+- Resume from the next unit in the DAG
+- Already-completed units are not re-executed
+
+**Reference:** See `process/work-unit-execution.md` for the full how-to guide and `templates/work-unit-decomposition.md` for the Architect Agent prompt.
+
+---
+
 ## Step 1.5: Select Specialized Agent
 
 **Determine the appropriate agent for this scope:**

@@ -2,7 +2,7 @@
 .docker-dev/
 
 # Local documents (local only)
-.local-docs/
+.local_docs/
 
 # Python
 __pycache__/
