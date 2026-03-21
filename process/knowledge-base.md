@@ -7,7 +7,7 @@
 
 ## Overview
 
-The knowledge base is a set of JSONL files in `.agent_process/knowledge/` that accumulate project wisdom over time. Each APPROVE deposits 0-3 learnings; each planning phase queries for relevant entries. The system starts empty and gets smarter with every completed scope.
+The knowledge base is a set of JSONL files in `.agent_process/knowledge/` that accumulate project wisdom over time. Each APPROVE deposits 0-3 code learnings; each BLOCK or PIVOT may deposit 0-2 process observations; each planning phase queries for relevant entries. The system starts empty and gets smarter with every scope — even blocked ones.
 
 ---
 
@@ -103,6 +103,16 @@ This is fine — the knowledge base grows with each APPROVE.
 
 ## How to Deposit (Review Phase)
 
+The knowledge base accepts two types of deposits at different decision points:
+
+| Decision | What to deposit | Why it's safe |
+|----------|----------------|---------------|
+| **APPROVE** | Code patterns, gotchas, decisions, anti-patterns (0-3 entries) | Code is verified — learnings are grounded in working implementation |
+| **BLOCK/PIVOT** | Process observations only (0-2 entries) | Process patterns don't depend on code correctness |
+| **ITERATE** | Nothing | Code isn't verified and criteria haven't changed — too early to generalize |
+
+### Code Knowledge Deposit (APPROVE)
+
 After an APPROVE decision, the orchestrator extracts 0-3 learnings. This is documented in `orchestration/02_review_iteration_instructions.md`, but here's the standalone process:
 
 ### Step 1: Reflect on the Iteration
@@ -135,6 +145,31 @@ echo '{"id": "auth_middleware_pattern", "scope": "auth", ...}' >> .agent_process
 ### Step 4: Deposit 0 Entries When Appropriate
 
 Not every scope produces learnings. If the work was straightforward and nothing surprising happened, deposit nothing. Don't force entries just to fill the knowledge base.
+
+### Process Knowledge Deposit (BLOCK or PIVOT)
+
+After a BLOCK or PIVOT decision, the orchestrator may extract 0-2 *process observations*. These are things about scope structure, agent behavior, or review patterns — valid regardless of whether the code shipped.
+
+#### What Qualifies
+
+- Implementation agents consistently miss something (e.g., stale doc references)
+- A type of acceptance criterion always blocks (e.g., operational gates)
+- Scope structure caused predictable problems
+- Review caught a systemic pattern worth flagging for future planners
+
+#### What Does NOT Qualify
+
+- Code patterns or architectural decisions → wait for APPROVE
+- Library-specific gotchas → wait for APPROVE (approach might change on retry)
+- One-off blockers (missing API key, broken CI) → not systemic, not worth preserving
+
+#### Example
+
+```json
+{"id": "impl_agents_miss_stale_doc_refs", "scope": "architecture-refactor", "summary": "Implementation agents claim docs need no update while stale references remain", "detail": "During hard cutover, the agent reported docs/reference/data-model.md needed no changes, but review found it still documented removed fields. When removing code, always grep docs/ for references.", "source_iteration": "gemini_hybrid_06_hard_cutover/iteration_01", "date": "2026-03-21"}
+```
+
+Most BLOCKs and PIVOTs won't produce process learnings — that's fine. Only deposit when you see something likely to repeat.
 
 ---
 
@@ -170,9 +205,10 @@ Over time, the knowledge base may need cleanup. This is a manual process — do 
 
 | Phase | Action | File |
 |-------|--------|------|
-| Planning (Step 3) | Query knowledge base for scope-relevant entries | `01_plan_scope_instructions.md` |
+| Planning (Step 2.5) | Query knowledge base for scope-relevant entries | `01_plan_scope_instructions.md` |
 | Planning output | Include findings in `## Known Patterns & Constraints` | `templates/iteration-plan.md` |
-| Review (APPROVE) | Extract 0-3 learnings and append to knowledge files | `02_review_iteration_instructions.md` |
+| Review (APPROVE, Step 9.5) | Extract 0-3 code learnings and append to knowledge files | `02_review_iteration_instructions.md` |
+| Review (BLOCK/PIVOT, Step 9.6) | Extract 0-2 process observations and append to knowledge files | `02_review_iteration_instructions.md` |
 
 ---
 

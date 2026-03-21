@@ -1106,6 +1106,53 @@ Or:
 
 ---
 
+### Step 9.6: Deposit Process Knowledge (BLOCK or PIVOT only)
+
+**After BLOCK or PIVOT, extract 0-2 process observations and append to the knowledge base.**
+
+Code patterns are only safe to deposit after APPROVE (the code is verified). But *process observations* — things about scope structure, agent behavior, or review patterns — are valid regardless of whether the code shipped. These evaporate when the session ends unless captured here.
+
+#### What Qualifies as Process Knowledge
+
+| Observation | Deposit to | Example |
+|-------------|-----------|---------|
+| Implementation agents consistently miss something | `knowledge/gotchas.jsonl` | "Agents claim docs need no update while stale refs remain" |
+| A type of acceptance criterion always blocks | `knowledge/patterns.jsonl` | "Ops gate criteria always BLOCK first pass" |
+| Scope structure caused problems | `knowledge/gotchas.jsonl` | "Mixing code changes with deploy evidence in one scope causes BLOCK" |
+| Review caught a systemic documentation drift | `knowledge/gotchas.jsonl` | "Removing exports without grepping docs/ leaves stale references" |
+
+#### What Does NOT Qualify
+
+- Code patterns or architectural decisions → wait for APPROVE (the code might be wrong)
+- Library-specific gotchas → wait for APPROVE (the approach might change on retry)
+- Anything about *this specific implementation* → that's iteration context, not reusable knowledge
+
+#### Entry Format
+
+Same schema as Step 9.5, but the `detail` field should make clear this is a process observation:
+
+```json
+{"id": "ops_gate_always_blocks", "scope": "architecture-refactor", "summary": "Operational gate criteria always BLOCK on first implementation pass", "detail": "Implementation agents cannot generate deploy evidence. Scopes with ops gate criteria should expect BLOCK after first pass. This is the process working correctly, not a failure.", "source_iteration": "scope_name/iteration_01", "date": "YYYY-MM-DD"}
+```
+
+#### When to Deposit Nothing
+
+Most BLOCKs and PIVOTs won't produce process learnings. Only deposit when you observe something *systemic* — a pattern likely to repeat across future scopes. A one-off blocker (missing API key, broken CI) is not knowledge worth preserving.
+
+**Include in BLOCK/PIVOT output:**
+```markdown
+**Process knowledge deposited:**
+- gotchas.jsonl: "Agents miss stale doc refs during code removal" (id: impl_agents_miss_stale_doc_refs)
+```
+Or:
+```markdown
+**Process knowledge deposited:** None — one-off blocker, not a systemic pattern
+```
+
+**Reference:** See `process/knowledge-base.md` for the full knowledge base how-to guide.
+
+---
+
 ## Decision Matrix (Quick Reference)
 
 | Situation | Decision | Next Step |
