@@ -176,10 +176,47 @@ elif [[ "$BEADS_CONFIGURED" == "yes" ]]; then
     fi
   fi
 else
-  # Not yet configured — prompt the user
+  # Not yet configured — always prompt the user
+  BD_FOUND=false
   if command -v bd &>/dev/null; then
-    echo -e "${GREEN}  ✓${NC} BEADS CLI (bd) already installed"
-    # Set enabled in config since it's already available
+    BD_FOUND=true
+  fi
+
+  echo ""
+  if [[ "$BD_FOUND" == true ]]; then
+    echo -e "${YELLOW}  BEADS CLI (bd) is installed on this system.${NC}"
+    echo -e "  BEADS provides git-native durable state tracking for work units."
+  else
+    echo -e "${YELLOW}  Optional: BEADS provides git-native durable state tracking for work units.${NC}"
+  fi
+  echo -e "  When enabled, execution state persists across session interruptions."
+  echo -e "  Without it, the framework uses file-based state (works fine, just less resilient)."
+  echo ""
+  read -p "  Enable BEADS? [Y/n] " -n 1 -r
+  echo ""
+
+  if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+    # User said yes (or pressed enter for default Y)
+    if [[ "$BD_FOUND" == false ]]; then
+      BEADS_INSTALLED=false
+      if command -v npm &>/dev/null && npm install -g @beads/bd 2>/dev/null; then
+        BEADS_INSTALLED=true
+        echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via npm"
+      elif command -v brew &>/dev/null && brew install beads 2>/dev/null; then
+        BEADS_INSTALLED=true
+        echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via Homebrew"
+      elif command -v curl &>/dev/null && curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash 2>/dev/null; then
+        BEADS_INSTALLED=true
+        echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via installer script"
+      fi
+      if [[ "$BEADS_INSTALLED" == false ]]; then
+        echo -e "${YELLOW}  ⊙${NC} BEADS CLI installation failed — enabled in config, will retry at runtime"
+      fi
+    else
+      echo -e "${GREEN}  ✓${NC} BEADS CLI already available"
+    fi
+
+    # Update quality-config.json
     python3 -c "
 import json
 path = '$AGENT_PROCESS_DIR/quality-config.json'
@@ -192,52 +229,10 @@ try:
 except:
     pass
 " 2>/dev/null
-    echo -e "${GREEN}  ✓${NC} Enabled BEADS in quality-config.json"
+    echo -e "${GREEN}  ✓${NC} BEADS enabled in quality-config.json"
   else
-    echo ""
-    echo -e "${YELLOW}  Optional: BEADS provides git-native durable state tracking for work units.${NC}"
-    echo -e "  When enabled, execution state persists across session interruptions."
-    echo -e "  Without it, the framework uses file-based state (works fine, just less resilient)."
-    echo ""
-    read -p "  Install and enable BEADS? [Y/n] " -n 1 -r
-    echo ""
-
-    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-      # User said yes (or pressed enter for default Y)
-      BEADS_INSTALLED=false
-      if command -v npm &>/dev/null && npm install -g @beads/bd 2>/dev/null; then
-        BEADS_INSTALLED=true
-        echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via npm"
-      elif command -v brew &>/dev/null && brew install beads 2>/dev/null; then
-        BEADS_INSTALLED=true
-        echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via Homebrew"
-      elif command -v curl &>/dev/null && curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash 2>/dev/null; then
-        BEADS_INSTALLED=true
-        echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via installer script"
-      fi
-
-      # Update quality-config.json
-      python3 -c "
-import json
-path = '$AGENT_PROCESS_DIR/quality-config.json'
-try:
-    cfg = json.load(open(path))
-    cfg.setdefault('beads', {})['enabled'] = True
-    cfg['beads']['auto_install'] = True
-    cfg['beads']['_user_configured'] = True
-    json.dump(cfg, open(path, 'w'), indent=2)
-except:
-    pass
-" 2>/dev/null
-
-      if [[ "$BEADS_INSTALLED" == true ]]; then
-        echo -e "${GREEN}  ✓${NC} BEADS enabled in quality-config.json"
-      else
-        echo -e "${YELLOW}  ⊙${NC} BEADS CLI installation failed — enabled in config, will retry at runtime"
-      fi
-    else
-      # User said no
-      python3 -c "
+    # User said no
+    python3 -c "
 import json
 path = '$AGENT_PROCESS_DIR/quality-config.json'
 try:
@@ -249,8 +244,7 @@ try:
 except:
     pass
 " 2>/dev/null
-      echo -e "${GREEN}  ✓${NC} BEADS disabled in quality-config.json (file-based state will be used)"
-    fi
+    echo -e "${GREEN}  ✓${NC} BEADS disabled in quality-config.json (file-based state will be used)"
   fi
 fi
 
