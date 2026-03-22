@@ -1,6 +1,6 @@
 # Metaswarm Integration — Commit Log
 
-Branch: `scope/metaswarm_scope_01_knowledge_review`
+Branch: `scope/metaswarm-integration`
 
 | # | Commit | Date | Phase | Summary |
 |---|--------|------|-------|---------|
@@ -12,6 +12,12 @@ Branch: `scope/metaswarm_scope_01_knowledge_review`
 | 6 | `2d6c74e` | 2026-03-22 | Fix | Enforce valid status values (no "INCOMPLETE"), require self-unblocking before BLOCKED, exclude process artifacts from work unit file count |
 | 7 | `6dc646e` | 2026-03-22 | Phase 3 | quality-config.json: centralized feature control for all metaswarm features |
 | 8 | `794ae08` | 2026-03-22 | Phase 3 | Design review gate, BEADS integration, install.sh prompts, complexity frontmatter field |
+| 9 | `a30c57a` | 2026-03-22 | — | Commit log update |
+| 10 | `97f47d9` | 2026-03-22 | Fix | BEADS prompt skipped on first install (fresh config treated as user choice) |
+| 11 | `b3c2f80` | 2026-03-22 | Fix | Stray `fi` syntax error in install.sh |
+| 12 | `b44192c` | 2026-03-22 | Fix | Always prompt for BEADS on first configuration (even if bd already on PATH) |
+| 13 | `3ef56dc` | 2026-03-22 | — | Backlog: metaswarm-inspired ap_project enhancements |
+| 14 | `a2d2403` | 2026-03-22 | Enhancement | ap_project discover/init: knowledge summary, dependency analysis, BEADS state, complexity suggestions |
 
 ### Files changed per commit
 
