@@ -116,6 +116,63 @@ else
   echo -e "${YELLOW}  ⊙${NC} Preserving existing .agent_process/knowledge/ directory"
 fi
 
+# Only create quality-config.json if it doesn't exist (preserve project settings)
+if [[ ! -f "$AGENT_PROCESS_DIR/quality-config.json" ]]; then
+  cp "$SOURCE_DIR/quality-config.json" "$AGENT_PROCESS_DIR/quality-config.json"
+  echo -e "${GREEN}  ✓${NC} Created .agent_process/quality-config.json with defaults"
+else
+  echo -e "${YELLOW}  ⊙${NC} Preserving existing .agent_process/quality-config.json"
+fi
+
+# Install BEADS CLI if not present and not disabled
+echo ""
+echo -e "${BLUE}▸${NC} Checking BEADS CLI..."
+
+BEADS_AUTO_INSTALL="true"
+if [[ -f "$AGENT_PROCESS_DIR/quality-config.json" ]]; then
+  # Check if auto_install is explicitly disabled
+  BEADS_AUTO_INSTALL=$(python3 -c "
+import json
+try:
+    cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
+    print(str(cfg.get('beads', {}).get('auto_install', True)).lower())
+except:
+    print('true')
+" 2>/dev/null || echo "true")
+fi
+
+if command -v bd &>/dev/null; then
+  echo -e "${GREEN}  ✓${NC} BEADS CLI (bd) already installed"
+elif [[ "$BEADS_AUTO_INSTALL" == "false" ]]; then
+  echo -e "${YELLOW}  ⊙${NC} BEADS CLI auto-install disabled in quality-config.json"
+else
+  BEADS_INSTALLED=false
+  # Try npm first (widely available, works in containers)
+  if command -v npm &>/dev/null; then
+    if npm install -g @beads/bd 2>/dev/null; then
+      BEADS_INSTALLED=true
+      echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via npm"
+    fi
+  fi
+  # Fallback to brew (macOS hosts)
+  if [[ "$BEADS_INSTALLED" == false ]] && command -v brew &>/dev/null; then
+    if brew install beads 2>/dev/null; then
+      BEADS_INSTALLED=true
+      echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via Homebrew"
+    fi
+  fi
+  # Last resort: curl installer script
+  if [[ "$BEADS_INSTALLED" == false ]] && command -v curl &>/dev/null; then
+    if curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash 2>/dev/null; then
+      BEADS_INSTALLED=true
+      echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via installer script"
+    fi
+  fi
+  if [[ "$BEADS_INSTALLED" == false ]]; then
+    echo -e "${YELLOW}  ⊙${NC} BEADS CLI not installed (optional — framework uses file-based state instead)"
+  fi
+fi
+
 # Install .claude/commands/ (Claude Code command scripts)
 echo ""
 echo -e "${BLUE}▸${NC} Installing Claude Code commands..."

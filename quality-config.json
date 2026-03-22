@@ -1,0 +1,42 @@
+{
+  "_comment": "Quality gate configuration for the AI Agent Process. See process/quality-configuration.md for schema reference.",
+  "_version": "1.0",
+
+  "knowledge_base": {
+    "enabled": true,
+    "query_during_planning": true,
+    "deposit_on_approve": true,
+    "deposit_on_block_pivot": true
+  },
+
+  "adversarial_review": {
+    "enabled": true,
+    "skip_for_trivial": true,
+    "trivial_threshold_files": 2,
+    "trivial_threshold_criteria": 1
+  },
+
+  "work_unit_decomposition": {
+    "enabled": true,
+    "trigger_threshold_files": 3,
+    "trigger_threshold_layers": 2,
+    "max_work_units": 6
+  },
+
+  "design_review": {
+    "enabled": false,
+    "trigger": "complexity:complex",
+    "max_revision_cycles": 2,
+    "min_reviewers": 2,
+    "max_reviewers": 4
+  },
+
+  "beads": {
+    "enabled": true,
+    "auto_install": true
+  },
+
+  "pr_shepherd": {
+    "enabled": true
+  }
+}

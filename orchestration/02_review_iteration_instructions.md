@@ -476,6 +476,8 @@ Add integration assessment to decision rationale:
 
 ### Step 3.7: Adversarial Review (Platform-Adaptive)
 
+**Check `quality-config.json`:** If `adversarial_review.enabled` is `false`, skip this step. Note "Adversarial review disabled via quality-config.json" in your decision.
+
 **Verify that an independent adversarial review exists, and factor it into your decision.**
 
 The adversarial review provides an independent, zero-context assessment of whether each frozen criterion is actually met in the code. The reviewer produces binary PASS/FAIL verdicts with file:line evidence. This verdict is *advisory input* to your 4-choice decision — not a replacement for your own judgment.
@@ -1057,6 +1059,8 @@ Should I update iteration_plan.md with the proposed scope change (requires your 
 
 ### Step 9.5: Deposit Knowledge (APPROVE only)
 
+**Check `quality-config.json`:** If `knowledge_base.enabled` is `false` or `knowledge_base.deposit_on_approve` is `false`, skip this step.
+
 **After APPROVE, extract 0-3 learnings from the completed scope and append to the knowledge base.**
 
 This step compounds project wisdom across iterations. Each deposit makes future planning smarter.
@@ -1105,6 +1109,8 @@ Or:
 ---
 
 ### Step 9.6: Deposit Process Knowledge (BLOCK or PIVOT only)
+
+**Check `quality-config.json`:** If `knowledge_base.enabled` is `false` or `knowledge_base.deposit_on_block_pivot` is `false`, skip this step.
 
 **After BLOCK or PIVOT, extract 0-2 process observations and append to the knowledge base.**
 

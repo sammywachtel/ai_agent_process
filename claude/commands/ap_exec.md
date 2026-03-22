@@ -23,6 +23,24 @@ These instructions are additive - they augment but do not replace the standard w
 
 ---
 
+## Quality Configuration
+
+**Load quality gate settings:**
+
+```bash
+cat .agent_process/quality-config.json 2>/dev/null
+```
+
+If this file exists, it controls which quality gates are active. Features check their section before activating. If the file doesn't exist, all features use built-in defaults (see `process/quality-configuration.md` for schema).
+
+Key settings that affect this workflow:
+- `adversarial_review.enabled` — controls Step 4.5
+- `work_unit_decomposition.enabled` and thresholds — controls Step 1.25
+- `knowledge_base.enabled` — controls Step 2.5
+- `beads.enabled` and `beads.auto_install` — controls BEADS epic lifecycle
+
+---
+
 ## Arguments
 
 **`$1` (scope)** - Required. Scope folder name under `.agent_process/work/`.
@@ -251,13 +269,15 @@ fi
 
 ## Step 1.25: Assess Work Unit Decomposition
 
+**Check `quality-config.json`:** If `work_unit_decomposition.enabled` is `false`, skip this step entirely and proceed to Step 1.5.
+
 **Determine if this scope benefits from structured decomposition:**
 
 Work unit decomposition breaks a multi-domain scope into a DAG of independently-executable units. Each unit has its own files, agent, and validation. This adds coordination overhead, so it's only triggered when the overhead pays for itself.
 
 **Trigger conditions (ALL must be true):**
-1. Scope touches **3+ implementation files** (from "Files in Scope" in iteration_plan.md — count only source code, configs, and tests; exclude process artifacts like `results.md`, `test-output.txt`, `iteration_plan.md`, and anything under `.agent_process/work/`)
-2. Files span **2+ system layers** (e.g., backend + frontend, schema + API + tests, infrastructure + application)
+1. Scope touches **N+ implementation files** where N = `work_unit_decomposition.trigger_threshold_files` from `quality-config.json` (default: 3). Count only source code, configs, and tests; exclude process artifacts like `results.md`, `test-output.txt`, `iteration_plan.md`, and anything under `.agent_process/work/`
+2. Files span **M+ system layers** where M = `work_unit_decomposition.trigger_threshold_layers` from `quality-config.json` (default: 2)
 3. This is a **first iteration** (not a sub-iteration — _a/_b/_c always execute directly against the specific fixes)
 
 **If trigger conditions are NOT met:** Skip to Step 1.5 and execute normally (single-pass, as before).
@@ -749,6 +769,8 @@ If you see server startup timeout errors, troubleshoot per the "E2E tests and se
 
 ## Step 4.5: Adversarial Review (Fresh Agent)
 
+**Check `quality-config.json`:** If `adversarial_review.enabled` is `false`, skip this step entirely and proceed to Step 5.
+
 **Spawn a fresh reviewer to independently verify each criterion before handing off to the orchestrator.**
 
 This runs here — on the implementation side — because `ap_exec` always runs in Claude Code, which always has the Task tool. The orchestrator may run in Codex (which can't spawn agents), so putting the primary adversarial review here guarantees it always happens.
@@ -756,7 +778,7 @@ This runs here — on the implementation side — because `ap_exec` always runs 
 #### When to Run
 
 - **Run**: Any scope with 2+ acceptance criteria and code changes
-- **Skip**: Trivial scopes (1-2 file changes with obvious criteria, e.g., "rename X to Y"), documentation-only scopes
+- **Skip if `adversarial_review.skip_for_trivial` is `true` (default)**: Scopes with `trivial_threshold_files` or fewer changed files AND `trivial_threshold_criteria` or fewer criteria (e.g., "rename X to Y"), documentation-only scopes
 
 If skipping, note the reason and proceed to Step 5.
 
