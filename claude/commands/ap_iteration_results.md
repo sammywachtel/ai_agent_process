@@ -79,7 +79,14 @@ Use this template structure:
 # Iteration Results – {scope}/{iteration}
 
 **Date:** {current date}
-**Status:** {COMPLETE - Ready for Review | INCOMPLETE - Issues Found}
+**Status:** {✅ COMPLETE | ⚠️ NEEDS REVISION | 🚫 BLOCKED}
+
+> **Status rules — use EXACTLY one of these three:**
+> - **✅ COMPLETE** — All acceptance criteria met, validation passed, ready for orchestrator review
+> - **⚠️ NEEDS REVISION** — Some criteria met, fixable issues remain, no external blockers
+> - **🚫 BLOCKED** — An external factor prevents progress (missing access, dependency unavailable, API down). You MUST attempt to resolve the blocker before using this status — e.g., install missing tools, authenticate, check environment variables. Only use BLOCKED after you've tried and failed.
+>
+> Do NOT invent other statuses (no "INCOMPLETE", "PARTIAL", "IN PROGRESS", etc.). If criteria aren't fully met but you can keep working, that's NEEDS REVISION, not a made-up status.
 
 ---
 

@@ -256,7 +256,7 @@ fi
 Work unit decomposition breaks a multi-domain scope into a DAG of independently-executable units. Each unit has its own files, agent, and validation. This adds coordination overhead, so it's only triggered when the overhead pays for itself.
 
 **Trigger conditions (ALL must be true):**
-1. Scope touches **3+ files** (from "Files in Scope" in iteration_plan.md)
+1. Scope touches **3+ implementation files** (from "Files in Scope" in iteration_plan.md — count only source code, configs, and tests; exclude process artifacts like `results.md`, `test-output.txt`, `iteration_plan.md`, and anything under `.agent_process/work/`)
 2. Files span **2+ system layers** (e.g., backend + frontend, schema + API + tests, infrastructure + application)
 3. This is a **first iteration** (not a sub-iteration — _a/_b/_c always execute directly against the specific fixes)
 
@@ -1004,9 +1004,12 @@ npx playwright test tests/e2e/features/your-spec.ts --config=playwright.e2e.conf
 4. Verify Playwright browsers: `npx playwright install --with-deps`
 
 **Can't meet acceptance criteria:**
-- Document specifically what's blocking progress
+- **Try to unblock yourself first.** You have bash access. If a tool is missing, install it. If authentication is needed, check for existing credentials (environment variables, mounted config dirs, docker secrets). If a service is down, verify it's actually down vs. a config issue. Only report BLOCKED after you've genuinely attempted to resolve the issue.
+- Document specifically what's blocking progress AND what you tried
 - Note in results.md "Known Issues" section
-- Mark iteration as NOT ready for review
+- Use status `🚫 BLOCKED` if an external factor prevents progress after you've tried to resolve it
+- Use status `⚠️ NEEDS REVISION` if criteria aren't met but there's no external blocker
+- Do NOT invent statuses like "INCOMPLETE" or "PARTIAL" — pick from the three valid options
 - Orchestrator will decide: ITERATE/BLOCK/PIVOT
 
 **Discovered new issues:**

@@ -2,6 +2,10 @@
 
 **Date:** {{date}}
 **Status:** ✅ COMPLETE | ⚠️ NEEDS REVISION | 🚫 BLOCKED
+<!-- Pick EXACTLY one. No other statuses allowed (no "INCOMPLETE", "PARTIAL", etc.).
+     COMPLETE = all criteria met, ready for review.
+     NEEDS REVISION = fixable issues remain, no external blockers.
+     BLOCKED = external factor prevents progress, AND you tried to resolve it first. -->
 
 ---
 

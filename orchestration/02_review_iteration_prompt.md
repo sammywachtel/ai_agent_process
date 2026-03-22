@@ -87,7 +87,7 @@ Use the decision templates from `02_review_iteration_instructions.md`.
 **After providing your decision, ask the human:**
 
 - **If ITERATE:** "Should I proceed to create iteration_01_a folder and update iteration_plan.md?"
-- **If APPROVE:** "Should I mark the scope complete and update iteration_plan.md and the requirement doc status?"
+- **If APPROVE:** "Should I mark the scope approved and update iteration_plan.md and the requirement doc status?"
 - **If BLOCK:** "This requires human decision - no further action from me."
 - **If PIVOT:** "Should I update iteration_plan.md with the proposed scope change (requires your approval first)?"
 
