@@ -266,7 +266,47 @@ Create roadmap files with proper structure. Note: Previous versions used separat
 
 **NOTE:** Status markers are now STANDARDIZED. All `/ap_exec` iterations should use `**Status:** COMPLETE`, `**Status:** BLOCKED`, etc. This eliminates the need for discovery-based marker detection.
 
-### Step 5: Offer Next Steps
+### Step 5: Display Feature Summary
+
+Show the user what's active in their installation:
+
+```bash
+echo "=== Installed Features ==="
+# Knowledge base
+KB_COUNT=0
+if [ -d ".agent_process/knowledge" ]; then
+  for f in .agent_process/knowledge/*.jsonl; do
+    c=$(($(wc -l < "$f" 2>/dev/null || echo 1) - 1))
+    KB_COUNT=$((KB_COUNT + c))
+  done
+fi
+echo "Knowledge base: $KB_COUNT entries"
+
+# Quality config
+if [ -f ".agent_process/quality-config.json" ]; then
+  python3 -c "
+import json
+cfg = json.load(open('.agent_process/quality-config.json'))
+features = []
+for key, val in cfg.items():
+    if key.startswith('_'): continue
+    if isinstance(val, dict):
+        features.append(f\"{key}: {'enabled' if val.get('enabled', True) else 'disabled'}\")
+print('Quality gates: ' + ' | '.join(features))
+" 2>/dev/null
+else
+  echo "Quality gates: using built-in defaults (no quality-config.json)"
+fi
+
+# BEADS
+if command -v bd &>/dev/null; then
+  echo "BEADS CLI: installed ($(bd --version 2>/dev/null || echo 'unknown version'))"
+else
+  echo "BEADS CLI: not installed (file-based state will be used)"
+fi
+```
+
+### Step 6: Offer Next Steps
 
 Recommend next actions:
 1. Run `/ap_project discover` to scan existing project
@@ -385,6 +425,57 @@ PYEOF
 - `priority:` - Explicit priority (no regex parsing needed)
 
 **No fallback:** Files without `type: requirement` frontmatter are not processed. There is no path-based ID generation fallback. To include a file in discovery, add the required frontmatter (use `/ap_project import-requirement` to add it interactively).
+
+### Step 1.5: Knowledge Base & Quality Config Summary
+
+**Scan the knowledge base and quality configuration to include project-wide context in the roadmap.**
+
+This step runs only if `.agent_process/knowledge/` exists. It adds a project intelligence summary to the roadmap — entry counts, most recent deposits, and which quality gates are active.
+
+```bash
+# Count knowledge entries (subtract 1 per file for schema header line)
+echo "=== Knowledge Base ==="
+for f in .agent_process/knowledge/*.jsonl; do
+  name=$(basename "$f" .jsonl)
+  count=$(($(wc -l < "$f" 2>/dev/null || echo 1) - 1))
+  if [ "$count" -gt 0 ]; then
+    echo "$name: $count entries"
+  fi
+done
+
+# Show quality config status
+echo "=== Quality Gates ==="
+if [ -f .agent_process/quality-config.json ]; then
+  python3 -c "
+import json
+cfg = json.load(open('.agent_process/quality-config.json'))
+for key, val in cfg.items():
+    if key.startswith('_'): continue
+    enabled = val.get('enabled', True) if isinstance(val, dict) else val
+    print(f'{key}: {\"enabled\" if enabled else \"disabled\"}')
+" 2>/dev/null
+else
+  echo "No quality-config.json found (using built-in defaults)"
+fi
+```
+
+**Include in roadmap output** (Step 5) as a `## Project Intelligence` section:
+
+```markdown
+## Project Intelligence
+
+**Knowledge Base:** N entries across M categories
+- patterns: X | gotchas: Y | decisions: Z | anti-patterns: W
+- Most recent deposit: {date} from {source_iteration}
+
+**Quality Gates:**
+- Knowledge base: enabled | Adversarial review: enabled
+- Work unit decomposition: enabled (3+ files, 2+ layers)
+- Design review gate: disabled | BEADS: enabled
+- PR shepherd: enabled
+```
+
+If the knowledge base is empty, note: "Knowledge base is empty — entries will accumulate as scopes are completed."
 
 ### Step 2: Scan Work Directories
 
@@ -535,6 +626,24 @@ PYEOF
 3. `final_state` - Overall scope status: APPROVED, NEEDS_REVIEW, IN_PROGRESS, BLOCKED, NOT_STARTED
 4. `latest_iter_name` - Most recent iteration directory name (e.g., iteration_01_b)
 5. `mtime` - Last modified date of results.md (YYYY-MM-DD)
+
+### Step 2.5: BEADS State Supplement (if available)
+
+**Check `quality-config.json`:** If `beads.enabled` is `false` or `bd` is not on PATH, skip this step.
+
+If BEADS is available, query it for additional execution state that the file-based scan may miss (e.g., work unit progress within an in-progress scope):
+
+```bash
+# List all BEADS epics with their status
+bd list --type epic 2>/dev/null
+```
+
+For each epic that maps to a work scope:
+- Cross-reference BEADS task states with the file-based status from Step 2
+- If BEADS shows tasks in-progress or blocked that the file scan didn't catch, note the discrepancy
+- Include BEADS task counts in the roadmap output (e.g., "3/5 work units complete")
+
+**This is supplementary.** File-based state (results.md, iteration_plan.md) remains authoritative. BEADS adds granularity, not authority.
 6. `approval_decision` - Orchestrator decision from iteration_plan.md: APPROVE, ITERATE, PIVOT, BLOCK, or PENDING
 
 **State determination logic:**
@@ -730,6 +839,121 @@ Before finalizing discovery, critically evaluate:
 - Document genuinely orphan work in the orphan summary
 
 See `.agent_process/process/roadmap_discovery.md` Phase 3.5 for full investigation protocol.
+
+### Step 3.7: Dependency & Complexity Analysis
+
+**Scan requirements for dependency relationships and suggest complexity tags.**
+
+This step reads all discovered requirements and:
+1. Extracts `depends_on` fields from frontmatter
+2. Detects file scope overlaps between requirements (potential implicit dependencies)
+3. Suggests `complexity: complex` for requirements touching multiple system layers
+
+```python
+python3 << 'PYEOF'
+import re
+import yaml
+from pathlib import Path
+from collections import defaultdict
+
+req_dir = Path(".agent_process/requirements_docs")
+deps = {}          # {req_id: [depends_on_ids]}
+file_scopes = {}   # {req_id: set(files)}
+complexity = {}    # {req_id: current complexity or None}
+layers = {}        # {req_id: set(detected layers)}
+
+LAYER_PATTERNS = {
+    "database": ["migrations/", ".sql", "schema", "models/"],
+    "backend": ["backend/", "api/", "routes/", "functions/", ".py"],
+    "frontend": ["frontend/", "src/components/", "src/pages/", ".tsx", ".jsx"],
+    "tests": ["tests/", "test/", ".test.", ".spec."],
+    "infrastructure": ["scripts/", ".yml", ".yaml", "Dockerfile", "cloud"],
+    "docs": ["docs/", "README", "CLAUDE.md"],
+}
+
+def detect_layers(files):
+    detected = set()
+    for f in files:
+        for layer, patterns in LAYER_PATTERNS.items():
+            if any(p in f for p in patterns):
+                detected.add(layer)
+    return detected
+
+for md_file in req_dir.rglob("*.md"):
+    try:
+        content = md_file.read_text()
+    except:
+        continue
+    if not content.startswith("---"):
+        continue
+    end_match = re.search(r'\n---\s*\n', content[3:])
+    if not end_match:
+        continue
+    try:
+        fm = yaml.safe_load(content[3:end_match.start() + 3])
+    except:
+        continue
+    if not fm or fm.get("type") != "requirement":
+        continue
+
+    req_id = fm.get("id", "")
+    if not req_id:
+        continue
+
+    # Collect depends_on
+    dep_list = fm.get("depends_on", [])
+    if isinstance(dep_list, str):
+        dep_list = [dep_list]
+    deps[req_id] = dep_list
+
+    # Collect complexity
+    complexity[req_id] = fm.get("complexity")
+
+    # Extract file scope from "Files Expected to Change" section
+    files = set()
+    in_files_section = False
+    for line in content.split("\n"):
+        if re.match(r'^##\s*Files\s+(Expected|in Scope)', line, re.IGNORECASE):
+            in_files_section = True
+            continue
+        if in_files_section:
+            if line.startswith("##"):
+                break
+            file_match = re.match(r'^-\s*`([^`]+)`', line)
+            if file_match:
+                files.add(file_match.group(1))
+    file_scopes[req_id] = files
+    layers[req_id] = detect_layers(files)
+
+# Report
+print("=== Dependencies ===")
+for req_id, dep_list in deps.items():
+    if dep_list:
+        print(f"{req_id} depends on: {', '.join(dep_list)}")
+
+print("\n=== File Scope Overlaps ===")
+req_ids = list(file_scopes.keys())
+for i, r1 in enumerate(req_ids):
+    for r2 in req_ids[i+1:]:
+        overlap = file_scopes[r1] & file_scopes[r2]
+        if overlap:
+            print(f"{r1} ↔ {r2}: {', '.join(sorted(overlap))}")
+
+print("\n=== Complexity Suggestions ===")
+for req_id, layer_set in layers.items():
+    current = complexity.get(req_id)
+    if len(layer_set) >= 2 and current != "complex":
+        print(f"{req_id}: touches {len(layer_set)} layers ({', '.join(sorted(layer_set))}) — consider complexity: complex")
+PYEOF
+```
+
+**Include in roadmap output** (Step 5):
+- Dependencies as a `## Dependency Graph` section (list format or ASCII DAG if few enough)
+- File scope overlaps as warnings under affected requirements
+- Complexity suggestions as actionable notes
+
+**Include in BEADS** (if available):
+- Create dependency relationships: `bd dep add {blocked} {blocking}` for each `depends_on` entry
 
 ### Step 4: Aggregate Status
 
