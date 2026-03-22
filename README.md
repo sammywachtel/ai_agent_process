@@ -63,6 +63,9 @@ The AI Agent Process solves a common problem: AI-assisted development often beco
 | **Adversarial Review** | Fresh-instance code review for unbiased criterion verification |
 | **Work Unit Decomposition** | DAG-based parallel execution for multi-domain scopes |
 | **PR Shepherd** | Post-PR agent monitoring CI, reviews, and merge-readiness |
+| **Design Review Gate** | Multi-reviewer plan assessment for complex scopes (opt-in) |
+| **Quality Configuration** | Centralized feature control via `quality-config.json` |
+| **BEADS Integration** | Optional git-native durable state tracking for work units |
 
 ---
 
@@ -268,6 +271,47 @@ The shepherd only modifies files already in the PR, never force-pushes, and neve
 
 See `process/pr-shepherd.md` for the full how-to guide.
 
+### Design Review Gate
+
+An opt-in quality checkpoint for architecturally significant scopes. When a requirement has `complexity: complex` in its frontmatter and `design_review.enabled` is `true` in `quality-config.json`, 2-4 specialist reviewers assess the iteration plan before execution begins:
+
+- **Architect Reviewer** — Always included for complex scopes
+- **Security Reviewer** — When scope touches auth, tokens, encryption, user data
+- **Product/UX Reviewer** — When scope touches user-facing workflows
+
+All reviewers must APPROVE. REQUEST_CHANGES triggers plan revision (max 2 cycles, then human escalation). Disabled by default — zero overhead for normal scopes.
+
+See `process/design-review-gate.md` for the full how-to guide.
+
+### Quality Configuration
+
+`quality-config.json` provides centralized control over all quality gates. Every metaswarm-integrated feature checks its section before activating:
+
+```json
+{
+  "adversarial_review": { "enabled": true, "skip_for_trivial": true },
+  "work_unit_decomposition": { "enabled": true, "trigger_threshold_files": 3 },
+  "design_review": { "enabled": false },
+  "beads": { "enabled": true, "auto_install": true },
+  "knowledge_base": { "enabled": true },
+  "pr_shepherd": { "enabled": true }
+}
+```
+
+If the file doesn't exist, all features use built-in defaults. See `process/quality-configuration.md` for the full schema reference.
+
+### BEADS Durable State
+
+Optional git-native state tracking using the [BEADS CLI](https://github.com/steveyegge/beads). When available, work unit state persists across session interruptions:
+
+- **Epic per scope** — Created on first `/ap_exec`, closed on APPROVE
+- **Task per work unit** — Labels track `in-progress`, `complete`, `blocked`
+- **Session recovery** — New session loads BEADS state and continues from last completed unit
+
+BEADS is installed on demand (prompted during `install.sh`, auto-installed at runtime if enabled). Falls back silently to file-based state when not available.
+
+See `process/beads-integration.md` for the full how-to guide.
+
 ### Scoped Validation
 
 Only validate files you changed:
@@ -387,6 +431,8 @@ your-project/
     │   ├── decisions.jsonl
     │   └── anti-patterns.jsonl
     │
+    ├── quality-config.json  # Feature control for all quality gates
+    │
     ├── process/            # Process documentation
     │   ├── validation-playbook.md
     │   ├── naming_conventions.md
@@ -394,6 +440,9 @@ your-project/
     │   ├── knowledge-base.md
     │   ├── work-unit-execution.md
     │   ├── pr-shepherd.md
+    │   ├── design-review-gate.md
+    │   ├── quality-configuration.md
+    │   ├── beads-integration.md
     │   └── local_environment_instructions.md
     │
     ├── requirements_docs/  # Project requirements
@@ -565,6 +614,9 @@ For teams using this framework across multiple projects, you can configure centr
 | Knowledge Base | `process/knowledge-base.md` | Query, deposit, curate project knowledge |
 | Work Unit Execution | `process/work-unit-execution.md` | Multi-domain scope decomposition and DAG execution |
 | PR Shepherd | `process/pr-shepherd.md` | Post-PR CI monitoring and review response |
+| Design Review Gate | `process/design-review-gate.md` | Multi-reviewer plan assessment for complex scopes |
+| Quality Configuration | `process/quality-configuration.md` | `quality-config.json` schema reference |
+| BEADS Integration | `process/beads-integration.md` | Optional durable state tracking setup and usage |
 | Roadmap Schema | `process/roadmap_schema.md` | Roadmap file format |
 | Roadmap Discovery | `process/roadmap_discovery.md` | How discovery works |
 | Roadmap Update | `process/roadmap_update.md` | How updates work |
@@ -579,6 +631,7 @@ For teams using this framework across multiple projects, you can configure centr
 | Feedback | `templates/iteration-feedback.md` | Review feedback |
 | Adversarial Review | `templates/adversarial-review-prompt.md` | Fresh reviewer prompt |
 | Work Unit Decomposition | `templates/work-unit-decomposition.md` | Architect Agent decomposition prompt |
+| Design Review | `templates/design-review-prompt.md` | Specialist reviewer prompt |
 
 ---
 

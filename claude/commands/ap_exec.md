@@ -63,6 +63,65 @@ You are the implementation agent executing a planned iteration. Your job: read t
 
 ---
 
+## Step 0.5: BEADS Initialization (Optional)
+
+**Check `quality-config.json`:** If `beads.enabled` is `false`, skip this step entirely.
+
+**Check if `bd` CLI is available:**
+
+```bash
+command -v bd &>/dev/null && echo "BEADS available" || echo "BEADS not found"
+```
+
+**If `bd` is not found and `beads.auto_install` is `true`:**
+
+Attempt installation (cache the result so we don't retry every invocation):
+
+```bash
+# Only attempt once per session
+if [[ ! -f ".agent_process/.beads_install_attempted" ]]; then
+  touch .agent_process/.beads_install_attempted
+  # Try npm first (most container-friendly), then curl installer
+  if command -v npm &>/dev/null; then
+    npm install -g @beads/bd 2>/dev/null
+  fi
+  if ! command -v bd &>/dev/null && command -v curl &>/dev/null; then
+    curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash 2>/dev/null
+  fi
+fi
+```
+
+**If `bd` is available, initialize or resume the BEADS epic:**
+
+```bash
+# Check if this scope already has a BEADS epic
+if ! bd epic show {scope} 2>/dev/null; then
+  # First invocation — create the epic
+  bd epic create {scope} --description "AP scope: {scope}"
+fi
+```
+
+If work unit decomposition runs (Step 1.3), create a BEADS task for each work unit:
+```bash
+bd task create {scope} --id WU-001 --description "{unit description}"
+```
+
+**If `bd` is not available after install attempt:** Proceed silently with file-based state (`current_iteration.conf`, `current_work_unit.conf`, results.md). No warning, no error.
+
+**Throughout execution, update BEADS state at these points:**
+- Work unit started: `bd task update {scope} WU-001 --label in-progress`
+- Work unit complete: `bd task update {scope} WU-001 --label complete`
+- Work unit blocked: `bd task update {scope} WU-001 --label blocked`
+- Iteration approved (on APPROVE): `bd epic close {scope} --label approved`
+
+**Session recovery:** If a session is interrupted and resumed, check BEADS for current state:
+```bash
+bd epic show {scope}  # Shows which tasks are complete/in-progress/blocked
+```
+This supplements `current_work_unit.conf` — BEADS is more durable across sessions but the file-based state is always the fallback.
+
+---
+
 ## Step 1: Load Context
 
 **Read the iteration plan:**

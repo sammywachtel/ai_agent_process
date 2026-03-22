@@ -641,6 +641,84 @@ This script may need updates during the scope lifecycle:
 
 ---
 
+### Step 8.5: Design Review Gate (Complex Scopes Only)
+
+**Check these conditions — ALL must be true to trigger the gate:**
+1. `quality-config.json` has `design_review.enabled: true`
+2. The requirement's frontmatter has `complexity: complex`
+
+**If either condition is false:** Skip to Step 9.
+
+**If both conditions are true, run the design review:**
+
+The design review catches design-level issues before implementation begins. 2-4 specialist reviewers independently assess the iteration plan.
+
+#### Select Reviewers
+
+Choose reviewers based on scope characteristics (min: `design_review.min_reviewers`, max: `design_review.max_reviewers` from quality-config.json):
+
+| Scope Characteristic | Reviewer to Include |
+|---------------------|---------------------|
+| All complex scopes | Architect Reviewer (always included) |
+| Touches auth, tokens, encryption, user data | Security Reviewer |
+| Touches UI, UX, user-facing workflows | Product/UX Reviewer |
+| Crosses 3+ system layers | Additional Architect or domain specialist |
+
+#### Run the Review (Platform-Adaptive)
+
+**If you have Task capability (Claude Code):**
+
+Spawn reviewers in parallel using `templates/design-review-prompt.md`:
+
+```
+For each selected reviewer, spawn a Task agent:
+Task({
+  description: "[Domain] design review for {scope}",
+  prompt: "You are a [Architect/Security/Product-UX] reviewer..."
+  // Use the prompt template from templates/design-review-prompt.md
+})
+```
+
+**If you do NOT have Task capability (Codex):**
+
+Walk through each reviewer's lens sequentially using the rubric in `templates/design-review-prompt.md`. For each specialist domain:
+1. State the domain (Architect, Security, Product/UX)
+2. Assess the plan through that lens
+3. Produce APPROVE or REQUEST_CHANGES with evidence
+
+#### Process the Verdicts
+
+- **All reviewers APPROVE** → Record in iteration_plan.md, proceed to Step 9
+- **Any REQUEST_CHANGES** → Revise the plan to address feedback, re-submit to reviewers. Max `design_review.max_revision_cycles` cycles (default: 2)
+- **After max revision cycles with unresolved REQUEST_CHANGES** → Escalate to human with all reviewer feedback compiled. Do NOT proceed to execution.
+
+#### Record the Outcome
+
+Add a `## Design Review` section to iteration_plan.md:
+
+```markdown
+## Design Review
+
+**Gate triggered:** Yes (complexity: complex)
+**Reviewers:** Architect, Security
+**Revision cycles:** 0 (all approved on first pass)
+**Outcome:** APPROVED
+
+### Reviewer Verdicts
+- **Architect:** APPROVE — plan is feasible, file scope covers all integration points
+- **Security:** APPROVE — token handling uses httpOnly cookies, no OWASP concerns
+```
+
+Or if the gate was not triggered:
+
+```markdown
+## Design Review
+
+N/A — scope complexity is not `complex` (or design review gate disabled in quality-config.json)
+```
+
+---
+
 ### Step 9: Create iteration_01 Placeholder
 
 ```bash

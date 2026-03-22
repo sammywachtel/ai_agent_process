@@ -124,52 +124,124 @@ else
   echo -e "${YELLOW}  ⊙${NC} Preserving existing .agent_process/quality-config.json"
 fi
 
-# Install BEADS CLI if not present and not disabled
+# BEADS CLI setup
 echo ""
-echo -e "${BLUE}▸${NC} Checking BEADS CLI..."
+echo -e "${BLUE}▸${NC} BEADS durable state tracking..."
 
-BEADS_AUTO_INSTALL="true"
+# Check if BEADS preference is already set in quality-config.json
+BEADS_CONFIGURED=""
 if [[ -f "$AGENT_PROCESS_DIR/quality-config.json" ]]; then
-  # Check if auto_install is explicitly disabled
-  BEADS_AUTO_INSTALL=$(python3 -c "
+  BEADS_CONFIGURED=$(python3 -c "
 import json
 try:
     cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
-    print(str(cfg.get('beads', {}).get('auto_install', True)).lower())
+    b = cfg.get('beads', {})
+    # If the user has explicitly set enabled, respect it
+    if 'enabled' in b:
+        print('yes' if b['enabled'] else 'no')
+    else:
+        print('')
 except:
-    print('true')
-" 2>/dev/null || echo "true")
+    print('')
+" 2>/dev/null || echo "")
 fi
 
-if command -v bd &>/dev/null; then
-  echo -e "${GREEN}  ✓${NC} BEADS CLI (bd) already installed"
-elif [[ "$BEADS_AUTO_INSTALL" == "false" ]]; then
-  echo -e "${YELLOW}  ⊙${NC} BEADS CLI auto-install disabled in quality-config.json"
-else
-  BEADS_INSTALLED=false
-  # Try npm first (widely available, works in containers)
-  if command -v npm &>/dev/null; then
-    if npm install -g @beads/bd 2>/dev/null; then
+if [[ "$BEADS_CONFIGURED" == "no" ]]; then
+  echo -e "${YELLOW}  ⊙${NC} BEADS disabled in quality-config.json"
+elif [[ "$BEADS_CONFIGURED" == "yes" ]]; then
+  # Already configured as enabled — install if needed
+  if command -v bd &>/dev/null; then
+    echo -e "${GREEN}  ✓${NC} BEADS CLI (bd) already installed"
+  else
+    echo -e "  Installing BEADS CLI..."
+    BEADS_INSTALLED=false
+    if command -v npm &>/dev/null && npm install -g @beads/bd 2>/dev/null; then
       BEADS_INSTALLED=true
       echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via npm"
-    fi
-  fi
-  # Fallback to brew (macOS hosts)
-  if [[ "$BEADS_INSTALLED" == false ]] && command -v brew &>/dev/null; then
-    if brew install beads 2>/dev/null; then
+    elif command -v brew &>/dev/null && brew install beads 2>/dev/null; then
       BEADS_INSTALLED=true
       echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via Homebrew"
-    fi
-  fi
-  # Last resort: curl installer script
-  if [[ "$BEADS_INSTALLED" == false ]] && command -v curl &>/dev/null; then
-    if curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash 2>/dev/null; then
+    elif command -v curl &>/dev/null && curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash 2>/dev/null; then
       BEADS_INSTALLED=true
       echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via installer script"
     fi
+    if [[ "$BEADS_INSTALLED" == false ]]; then
+      echo -e "${YELLOW}  ⊙${NC} BEADS CLI installation failed (framework will use file-based state instead)"
+    fi
   fi
-  if [[ "$BEADS_INSTALLED" == false ]]; then
-    echo -e "${YELLOW}  ⊙${NC} BEADS CLI not installed (optional — framework uses file-based state instead)"
+else
+  # Not yet configured — prompt the user
+  if command -v bd &>/dev/null; then
+    echo -e "${GREEN}  ✓${NC} BEADS CLI (bd) already installed"
+    # Set enabled in config since it's already available
+    python3 -c "
+import json
+path = '$AGENT_PROCESS_DIR/quality-config.json'
+try:
+    cfg = json.load(open(path))
+    cfg.setdefault('beads', {})['enabled'] = True
+    cfg['beads']['auto_install'] = True
+    json.dump(cfg, open(path, 'w'), indent=2)
+except:
+    pass
+" 2>/dev/null
+    echo -e "${GREEN}  ✓${NC} Enabled BEADS in quality-config.json"
+  else
+    echo ""
+    echo -e "${YELLOW}  Optional: BEADS provides git-native durable state tracking for work units.${NC}"
+    echo -e "  When enabled, execution state persists across session interruptions."
+    echo -e "  Without it, the framework uses file-based state (works fine, just less resilient)."
+    echo ""
+    read -p "  Install and enable BEADS? [Y/n] " -n 1 -r
+    echo ""
+
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+      # User said yes (or pressed enter for default Y)
+      BEADS_INSTALLED=false
+      if command -v npm &>/dev/null && npm install -g @beads/bd 2>/dev/null; then
+        BEADS_INSTALLED=true
+        echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via npm"
+      elif command -v brew &>/dev/null && brew install beads 2>/dev/null; then
+        BEADS_INSTALLED=true
+        echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via Homebrew"
+      elif command -v curl &>/dev/null && curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash 2>/dev/null; then
+        BEADS_INSTALLED=true
+        echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via installer script"
+      fi
+
+      # Update quality-config.json
+      python3 -c "
+import json
+path = '$AGENT_PROCESS_DIR/quality-config.json'
+try:
+    cfg = json.load(open(path))
+    cfg.setdefault('beads', {})['enabled'] = True
+    cfg['beads']['auto_install'] = True
+    json.dump(cfg, open(path, 'w'), indent=2)
+except:
+    pass
+" 2>/dev/null
+
+      if [[ "$BEADS_INSTALLED" == true ]]; then
+        echo -e "${GREEN}  ✓${NC} BEADS enabled in quality-config.json"
+      else
+        echo -e "${YELLOW}  ⊙${NC} BEADS CLI installation failed — enabled in config, will retry at runtime"
+      fi
+    else
+      # User said no
+      python3 -c "
+import json
+path = '$AGENT_PROCESS_DIR/quality-config.json'
+try:
+    cfg = json.load(open(path))
+    cfg.setdefault('beads', {})['enabled'] = False
+    cfg['beads']['auto_install'] = False
+    json.dump(cfg, open(path, 'w'), indent=2)
+except:
+    pass
+" 2>/dev/null
+      echo -e "${GREEN}  ✓${NC} BEADS disabled in quality-config.json (file-based state will be used)"
+    fi
   fi
 fi
 

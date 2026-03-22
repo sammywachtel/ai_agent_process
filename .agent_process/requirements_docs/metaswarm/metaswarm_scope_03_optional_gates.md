@@ -2,7 +2,7 @@
 id: metaswarm_scope_03_optional_gates
 type: requirement
 category: metaswarm
-status: not_started
+status: completed
 priority: low
 ---
 
@@ -172,3 +172,25 @@ The `quality-config.json` is arguably the most important deliverable in this sco
 The design review gate should feel like a "senior engineer gut check" on the plan, not a bureaucratic approval process. The prompts should ask reviewers to identify likely failure modes, missing edge cases, and security blind spots — things that are cheap to catch in a plan but expensive to fix in code. If the gate starts producing boilerplate approvals, the prompts need sharpening.
 
 BEADS integration is the most speculative feature here. It's valuable for long-running complex scopes where session interruption is likely, but most AP scopes complete within a single session. Track adoption and remove if it doesn't earn its keep.
+
+---
+
+## Implementation Status
+
+**Status:** ✅ Implementation complete, ready for field testing
+
+### Files Changed
+- `install.sh` — BEADS prompt (Y/n), auto-install (npm → brew → curl), quality-config.json creation/preservation
+- `claude/commands/ap_exec.md` — Quality config loading, BEADS Step 0.5 (detect/install/epic lifecycle), config checks on Steps 1.25 and 4.5
+- `orchestration/01_plan_scope_instructions.md` — Step 8.5 (design review gate, platform-adaptive)
+- `orchestration/02_review_iteration_instructions.md` — Config checks on Steps 3.7, 9.5, 9.6
+- `templates/iteration-plan.md` — Design Review section
+- `process/naming_conventions.md` — `complexity` field in frontmatter schema
+- `README.md` — Design review gate, quality configuration, BEADS documentation
+
+### New Files
+- `quality-config.json` — Centralized feature control with defaults
+- `templates/design-review-prompt.md` — Specialist reviewer prompt template
+- `process/design-review-gate.md` — How-to guide for design review usage
+- `process/quality-configuration.md` — Reference doc for quality-config.json schema
+- `process/beads-integration.md` — How-to guide for BEADS setup and usage
