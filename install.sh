@@ -117,8 +117,10 @@ else
 fi
 
 # Only create quality-config.json if it doesn't exist (preserve project settings)
+QUALITY_CONFIG_FRESH=false
 if [[ ! -f "$AGENT_PROCESS_DIR/quality-config.json" ]]; then
   cp "$SOURCE_DIR/quality-config.json" "$AGENT_PROCESS_DIR/quality-config.json"
+  QUALITY_CONFIG_FRESH=true
   echo -e "${GREEN}  ✓${NC} Created .agent_process/quality-config.json with defaults"
 else
   echo -e "${YELLOW}  ⊙${NC} Preserving existing .agent_process/quality-config.json"
@@ -128,22 +130,27 @@ fi
 echo ""
 echo -e "${BLUE}▸${NC} BEADS durable state tracking..."
 
-# Check if BEADS preference is already set in quality-config.json
+# Check if BEADS preference was already set by the user (not just defaults)
 BEADS_CONFIGURED=""
-if [[ -f "$AGENT_PROCESS_DIR/quality-config.json" ]]; then
+if [[ "$QUALITY_CONFIG_FRESH" == true ]]; then
+  # Config was just created with defaults — user hasn't chosen yet, prompt them
+  BEADS_CONFIGURED=""
+elif [[ -f "$AGENT_PROCESS_DIR/quality-config.json" ]]; then
+  # Config existed before this install — check if user has a BEADS preference
   BEADS_CONFIGURED=$(python3 -c "
 import json
 try:
     cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
     b = cfg.get('beads', {})
-    # If the user has explicitly set enabled, respect it
-    if 'enabled' in b:
-        print('yes' if b['enabled'] else 'no')
+    # _user_configured flag means the user explicitly chose Y or n
+    if b.get('_user_configured', False):
+        print('yes' if b.get('enabled', True) else 'no')
     else:
         print('')
 except:
     print('')
 " 2>/dev/null || echo "")
+fi
 fi
 
 if [[ "$BEADS_CONFIGURED" == "no" ]]; then
@@ -181,6 +188,7 @@ try:
     cfg = json.load(open(path))
     cfg.setdefault('beads', {})['enabled'] = True
     cfg['beads']['auto_install'] = True
+    cfg['beads']['_user_configured'] = True
     json.dump(cfg, open(path, 'w'), indent=2)
 except:
     pass
@@ -217,6 +225,7 @@ try:
     cfg = json.load(open(path))
     cfg.setdefault('beads', {})['enabled'] = True
     cfg['beads']['auto_install'] = True
+    cfg['beads']['_user_configured'] = True
     json.dump(cfg, open(path, 'w'), indent=2)
 except:
     pass
@@ -236,6 +245,7 @@ try:
     cfg = json.load(open(path))
     cfg.setdefault('beads', {})['enabled'] = False
     cfg['beads']['auto_install'] = False
+    cfg['beads']['_user_configured'] = True
     json.dump(cfg, open(path, 'w'), indent=2)
 except:
     pass
