@@ -474,11 +474,11 @@ Add integration assessment to decision rationale:
 
 ---
 
-### Step 3.7: Adversarial Review (Fresh Agent)
+### Step 3.7: Adversarial Review (Platform-Adaptive)
 
-**Spawn a fresh reviewer with zero implementation context to independently verify each criterion.**
+**Verify that an independent adversarial review exists, and factor it into your decision.**
 
-This step uses an independent agent that has never seen the implementation process. The reviewer checks each frozen criterion against the actual code with file:line evidence. Their verdict is *advisory input* to your 4-choice decision — not a replacement for your own judgment.
+The adversarial review provides an independent, zero-context assessment of whether each frozen criterion is actually met in the code. The reviewer produces binary PASS/FAIL verdicts with file:line evidence. This verdict is *advisory input* to your 4-choice decision — not a replacement for your own judgment.
 
 #### Why Fresh Instance Matters
 
@@ -487,46 +487,44 @@ This step uses an independent agent that has never seen the implementation proce
 - **Binary clarity**: PASS or FAIL per criterion, no hedging
 - **Evidence-based**: File:line citations, not "I think it's done"
 
-#### How to Run the Adversarial Review
+#### Platform-Adaptive Execution
 
-1. **Get the list of changed files:**
-   ```bash
-   git diff --name-only HEAD~1..HEAD
-   # Or if multiple commits:
-   git diff --name-only <base_branch>..HEAD
-   ```
+The adversarial review can run on either side of the orchestrator/implementation boundary. The primary path is on the implementation side (Step 4.5 of `ap_exec`), because Claude Code always has the Task tool. This step handles whatever remains.
 
-2. **Spawn a fresh Task agent** with this prompt (adapt from `templates/adversarial-review-prompt.md`):
+**Path A — Verdict already exists (preferred):**
 
-   ```
-   You are a fresh adversarial reviewer. Review these code changes against the
-   frozen acceptance criteria below. You have NO context about the implementation
-   process.
+Check if the implementation agent already ran the adversarial review:
 
-   ACCEPTANCE CRITERIA (from iteration_plan.md):
-   - [ ] [Criterion 1 — paste exact text]
-   - [ ] [Criterion 2 — paste exact text]
-   - [ ] [Criterion 3 — paste exact text]
+```bash
+cat .agent_process/work/{scope}/{iteration}/adversarial-review.md 2>/dev/null
+```
 
-   CHANGED FILES (from git diff --name-only):
-   - [file1]
-   - [file2]
+If the file exists and contains per-criterion PASS/FAIL verdicts with evidence:
+1. Read the verdict carefully
+2. Cross-reference against your own code review from Step 3
+3. Note agreements and disagreements
+4. Proceed to "How to Use the Verdict" below
 
-   Read each changed file. For each criterion, produce a PASS or FAIL verdict
-   with file:line evidence. Follow the verdict format in
-   templates/adversarial-review-prompt.md.
-   Do NOT assess code quality — only spec compliance.
-   ```
+**Path B — No verdict exists, you have Task capability:**
 
-3. **Important constraints:**
-   - Do NOT include `results.md` in the prompt — the reviewer must assess code, not claims
-   - Do NOT reuse a reviewer from a previous sub-iteration — always spawn fresh
-   - The reviewer is a Task agent, not a team member — it runs and returns a verdict
+If `adversarial-review.md` doesn't exist and you can spawn Task agents, run it yourself:
 
-4. **Record the verdict** in the `## Adversarial Review` section of `results.md`:
-   - Replace the PENDING placeholders with actual verdicts
-   - Include file:line evidence for each criterion
-   - Note the overall result (X/Y criteria PASS)
+1. Get the changed files: `git diff --name-only <base_branch>..HEAD`
+2. Spawn a fresh Task agent using the prompt in `templates/adversarial-review-prompt.md`
+3. Record the verdict in `adversarial-review.md`
+
+**Path C — No verdict exists, no Task capability (Codex fallback):**
+
+If you cannot spawn Task agents, perform a rubric-based self-review. This is weaker than an independent agent (you've already seen the implementation), but the structured rubric mitigates anchoring bias:
+
+1. **Get the changed files:** `git diff --name-only <base_branch>..HEAD`
+2. **For each frozen criterion**, force yourself through this rubric:
+   - State the criterion exactly as written
+   - Find specific file:line evidence that satisfies it (or fails to)
+   - Assign PASS or FAIL — no hedging, no "partial"
+   - If you catch yourself rationalizing a PASS, it's probably a FAIL
+3. **Record the verdict** using the same format as `templates/adversarial-review-prompt.md`
+4. **Flag the method**: Note "Rubric-based self-review (no Task tool available)" so the human knows isolation was limited
 
 #### How to Use the Verdict
 

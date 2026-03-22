@@ -226,14 +226,16 @@ See `process/knowledge-base.md` for full documentation.
 
 ### Adversarial Review
 
-During the review phase, the orchestrator can spawn a **fresh reviewer agent** that has zero context about the implementation process. This reviewer:
+A **fresh reviewer agent** with zero implementation context independently verifies each frozen criterion against the actual code. The reviewer:
 
 - Receives only the frozen criteria and the changed files (NOT results.md)
 - Produces a binary **PASS/FAIL** per criterion with **file:line evidence**
 - Cannot be influenced by watching the implementation (no anchoring bias)
 - Is **advisory input** to the orchestrator's 4-choice decision, not a replacement
 
-This is inspired by [metaswarm's](https://github.com/dsifry/metaswarm) adversarial review pattern. See `templates/adversarial-review-prompt.md` for the reviewer prompt template.
+**Platform-adaptive execution:** The primary review runs during implementation (Step 4.5 of `/ap_exec`) using a fresh Task agent — this always works because `/ap_exec` runs in Claude Code. The orchestrator (which may run in Codex, where Task isn't available) reads the pre-existing verdict. If no verdict exists, the orchestrator falls back to a rubric-based self-review using the same structured criteria.
+
+Inspired by [metaswarm's](https://github.com/dsifry/metaswarm) adversarial review pattern. See `templates/adversarial-review-prompt.md` for the reviewer prompt template.
 
 ### Work Unit Decomposition
 

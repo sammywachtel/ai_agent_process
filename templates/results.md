@@ -95,18 +95,18 @@ Based on original criteria from iteration_plan.md:
 
 ## Adversarial Review
 
-*Populated by orchestrator during review phase — implementation leaves this blank.*
+*Populated by the implementation agent (Step 4.5 of ap_exec) using a fresh Task agent with zero implementation context. Full verdict saved to `adversarial-review.md` in this iteration folder.*
 
-**Reviewer:** Fresh instance (no implementation context)
-**Overall verdict:** PENDING
+**Method:** Fresh Task agent | Rubric-based self-review | Skipped — [reason]
+**Overall verdict:** X/Y criteria PASS
 **Per-criterion results:**
-- [ ] Criterion 1: PENDING
-- [ ] Criterion 2: PENDING
-- [ ] Criterion 3: PENDING
+- [ ] Criterion 1: PASS/FAIL — [file:line evidence]
+- [ ] Criterion 2: PASS/FAIL — [file:line evidence]
+- [ ] Criterion 3: PASS/FAIL — [file:line evidence]
 
-**Blocking issues:** PENDING
+**Blocking issues:** [List any FAIL verdicts, or "None"]
 
-*See `templates/adversarial-review-prompt.md` for the review process.*
+*See `templates/adversarial-review-prompt.md` for the review process and verdict format.*
 
 ---
 

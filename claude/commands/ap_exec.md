@@ -747,6 +747,74 @@ If you see server startup timeout errors, troubleshoot per the "E2E tests and se
 
 ---
 
+## Step 4.5: Adversarial Review (Fresh Agent)
+
+**Spawn a fresh reviewer to independently verify each criterion before handing off to the orchestrator.**
+
+This runs here — on the implementation side — because `ap_exec` always runs in Claude Code, which always has the Task tool. The orchestrator may run in Codex (which can't spawn agents), so putting the primary adversarial review here guarantees it always happens.
+
+#### When to Run
+
+- **Run**: Any scope with 2+ acceptance criteria and code changes
+- **Skip**: Trivial scopes (1-2 file changes with obvious criteria, e.g., "rename X to Y"), documentation-only scopes
+
+If skipping, note the reason and proceed to Step 5.
+
+#### How to Run
+
+1. **Get the list of changed files:**
+   ```bash
+   git diff --name-only HEAD~1..HEAD
+   # Or if multiple commits:
+   git diff --name-only <base_branch>..HEAD
+   ```
+
+2. **Read the frozen criteria** from `iteration_plan.md`
+
+3. **Spawn a fresh Task agent** — this agent has zero context about the implementation:
+
+   ```typescript
+   Task({
+     subagent_type: "general-purpose",
+     description: "Adversarial review for {scope}",
+     prompt: `You are a fresh adversarial reviewer. Review these code changes against the
+   frozen acceptance criteria below. You have NO context about the implementation
+   process.
+
+   ACCEPTANCE CRITERIA (from iteration_plan.md):
+   - [ ] [Criterion 1 — paste exact text]
+   - [ ] [Criterion 2 — paste exact text]
+   - [ ] [Criterion 3 — paste exact text]
+
+   CHANGED FILES (from git diff --name-only):
+   - [file1]
+   - [file2]
+
+   Read each changed file. For each criterion, produce a PASS or FAIL verdict
+   with file:line evidence. Follow the verdict format in
+   templates/adversarial-review-prompt.md.
+   Do NOT assess code quality — only spec compliance.`
+   })
+   ```
+
+4. **Important constraints:**
+   - Do NOT include `results.md` in the prompt — the reviewer assesses code, not claims
+   - Do NOT reuse a reviewer from a previous sub-iteration — always spawn fresh
+   - The reviewer is a Task agent, not a team member — it runs and returns a verdict
+
+5. **Save the verdict** to a file the orchestrator can reference:
+   ```bash
+   cat > .agent_process/work/{scope}/{iteration}/adversarial-review.md <<EOF
+   [Paste the reviewer's full verdict output here]
+   EOF
+   ```
+
+#### Why This Location
+
+The adversarial review was originally in Step 3.7 of the orchestrator's review instructions. But the orchestrator often runs in Codex, which has no Task tool — meaning the review was silently skipped. Moving the primary review here ensures it always fires. The orchestrator still reads the verdict and factors it into the 4-choice decision; it just doesn't have to spawn the reviewer itself.
+
+---
+
 ## Step 5: Document Results
 
 **Call /ap_iteration_results to create results.md:**

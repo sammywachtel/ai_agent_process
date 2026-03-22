@@ -2,7 +2,7 @@
 id: metaswarm_scope_02_execution_enhancement
 type: requirement
 category: metaswarm
-status: in_progress
+status: completed
 priority: medium
 ---
 
@@ -136,3 +136,29 @@ The work unit decomposition is the most architecturally significant change in th
 The PR shepherd is operationally simpler but has important boundaries. It should feel like a helpful assistant monitoring the PR, not an autonomous agent making decisions. The human remains the merge authority. Think of it as "CI babysitter with commenting privileges."
 
 The trigger condition for decomposition (3+ files across 2+ layers) should be tunable. Some teams may want it at 2 files; others may prefer 5+. Consider making it configurable in `local_environment_instructions.md` so projects can override the default threshold.
+
+---
+
+## Implementation Status
+
+**Status:** ✅ Implementation complete, ready for field testing
+
+### Files Changed
+- `claude/commands/ap_exec.md` — Added Step 1.25 (assess decomposition), Step 1.3 (decompose into work units), Step 4.5 (adversarial review, platform-adaptive)
+- `claude/commands/ap_release.md` — Added `--shepherd` flag and Step 9.5 (PR shepherd)
+- `claude/commands/ap_iteration_results.md` — Added adversarial review verdict loading and results template section
+- `templates/results.md` — Added Work Unit Summary section and updated Adversarial Review section (now populated by impl agent)
+- `orchestration/00_base_context.md` — Added work unit mentions in Execute step and adversarial review in Review step
+- `orchestration/02_review_iteration_instructions.md` — Step 3.7 rewritten as platform-adaptive (Path A/B/C)
+- `README.md` — Updated adversarial review, work unit, and PR shepherd documentation
+
+### New Files
+- `templates/work-unit-decomposition.md` — Architect Agent prompt template
+- `process/work-unit-execution.md` — How-to guide for work unit workflow
+- `process/pr-shepherd.md` — How-to guide for PR shepherd usage
+
+### Additional Work (beyond original criteria)
+- **Adversarial review platform-adaptive fix**: During field testing of Phase 1, discovered that Step 3.7 (adversarial review) silently failed on Codex because it required Task agent spawning. Implemented metaswarm's platform-adaptive pattern: primary review now runs in `ap_exec` Step 4.5 (always Claude Code, always has Task), orchestrator falls back to rubric-based self-review if needed. This fix ensures adversarial review actually fires regardless of orchestrator platform.
+
+### Success Criteria Coverage
+All 12 success criteria addressed — see individual criterion notes in the success criteria checklist above.
