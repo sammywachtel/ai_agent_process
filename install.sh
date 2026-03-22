@@ -151,7 +151,6 @@ except:
     print('')
 " 2>/dev/null || echo "")
 fi
-fi
 
 if [[ "$BEADS_CONFIGURED" == "no" ]]; then
   echo -e "${YELLOW}  ⊙${NC} BEADS disabled in quality-config.json"
