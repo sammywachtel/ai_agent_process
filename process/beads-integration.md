@@ -133,7 +133,9 @@ Both paths reach the same result. BEADS is more durable (survives context compac
 
 ## Configuration
 
-In `.agent_process/quality-config.json`:
+Each project's `.agent_process/quality-config.json` controls BEADS independently. This is how you route personal projects to local Dolt and company projects to a shared server.
+
+### Local Dolt (personal projects)
 
 ```json
 {
@@ -144,10 +146,55 @@ In `.agent_process/quality-config.json`:
 }
 ```
 
+Requires Dolt installed locally (`brew install dolt`). `bd` connects to `127.0.0.1:3307`.
+
+### Remote Dolt (company/shared projects)
+
+```json
+{
+  "beads": {
+    "enabled": true,
+    "auto_install": true,
+    "server": {
+      "host": "34.x.x.x",
+      "port": 3307,
+      "user": "beads"
+    }
+  }
+}
+```
+
+Local Dolt installation is NOT required — `bd` connects directly to the remote server. Set the password via environment variable:
+
+```bash
+export BEADS_DOLT_PASSWORD=yourPasswordHere
+```
+
+For per-project passwords, use `direnv` with a `.envrc` in each project root.
+
+### Disabled (no BEADS)
+
+```json
+{
+  "beads": {
+    "enabled": false
+  }
+}
+```
+
+### Config Fields
+
 | Field | Default | Description |
 |-------|---------|-------------|
 | `enabled` | `true` | Master switch. `false` = BEADS fully ignored even if `bd` is on PATH |
-| `auto_install` | `true` | Whether to attempt installing `bd` if not found. `false` = no install attempts |
+| `auto_install` | `true` | Whether to attempt installing `bd` CLI if not found |
+| `server.host` | — | Remote Dolt hostname/IP. Omit for local Dolt |
+| `server.port` | `3307` | Remote Dolt port |
+| `server.user` | `"root"` | Remote Dolt user |
+
+### Deploying a Shared Server
+
+See `deploy/beads-server/` for scripts that create a GCE e2-micro VM (~$7/month) running Dolt. The setup script outputs the exact `quality-config.json` snippet for your projects.
 
 ---
 

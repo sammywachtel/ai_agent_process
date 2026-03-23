@@ -67,25 +67,51 @@ You are the implementation agent executing a planned iteration. Your job: read t
 
 **Check `quality-config.json`:** If `beads.enabled` is `false`, skip this step entirely.
 
-**Check if BEADS prerequisites are available:**
+**Configure remote server (if specified in quality-config.json):**
 
-BEADS requires two things: the Dolt database server and the `bd` CLI. Dolt is a ~100MB binary that the framework never auto-installs — users install it themselves (`brew install dolt`). The `bd` CLI is lightweight and can be auto-installed.
+If `beads.server` is present in the config, export environment variables so `bd` connects to the right Dolt instance. This is how per-project routing works — personal projects point at localhost, company projects point at a shared server.
 
 ```bash
-# Both dolt and bd must be present for BEADS to work
-command -v dolt &>/dev/null && command -v bd &>/dev/null && echo "BEADS available" || echo "BEADS not available"
+# Read server config and export env vars for bd
+python3 -c "
+import json, os
+try:
+    cfg = json.load(open('.agent_process/quality-config.json'))
+    server = cfg.get('beads', {}).get('server', {})
+    if server.get('host'):
+        print(f'export BEADS_DOLT_SERVER_HOST={server[\"host\"]}')
+    if server.get('port'):
+        print(f'export BEADS_DOLT_SERVER_PORT={server[\"port\"]}')
+    if server.get('user'):
+        print(f'export BEADS_DOLT_SERVER_USER={server[\"user\"]}')
+except:
+    pass
+" 2>/dev/null | while read -r line; do eval "$line"; done
 ```
 
-**If `bd` is not found but `dolt` IS found and `beads.auto_install` is `true`:**
+If no `beads.server` block exists, `bd` uses its defaults (local Dolt at `127.0.0.1:3307`). Password comes from the `BEADS_DOLT_PASSWORD` environment variable (set per-shell or via `.envrc`).
 
-Attempt to install the lightweight `bd` CLI only (not Dolt):
+**Check if BEADS prerequisites are available:**
+
+With a remote server configured, local Dolt installation is NOT required — `bd` connects directly. Without a remote server, both `dolt` (local server) and `bd` (CLI) must be present.
 
 ```bash
-# Only attempt once per session
-if command -v dolt &>/dev/null && ! command -v bd &>/dev/null; then
+# If remote server configured, only bd is needed. Otherwise both dolt and bd.
+if [[ -n "${BEADS_DOLT_SERVER_HOST:-}" ]]; then
+  command -v bd &>/dev/null && echo "BEADS available (remote)" || echo "BEADS not available"
+else
+  command -v dolt &>/dev/null && command -v bd &>/dev/null && echo "BEADS available (local)" || echo "BEADS not available"
+fi
+```
+
+**If `bd` is not found and `beads.auto_install` is `true`:**
+
+Attempt to install the lightweight `bd` CLI (works with both local and remote Dolt):
+
+```bash
+if ! command -v bd &>/dev/null; then
   if [[ ! -f ".agent_process/.beads_install_attempted" ]]; then
     touch .agent_process/.beads_install_attempted
-    # Try npm first (most container-friendly), then curl installer
     if command -v npm &>/dev/null; then
       npm install -g @beads/bd 2>/dev/null
     fi
@@ -96,22 +122,23 @@ if command -v dolt &>/dev/null && ! command -v bd &>/dev/null; then
 fi
 ```
 
-**If both `dolt` and `bd` are available, ensure the database exists and initialize or resume the BEADS epic:**
+**If `bd` is available, ensure the database exists and initialize or resume the BEADS epic:**
 
 ```bash
-# Initialize BEADS database if not yet created (idempotent — safe to re-run)
+# Initialize BEADS database if not yet created
+# For remote servers, bd init connects to the remote Dolt instance
+# For local, it starts the local Dolt server
 if [[ ! -d ".beads" ]]; then
   bd init 2>/dev/null
 fi
 
 # Check if this scope already has a BEADS epic
 if ! bd epic show {scope} 2>/dev/null; then
-  # First invocation — create the epic
   bd epic create {scope} --description "AP scope: {scope}"
 fi
 ```
 
-**If Dolt is not installed:** Skip BEADS entirely. No warning, no error. File-based state (`current_iteration.conf`, `current_work_unit.conf`) handles everything.
+**If BEADS is not available after all checks:** Skip silently. File-based state (`current_iteration.conf`, `current_work_unit.conf`) handles everything. No warning, no error.
 
 If work unit decomposition runs (Step 1.3), create a BEADS task for each work unit:
 ```bash

@@ -64,7 +64,28 @@ Controls BEADS durable state integration (Phase 3).
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `enabled` | boolean | `true` | Master switch. When `false`, BEADS is fully ignored even if `bd` is on the PATH. |
-| `auto_install` | boolean | `true` | Whether to attempt installing `bd` CLI if not found. Set `false` for air-gapped environments or projects that don't want auto-installs. |
+| `auto_install` | boolean | `true` | Whether to attempt installing `bd` CLI if not found. Set `false` for air-gapped environments. |
+| `server` | object | `null` | Remote Dolt server connection. When present, `bd` connects here instead of requiring local Dolt. |
+| `server.host` | string | — | Dolt server hostname or IP. Examples: `"127.0.0.1"` (local), `"beads.company.com"` (shared). |
+| `server.port` | number | `3307` | Dolt server port. |
+| `server.user` | string | `"root"` | Dolt database user. |
+
+**Password** is set via the `BEADS_DOLT_PASSWORD` environment variable — never in config files. Use `direnv` (`.envrc`) or shell profile for per-project passwords.
+
+**Per-project routing:** Each project's `quality-config.json` can point at a different server. Personal projects use local Dolt; company projects use a shared instance.
+
+```json
+// Personal project — local Dolt on your laptop
+{ "beads": { "enabled": true } }
+
+// Company project — shared GCE server
+{ "beads": { "enabled": true, "server": { "host": "34.x.x.x", "port": 3307, "user": "beads" } } }
+
+// No BEADS — file-based state only
+{ "beads": { "enabled": false } }
+```
+
+When `server` is present, local Dolt installation is not required — `bd` connects to the remote instance directly. The `ap_exec` Step 0.5 exports `BEADS_DOLT_SERVER_HOST`, `BEADS_DOLT_SERVER_PORT`, and `BEADS_DOLT_SERVER_USER` from this config before any `bd` commands run.
 
 ### `pr_shepherd`
 
