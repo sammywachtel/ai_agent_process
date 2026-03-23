@@ -95,7 +95,27 @@ except:
 " 2>/dev/null | while read -r line; do eval "$line"; done
 ```
 
-If no `beads.server` block exists, `bd` uses its defaults (local Dolt at `127.0.0.1:3307`). Password comes from the `BEADS_DOLT_PASSWORD` environment variable (set per-shell or via `.envrc`).
+If no `beads.server` block exists, `bd` uses its defaults (local Dolt at `127.0.0.1:3307`).
+
+**Load password from credentials file:**
+
+```bash
+# Read password from ~/.claude/.beads-credentials (INI-style, keyed by host:port)
+CREDS_FILE="${HOME}/.claude/.beads-credentials"
+if [[ -f "$CREDS_FILE" && -n "${BEADS_DOLT_SERVER_HOST:-}" ]]; then
+  BEADS_DOLT_PASSWORD=$(python3 -c "
+import configparser, os
+cp = configparser.ConfigParser()
+cp.read(os.path.expanduser('~/.claude/.beads-credentials'))
+key = '${BEADS_DOLT_SERVER_HOST}:${BEADS_DOLT_SERVER_PORT:-3307}'
+if cp.has_section(key) and cp.has_option(key, 'password'):
+    print(cp.get(key, 'password'))
+" 2>/dev/null) || true
+  [[ -n "$BEADS_DOLT_PASSWORD" ]] && export BEADS_DOLT_PASSWORD
+fi
+```
+
+The credentials file is shared across all projects (mounted via `~/.claude/` in Docker containers). The `bds` wrapper does this same resolution for command-line usage.
 
 **Docker auto-detection:** When running inside a container (detected via `/.dockerenv`), the config's `127.0.0.1` or `localhost` is automatically rewritten to `host.docker.internal`. This means the same `quality-config.json` works on the host and in containers without changes.
 

@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# bds — BEADS scoped wrapper
+# Reads quality-config.json for server config, ~/.claude/.beads-credentials
+# for auth, and passes everything through to bd.
+#
+# Usage: bds <any bd command>
+# Example: bds list, bds epic show my_scope, bds doctor
+
+set -euo pipefail
+
+# --- Find project root by walking up to .agent_process/ ---
+find_project_root() {
+  local dir="$PWD"
+  while [[ "$dir" != "/" ]]; do
+    if [[ -d "$dir/.agent_process" || -L "$dir/.agent_process" ]]; then
+      echo "$dir"
+      return 0
+    fi
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
+
+PROJECT_ROOT="$(find_project_root)" || {
+  echo "Error: no .agent_process/ found in any parent directory" >&2
+  echo "Run this from within a project that has the AI Agent Process installed." >&2
+  exit 1
+}
+
+CONFIG_FILE="$PROJECT_ROOT/.agent_process/quality-config.json"
+CREDS_FILE="${HOME}/.claude/.beads-credentials"
+
+# --- Check bd is installed ---
+if ! command -v bd &>/dev/null; then
+  echo "Error: bd (BEADS CLI) not found on PATH" >&2
+  echo "Install: npm install -g @anthropic-ai/beads" >&2
+  exit 1
+fi
+
+# --- Read server config from quality-config.json ---
+if [[ -f "$CONFIG_FILE" ]]; then
+  # Parse with python — available everywhere, no jq dependency
+  eval "$(python3 -c "
+import json, sys
+try:
+    cfg = json.load(open('$CONFIG_FILE'))
+    b = cfg.get('beads', {})
+    s = b.get('server', {})
+    if s.get('host'): print(f'export BEADS_DOLT_SERVER_HOST={s[\"host\"]}')
+    if s.get('port'): print(f'export BEADS_DOLT_SERVER_PORT={s[\"port\"]}')
+    if s.get('user'): print(f'export BEADS_DOLT_SERVER_USER={s[\"user\"]}')
+except Exception as e:
+    print(f'echo \"Warning: could not read {\"$CONFIG_FILE\"}: {e}\" >&2', file=sys.stdout)
+" 2>/dev/null)" || true
+fi
+
+# --- Detect Docker and rewrite localhost to host.docker.internal ---
+if [[ "${BEADS_DOLT_SERVER_HOST:-}" == "127.0.0.1" || "${BEADS_DOLT_SERVER_HOST:-}" == "localhost" ]]; then
+  if [[ -f /.dockerenv ]] || grep -q docker /proc/1/cgroup 2>/dev/null; then
+    export BEADS_DOLT_SERVER_HOST="host.docker.internal"
+  fi
+fi
+
+# --- Read password from credentials file ---
+if [[ -f "$CREDS_FILE" && -n "${BEADS_DOLT_SERVER_HOST:-}" ]]; then
+  SERVER_KEY="${BEADS_DOLT_SERVER_HOST}:${BEADS_DOLT_SERVER_PORT:-3307}"
+  # Parse INI-style credentials file
+  PASSWORD="$(python3 -c "
+import configparser, sys
+cp = configparser.ConfigParser()
+cp.read('$CREDS_FILE')
+key = '$SERVER_KEY'
+if cp.has_section(key) and cp.has_option(key, 'password'):
+    print(cp.get(key, 'password'))
+" 2>/dev/null)" || true
+
+  if [[ -n "${PASSWORD:-}" ]]; then
+    export BEADS_DOLT_PASSWORD="$PASSWORD"
+  fi
+fi
+
+# --- Pass through to bd ---
+exec bd "$@"

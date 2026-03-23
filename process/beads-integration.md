@@ -164,13 +164,41 @@ Requires Dolt installed locally (`brew install dolt`). `bd` connects to `127.0.0
 }
 ```
 
-Local Dolt installation is NOT required — `bd` connects directly to the remote server. Set the password via environment variable:
+Local Dolt installation is NOT required — `bd` connects directly to the remote server.
 
-```bash
-export BEADS_DOLT_PASSWORD=yourPasswordHere
+### Credentials
+
+Passwords are stored in `~/.claude/.beads-credentials` (INI-style, keyed by host:port):
+
+```ini
+# ~/.claude/.beads-credentials
+[127.0.0.1:3307]
+password=localDevPassword
+
+[beads.company.com:3307]
+password=companyPassword
 ```
 
-For per-project passwords, use `direnv` with a `.envrc` in each project root.
+This file is:
+- **Created automatically** when Docker install generates a password during `install.sh`
+- **Shared across all projects** — one file, all servers
+- **Available in Docker containers** — `~/.claude/` is already volume-mounted in docker-dev setups
+- **Permissions:** `chmod 600` (set automatically by installer)
+
+Both `ap_exec` Step 0.5 and the `bds` wrapper read this file to resolve the password for the server configured in the project's `quality-config.json`.
+
+### Command-Line Usage: `bds`
+
+The `bds` wrapper is installed to `~/.local/bin/` during framework installation. It reads `quality-config.json` + credentials file and passes through to `bd`:
+
+```bash
+# Use bds instead of bd — it handles per-project server routing and auth
+bds list
+bds epic show my_scope
+bds doctor
+```
+
+`bds` finds the project root by walking up from the current directory looking for `.agent_process/`. It exports the right env vars for that project's configured server, then execs `bd`.
 
 ### Disabled (no BEADS)
 
@@ -235,9 +263,11 @@ See `deploy/beads-server/` for scripts that create a GCE e2-micro VM (~$7/month)
 
 | Component | Interaction |
 |-----------|-------------|
-| `ap_exec` Step 0.5 | Detects BEADS, auto-installs if enabled, creates/resumes epic |
+| `ap_exec` Step 0.5 | Detects BEADS, auto-installs if enabled, loads credentials, creates/resumes epic |
 | `ap_exec` Step 1.3 | Creates BEADS tasks for each work unit |
 | `ap_exec` execution loop | Updates task labels (in-progress, complete, blocked) |
-| `install.sh` | Prompts user, installs CLI, sets config |
-| `quality-config.json` | `beads` section controls enabled state and auto-install |
+| `install.sh` | Prompts user, installs CLI + `bds` wrapper, seeds credentials, sets config |
+| `quality-config.json` | `beads` section controls enabled state, server routing, and auto-install |
+| `~/.claude/.beads-credentials` | INI-style credentials file, keyed by host:port, shared across projects |
+| `bds` wrapper (`~/.local/bin/bds`) | CLI wrapper that reads project config + credentials, then delegates to `bd` |
 | results.md | BEADS epic status included in Work Unit Summary when available |

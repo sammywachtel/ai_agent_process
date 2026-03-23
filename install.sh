@@ -216,8 +216,6 @@ except:
           2>/dev/null
         if [[ $? -eq 0 ]]; then
           echo -e "${GREEN}  ✓${NC} Dolt server running in Docker (port 3307)"
-          echo -e "  Password: ${YELLOW}${DOLT_PASS}${NC}"
-          echo -e "  ${YELLOW}Save this — set as BEADS_DOLT_PASSWORD env var${NC}"
           DOLT_AVAILABLE=true
           python3 -c "
 import json
@@ -229,6 +227,23 @@ try:
 except:
     pass
 " 2>/dev/null
+          # Save credentials
+          mkdir -p "${HOME}/.claude"
+          python3 -c "
+import configparser, os
+path = os.path.expanduser('~/.claude/.beads-credentials')
+cp = configparser.ConfigParser()
+if os.path.exists(path):
+    cp.read(path)
+section = '127.0.0.1:3307'
+if not cp.has_section(section):
+    cp.add_section(section)
+cp.set(section, 'password', '$DOLT_PASS')
+with open(path, 'w') as f:
+    cp.write(f)
+os.chmod(path, 0o600)
+" 2>/dev/null
+          echo -e "${GREEN}  ✓${NC} Credentials saved to ~/.claude/.beads-credentials"
         else
           echo -e "${YELLOW}  ⊙${NC} Docker failed. Continuing without BEADS."
         fi
@@ -356,8 +371,6 @@ else
           if [[ $? -eq 0 ]]; then
             echo -e "${GREEN}  ✓${NC} Dolt server running in Docker (port 3307)"
             echo -e "  Data persisted at: ${YELLOW}${DOLT_DATA_DIR}${NC}"
-            echo -e "  Password: ${YELLOW}${DOLT_PASS}${NC}"
-            echo -e "  ${YELLOW}Save this password — set as BEADS_DOLT_PASSWORD env var${NC}"
             DOLT_FOUND=true
 
             # Write server config into quality-config.json
@@ -375,6 +388,24 @@ try:
 except:
     pass
 " 2>/dev/null
+
+            # Save credentials to ~/.claude/.beads-credentials
+            mkdir -p "${HOME}/.claude"
+            python3 -c "
+import configparser, os
+path = os.path.expanduser('~/.claude/.beads-credentials')
+cp = configparser.ConfigParser()
+if os.path.exists(path):
+    cp.read(path)
+section = '127.0.0.1:3307'
+if not cp.has_section(section):
+    cp.add_section(section)
+cp.set(section, 'password', '$DOLT_PASS')
+with open(path, 'w') as f:
+    cp.write(f)
+os.chmod(path, 0o600)
+" 2>/dev/null
+            echo -e "${GREEN}  ✓${NC} Credentials saved to ~/.claude/.beads-credentials"
           else
             echo -e "${YELLOW}  ⊙${NC} Docker failed to start Dolt. Continuing without BEADS."
             BEADS_SKIPPED=true
@@ -490,6 +521,20 @@ except:
     [[ -n "$BHOST" ]] && export BEADS_DOLT_SERVER_HOST="$BHOST"
     [[ -n "$BPORT" ]] && export BEADS_DOLT_SERVER_PORT="$BPORT"
     [[ -n "$BUSER" ]] && export BEADS_DOLT_SERVER_USER="$BUSER"
+
+    # Load password from credentials file
+    CREDS_FILE="${HOME}/.claude/.beads-credentials"
+    if [[ -f "$CREDS_FILE" && -n "$BHOST" ]]; then
+      BPASS=$(python3 -c "
+import configparser, os
+cp = configparser.ConfigParser()
+cp.read(os.path.expanduser('~/.claude/.beads-credentials'))
+key = '${BHOST}:${BPORT:-3307}'
+if cp.has_section(key) and cp.has_option(key, 'password'):
+    print(cp.get(key, 'password'))
+" 2>/dev/null) || true
+      [[ -n "${BPASS:-}" ]] && export BEADS_DOLT_PASSWORD="$BPASS"
+    fi
 
     # Check we can reach Dolt somehow (local binary OR remote server)
     DOLT_REACHABLE=false
@@ -758,6 +803,21 @@ if [[ -z "$EXISTING_ENABLED" ]]; then
     rm -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md.bak"
 
     echo -e "${GREEN}  ✓${NC} Created central sync config (disabled)"
+  fi
+fi
+
+# Install bds wrapper (BEADS scoped CLI)
+if [[ -f "$SOURCE_DIR/bin/bds" ]]; then
+  # Install to ~/.local/bin (user-local, no sudo needed)
+  INSTALL_BIN="${HOME}/.local/bin"
+  mkdir -p "$INSTALL_BIN"
+  cp "$SOURCE_DIR/bin/bds" "$INSTALL_BIN/bds"
+  chmod +x "$INSTALL_BIN/bds"
+  if echo "$PATH" | grep -q "$INSTALL_BIN"; then
+    echo -e "${GREEN}  ✓${NC} Installed bds wrapper to $INSTALL_BIN/bds"
+  else
+    echo -e "${GREEN}  ✓${NC} Installed bds wrapper to $INSTALL_BIN/bds"
+    echo -e "${YELLOW}  Note:${NC} Add to PATH if not already: export PATH=\"$INSTALL_BIN:\$PATH\""
   fi
 fi
 
