@@ -20,6 +20,10 @@ Branch: `scope/metaswarm-integration`
 | 14 | `a2d2403` | 2026-03-22 | Enhancement | ap_project discover/init: knowledge summary, dependency analysis, BEADS state, complexity suggestions |
 | 15 | `3cc63b8` | 2026-03-22 | — | Commit log update + branch rename |
 | 16 | `95febdb` | 2026-03-22 | Fix | Require Dolt as prerequisite for BEADS (never auto-install ~100MB server), add `bd init` to install.sh + ap_exec |
+| 17 | `09d4aca` | 2026-03-23 | Fix | install.sh: Docker Dolt option, remote server TCP check, Dolt not required with remote, bd init with server env vars |
+| 18 | `a0cc45a` | 2026-03-23 | Phase 3 | Replace verbose Step 0.5 with single `beads-lifecycle.sh` call; bds wrapper; .beads-credentials |
+| 19 | `14f3036` | 2026-03-23 | Phase 3 | BEADS epic close in orchestrator APPROVE/BLOCK/PIVOT decisions |
+| 20 | `918244c` | 2026-03-23 | Phase 3 | Breadcrumb verification: .beads-state tracking, orchestrator Step 1.5 verify, metaswarm-style independent checks |
 
 ### Files changed per commit
 
@@ -116,4 +120,33 @@ Branch: `scope/metaswarm-integration`
 - `install.sh` — Check for `dolt` before installing `bd`; run `bd init` if `.beads/` missing; Dolt install instructions in prompt
 - `claude/commands/ap_exec.md` — Step 0.5: require both `dolt` and `bd`; `bd init` before `bd epic create`
 - `process/beads-integration.md` — Prerequisites section: Dolt never auto-installed, manual install instructions
+</details>
+
+<details>
+<summary>09d4aca — Docker Dolt + remote server support</summary>
+
+- `install.sh` — Docker Dolt option (option 1 in BEADS prompt), TCP port check for remote servers, Dolt binary not required with remote, bd init with server env vars
+</details>
+
+<details>
+<summary>a0cc45a — beads-lifecycle.sh + bds wrapper</summary>
+
+- `scripts/beads-lifecycle.sh` — New: single-command BEADS lifecycle management (start/task-create/task-update/close/status)
+- `bin/bds` — New: wrapper script for `bd` with per-project config and credential resolution
+- `claude/commands/ap_exec.md` — Step 0.5 replaced with single `beads-lifecycle.sh start` call
+</details>
+
+<details>
+<summary>14f3036 — Orchestrator BEADS close</summary>
+
+- `orchestration/02_review_iteration_instructions.md` — APPROVE/BLOCK/PIVOT actions call `beads-lifecycle.sh close`
+- `claude/commands/ap_exec.md` — Removed epic close (orchestrator's job, not impl agent's)
+</details>
+
+<details>
+<summary>918244c — Breadcrumb verification</summary>
+
+- `scripts/beads-lifecycle.sh` — Every action writes breadcrumb to `.beads-state`; new `verify` action reads breadcrumbs and reports lifecycle status
+- `orchestration/02_review_iteration_instructions.md` — New Step 1.5: orchestrator runs `verify` to independently check which steps ran
+- `claude/commands/ap_exec.md` — `BEADS_ITERATION` env var passed to lifecycle script for breadcrumb placement
 </details>
