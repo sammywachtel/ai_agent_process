@@ -185,10 +185,87 @@ except:
   fi
 
   if [[ "$DOLT_AVAILABLE" == false ]]; then
-    echo -e "${YELLOW}  ⊙${NC} BEADS enabled but Dolt not reachable"
-    echo -e "      Local install: ${YELLOW}brew install dolt${NC}"
-    echo -e "      Docker:        ${YELLOW}deploy/beads-server/dolt-docker.sh${NC}"
-    echo -e "      Framework will use file-based state until Dolt is available"
+    echo ""
+    echo -e "${YELLOW}  ⚠ BEADS is enabled but Dolt is not reachable.${NC}"
+    echo -e "  How is Dolt set up for this project?"
+    echo -e "    1) Start Dolt via Docker now (persistent data, runs in background)"
+    echo -e "    2) It's on a remote server — let me enter the connection details"
+    echo -e "    3) I'll install Dolt locally (brew install dolt) and re-run"
+    echo -e "    4) Skip BEADS for now (use file-based state)"
+    read -p "  Choose [1/2/3/4]: " -n 1 -r
+    echo ""
+    if [[ "$REPLY" == "1" ]]; then
+      # Docker install — same logic as the first-time prompt
+      if ! command -v docker &>/dev/null; then
+        echo -e "${RED}  Docker not found.${NC} Install Docker first or choose another option."
+      else
+        DOLT_DATA_DIR="${HOME}/.dolt-server/data"
+        DOLT_CFG_DIR="${HOME}/.dolt-server/config"
+        mkdir -p "$DOLT_DATA_DIR" "$DOLT_CFG_DIR"
+        DOLT_PASS=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 16)
+        echo -e "  Starting Dolt SQL server via Docker..."
+        docker run -d \
+          --name beads-dolt-server \
+          --restart unless-stopped \
+          -e DOLT_ROOT_HOST='%' \
+          -e DOLT_ROOT_PASSWORD="$DOLT_PASS" \
+          -p 3307:3306 \
+          -v "$DOLT_DATA_DIR":/var/lib/dolt \
+          -v "$DOLT_CFG_DIR":/etc/dolt/servercfg.d \
+          dolthub/dolt-sql-server:latest \
+          2>/dev/null
+        if [[ $? -eq 0 ]]; then
+          echo -e "${GREEN}  ✓${NC} Dolt server running in Docker (port 3307)"
+          echo -e "  Password: ${YELLOW}${DOLT_PASS}${NC}"
+          echo -e "  ${YELLOW}Save this — set as BEADS_DOLT_PASSWORD env var${NC}"
+          DOLT_AVAILABLE=true
+          python3 -c "
+import json
+path = '$AGENT_PROCESS_DIR/quality-config.json'
+try:
+    cfg = json.load(open(path))
+    cfg.setdefault('beads', {})['server'] = {'host': '127.0.0.1', 'port': 3307, 'user': 'root'}
+    json.dump(cfg, open(path, 'w'), indent=2)
+except:
+    pass
+" 2>/dev/null
+        else
+          echo -e "${YELLOW}  ⊙${NC} Docker failed. Continuing without BEADS."
+        fi
+      fi
+    elif [[ "$REPLY" == "2" ]]; then
+      read -p "  Dolt server host: " REMOTE_INPUT_HOST
+      read -p "  Dolt server port [3307]: " REMOTE_INPUT_PORT
+      REMOTE_INPUT_PORT="${REMOTE_INPUT_PORT:-3307}"
+      read -p "  Dolt user [root]: " REMOTE_INPUT_USER
+      REMOTE_INPUT_USER="${REMOTE_INPUT_USER:-root}"
+      if nc -z "$REMOTE_INPUT_HOST" "$REMOTE_INPUT_PORT" 2>/dev/null; then
+        echo -e "${GREEN}  ✓${NC} Connected to ${REMOTE_INPUT_HOST}:${REMOTE_INPUT_PORT}"
+        DOLT_AVAILABLE=true
+        python3 -c "
+import json
+path = '$AGENT_PROCESS_DIR/quality-config.json'
+try:
+    cfg = json.load(open(path))
+    cfg.setdefault('beads', {})['server'] = {
+        'host': '$REMOTE_INPUT_HOST',
+        'port': int('$REMOTE_INPUT_PORT'),
+        'user': '$REMOTE_INPUT_USER'
+    }
+    json.dump(cfg, open(path, 'w'), indent=2)
+except:
+    pass
+" 2>/dev/null
+      else
+        echo -e "${RED}  Cannot reach ${REMOTE_INPUT_HOST}:${REMOTE_INPUT_PORT}${NC}"
+        echo -e "  Continuing without BEADS. Fix the server and re-run install.sh."
+      fi
+    elif [[ "$REPLY" == "3" ]]; then
+      echo -e "${YELLOW}  Installation paused.${NC} Install Dolt, then re-run:"
+      echo -e "    ${GREEN}brew install dolt && $0${NC}"
+      exit 0
+    fi
+    # Option 4 (or failed options) — just continue without BEADS
   elif command -v bd &>/dev/null; then
     echo -e "${GREEN}  ✓${NC} BEADS ready (Dolt + bd available)"
   else
