@@ -67,39 +67,51 @@ You are the implementation agent executing a planned iteration. Your job: read t
 
 **Check `quality-config.json`:** If `beads.enabled` is `false`, skip this step entirely.
 
-**Check if `bd` CLI is available:**
+**Check if BEADS prerequisites are available:**
+
+BEADS requires two things: the Dolt database server and the `bd` CLI. Dolt is a ~100MB binary that the framework never auto-installs — users install it themselves (`brew install dolt`). The `bd` CLI is lightweight and can be auto-installed.
 
 ```bash
-command -v bd &>/dev/null && echo "BEADS available" || echo "BEADS not found"
+# Both dolt and bd must be present for BEADS to work
+command -v dolt &>/dev/null && command -v bd &>/dev/null && echo "BEADS available" || echo "BEADS not available"
 ```
 
-**If `bd` is not found and `beads.auto_install` is `true`:**
+**If `bd` is not found but `dolt` IS found and `beads.auto_install` is `true`:**
 
-Attempt installation (cache the result so we don't retry every invocation):
+Attempt to install the lightweight `bd` CLI only (not Dolt):
 
 ```bash
 # Only attempt once per session
-if [[ ! -f ".agent_process/.beads_install_attempted" ]]; then
-  touch .agent_process/.beads_install_attempted
-  # Try npm first (most container-friendly), then curl installer
-  if command -v npm &>/dev/null; then
-    npm install -g @beads/bd 2>/dev/null
-  fi
-  if ! command -v bd &>/dev/null && command -v curl &>/dev/null; then
-    curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash 2>/dev/null
+if command -v dolt &>/dev/null && ! command -v bd &>/dev/null; then
+  if [[ ! -f ".agent_process/.beads_install_attempted" ]]; then
+    touch .agent_process/.beads_install_attempted
+    # Try npm first (most container-friendly), then curl installer
+    if command -v npm &>/dev/null; then
+      npm install -g @beads/bd 2>/dev/null
+    fi
+    if ! command -v bd &>/dev/null && command -v curl &>/dev/null; then
+      curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash 2>/dev/null
+    fi
   fi
 fi
 ```
 
-**If `bd` is available, initialize or resume the BEADS epic:**
+**If both `dolt` and `bd` are available, ensure the database exists and initialize or resume the BEADS epic:**
 
 ```bash
+# Initialize BEADS database if not yet created (idempotent — safe to re-run)
+if [[ ! -d ".beads" ]]; then
+  bd init 2>/dev/null
+fi
+
 # Check if this scope already has a BEADS epic
 if ! bd epic show {scope} 2>/dev/null; then
   # First invocation — create the epic
   bd epic create {scope} --description "AP scope: {scope}"
 fi
 ```
+
+**If Dolt is not installed:** Skip BEADS entirely. No warning, no error. File-based state (`current_iteration.conf`, `current_work_unit.conf`) handles everything.
 
 If work unit decomposition runs (Step 1.3), create a BEADS task for each work unit:
 ```bash

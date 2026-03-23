@@ -10,18 +10,49 @@ BEADS is a git-native issue tracking CLI that provides durable state tracking fo
 
 ---
 
+## Prerequisites
+
+BEADS requires two components:
+
+| Component | Size | Auto-installed? | Install command |
+|-----------|------|-----------------|-----------------|
+| **Dolt** (database server) | ~100MB | **No** — user installs manually | `brew install dolt` |
+| **bd** (BEADS CLI) | lightweight | Yes (npm/brew/curl) | `npm install -g @beads/bd` |
+
+**Dolt is never auto-installed** due to its size (~100MB). The framework detects it and uses BEADS only when Dolt is already present. Without Dolt, BEADS is silently skipped — no errors, no warnings during execution.
+
+---
+
 ## Setup
 
-### During Framework Installation
+### Step 1: Install Dolt (manual, one-time)
 
-`install.sh` prompts: "Install and enable BEADS? [Y/n]"
+```bash
+# macOS
+brew install dolt
 
-- **Y (default):** Installs `bd` CLI (npm → brew → curl fallback) and sets `beads.enabled: true` in `quality-config.json`
-- **n:** Sets `beads.enabled: false` and `beads.auto_install: false`. Framework uses file-based state.
+# Linux — see https://docs.dolthub.com/introduction/installation
+```
 
-### Runtime Auto-Installation
+### Step 2: Framework Installation
 
-If `bd` is not found at execution time and `beads.auto_install` is `true`, `ap_exec` attempts installation:
+`install.sh` detects Dolt and prompts: "Enable BEADS? [Y/n]"
+
+- **Y (default):** Installs `bd` CLI if needed and sets `beads.enabled: true` in `quality-config.json`
+- **n:** Sets `beads.enabled: false`. Framework uses file-based state.
+- **No Dolt found:** Warns that Dolt is required, enables in config anyway (so it activates once Dolt is installed)
+
+### Step 3: Project Initialization
+
+`install.sh` and `ap_exec` both run `bd init` automatically if `.beads/` doesn't exist. This creates the BEADS database in the project directory. You can also do it manually:
+
+```bash
+bd init
+```
+
+### Runtime Auto-Installation (bd CLI only)
+
+If `dolt` is found but `bd` is not at execution time, `ap_exec` attempts to install the lightweight `bd` CLI:
 
 1. npm: `npm install -g @beads/bd`
 2. curl: `curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash`
@@ -31,21 +62,14 @@ The attempt is cached per session (`.agent_process/.beads_install_attempted`) to
 ### Manual Installation
 
 ```bash
-# npm (recommended — works in most containers)
-npm install -g @beads/bd
+# 1. Install Dolt (prerequisite)
+brew install dolt
 
-# Homebrew (macOS)
-brew install beads
+# 2. Install bd CLI
+npm install -g @beads/bd   # or: brew install beads
 
-# Go
-go install github.com/steveyegge/beads/cmd/bd@latest
-
-# Installer script
-curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash
-```
-
-After installation, initialize in your project:
-```bash
+# 3. Initialize in project
+cd /path/to/project
 bd init
 ```
 

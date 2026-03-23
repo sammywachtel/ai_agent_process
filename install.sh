@@ -155,11 +155,15 @@ fi
 if [[ "$BEADS_CONFIGURED" == "no" ]]; then
   echo -e "${YELLOW}  ⊙${NC} BEADS disabled in quality-config.json"
 elif [[ "$BEADS_CONFIGURED" == "yes" ]]; then
-  # Already configured as enabled — install if needed
-  if command -v bd &>/dev/null; then
-    echo -e "${GREEN}  ✓${NC} BEADS CLI (bd) already installed"
+  # Already configured as enabled — check prerequisites
+  if ! command -v dolt &>/dev/null; then
+    echo -e "${YELLOW}  ⊙${NC} BEADS enabled but Dolt not installed (prerequisite)"
+    echo -e "      Install Dolt: ${YELLOW}brew install dolt${NC} or https://docs.dolthub.com/introduction/installation"
+    echo -e "      Framework will use file-based state until Dolt is available"
+  elif command -v bd &>/dev/null; then
+    echo -e "${GREEN}  ✓${NC} BEADS ready (dolt + bd both installed)"
   else
-    echo -e "  Installing BEADS CLI..."
+    echo -e "  Dolt found. Installing BEADS CLI (bd)..."
     BEADS_INSTALLED=false
     if command -v npm &>/dev/null && npm install -g @beads/bd 2>/dev/null; then
       BEADS_INSTALLED=true
@@ -172,32 +176,42 @@ elif [[ "$BEADS_CONFIGURED" == "yes" ]]; then
       echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via installer script"
     fi
     if [[ "$BEADS_INSTALLED" == false ]]; then
-      echo -e "${YELLOW}  ⊙${NC} BEADS CLI installation failed (framework will use file-based state instead)"
+      echo -e "${YELLOW}  ⊙${NC} BEADS CLI installation failed (framework will use file-based state)"
     fi
   fi
 else
-  # Not yet configured — always prompt the user
+  # Not yet configured — prompt the user
+  DOLT_FOUND=false
   BD_FOUND=false
-  if command -v bd &>/dev/null; then
-    BD_FOUND=true
-  fi
+  command -v dolt &>/dev/null && DOLT_FOUND=true
+  command -v bd &>/dev/null && BD_FOUND=true
 
   echo ""
-  if [[ "$BD_FOUND" == true ]]; then
-    echo -e "${YELLOW}  BEADS CLI (bd) is installed on this system.${NC}"
-    echo -e "  BEADS provides git-native durable state tracking for work units."
-  else
-    echo -e "${YELLOW}  Optional: BEADS provides git-native durable state tracking for work units.${NC}"
-  fi
+  echo -e "${YELLOW}  Optional: BEADS provides git-native durable state tracking for work units.${NC}"
   echo -e "  When enabled, execution state persists across session interruptions."
   echo -e "  Without it, the framework uses file-based state (works fine, just less resilient)."
+  if [[ "$DOLT_FOUND" == true ]]; then
+    echo -e "  ${GREEN}✓ Dolt is installed${NC} (required prerequisite)"
+    if [[ "$BD_FOUND" == true ]]; then
+      echo -e "  ${GREEN}✓ BEADS CLI (bd) is installed${NC}"
+    else
+      echo -e "  BEADS CLI (bd) will be installed automatically if you enable it"
+    fi
+  else
+    echo -e "  ${YELLOW}⚠ Requires Dolt:${NC} brew install dolt (or https://docs.dolthub.com/introduction/installation)"
+    echo -e "  Dolt is a ~100MB database server — the framework will not auto-install it."
+  fi
   echo ""
   read -p "  Enable BEADS? [Y/n] " -n 1 -r
   echo ""
 
   if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-    # User said yes (or pressed enter for default Y)
-    if [[ "$BD_FOUND" == false ]]; then
+    # User said yes
+    if [[ "$DOLT_FOUND" == false ]]; then
+      echo -e "${YELLOW}  ⊙${NC} BEADS enabled in config but Dolt is not installed"
+      echo -e "      Install Dolt first: ${YELLOW}brew install dolt${NC}"
+      echo -e "      Then re-run install.sh to complete BEADS setup"
+    elif [[ "$BD_FOUND" == false ]]; then
       BEADS_INSTALLED=false
       if command -v npm &>/dev/null && npm install -g @beads/bd 2>/dev/null; then
         BEADS_INSTALLED=true
@@ -210,7 +224,7 @@ else
         echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via installer script"
       fi
       if [[ "$BEADS_INSTALLED" == false ]]; then
-        echo -e "${YELLOW}  ⊙${NC} BEADS CLI installation failed — enabled in config, will retry at runtime"
+        echo -e "${YELLOW}  ⊙${NC} BEADS CLI installation failed — enabled in config, install bd manually"
       fi
     else
       echo -e "${GREEN}  ✓${NC} BEADS CLI already available"
@@ -245,6 +259,23 @@ except:
     pass
 " 2>/dev/null
     echo -e "${GREEN}  ✓${NC} BEADS disabled in quality-config.json (file-based state will be used)"
+  fi
+fi
+
+# Initialize BEADS database if both dolt and bd are available, enabled, and .beads/ doesn't exist
+if command -v dolt &>/dev/null && command -v bd &>/dev/null && [[ ! -d "${TARGET_DIR}/.beads" ]]; then
+  BEADS_ENABLED=$(python3 -c "
+import json
+try:
+    cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
+    print('yes' if cfg.get('beads', {}).get('enabled', False) else 'no')
+except:
+    print('no')
+" 2>/dev/null)
+  if [[ "$BEADS_ENABLED" == "yes" ]]; then
+    (cd "$TARGET_DIR" && bd init 2>/dev/null) && \
+      echo -e "${GREEN}  ✓${NC} Initialized BEADS database (.beads/)" || \
+      echo -e "${YELLOW}  ⊙${NC} BEADS database initialization failed (will retry at runtime)"
   fi
 fi
 
