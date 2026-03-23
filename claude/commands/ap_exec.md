@@ -73,13 +73,19 @@ If `beads.server` is present in the config, export environment variables so `bd`
 
 ```bash
 # Read server config and export env vars for bd
+# Docker detection: if we're in a container and host is 127.0.0.1, swap to host.docker.internal
 python3 -c "
 import json, os
 try:
     cfg = json.load(open('.agent_process/quality-config.json'))
     server = cfg.get('beads', {}).get('server', {})
-    if server.get('host'):
-        print(f'export BEADS_DOLT_SERVER_HOST={server[\"host\"]}')
+    host = server.get('host', '')
+    # Detect Docker: /.dockerenv exists in containers
+    in_docker = os.path.exists('/.dockerenv')
+    if host and in_docker and host in ('127.0.0.1', 'localhost'):
+        host = 'host.docker.internal'
+    if host:
+        print(f'export BEADS_DOLT_SERVER_HOST={host}')
     if server.get('port'):
         print(f'export BEADS_DOLT_SERVER_PORT={server[\"port\"]}')
     if server.get('user'):
@@ -90,6 +96,8 @@ except:
 ```
 
 If no `beads.server` block exists, `bd` uses its defaults (local Dolt at `127.0.0.1:3307`). Password comes from the `BEADS_DOLT_PASSWORD` environment variable (set per-shell or via `.envrc`).
+
+**Docker auto-detection:** When running inside a container (detected via `/.dockerenv`), the config's `127.0.0.1` or `localhost` is automatically rewritten to `host.docker.internal`. This means the same `quality-config.json` works on the host and in containers without changes.
 
 **Check if BEADS prerequisites are available:**
 
