@@ -63,129 +63,40 @@ You are the implementation agent executing a planned iteration. Your job: read t
 
 ---
 
-## Step 0.5: BEADS Initialization (Optional)
+## Step 0.5: BEADS State Tracking
 
-**Check `quality-config.json`:** If `beads.enabled` is `false`, skip this step entirely.
-
-**Configure remote server (if specified in quality-config.json):**
-
-If `beads.server` is present in the config, export environment variables so `bd` connects to the right Dolt instance. This is how per-project routing works — personal projects point at localhost, company projects point at a shared server.
+**Run this command immediately — it handles all BEADS setup, config, and credentials internally:**
 
 ```bash
-# Read server config and export env vars for bd
-# Docker detection: if we're in a container and host is 127.0.0.1, swap to host.docker.internal
-python3 -c "
-import json, os
-try:
-    cfg = json.load(open('.agent_process/quality-config.json'))
-    server = cfg.get('beads', {}).get('server', {})
-    host = server.get('host', '')
-    # Detect Docker: /.dockerenv exists in containers
-    in_docker = os.path.exists('/.dockerenv')
-    if host and in_docker and host in ('127.0.0.1', 'localhost'):
-        host = 'host.docker.internal'
-    if host:
-        print(f'export BEADS_DOLT_SERVER_HOST={host}')
-    if server.get('port'):
-        print(f'export BEADS_DOLT_SERVER_PORT={server[\"port\"]}')
-    if server.get('user'):
-        print(f'export BEADS_DOLT_SERVER_USER={server[\"user\"]}')
-except:
-    pass
-" 2>/dev/null | while read -r line; do eval "$line"; done
+bash .agent_process/scripts/beads-lifecycle.sh start {scope}
 ```
 
-If no `beads.server` block exists, `bd` uses its defaults (local Dolt at `127.0.0.1:3307`).
+This single command:
+- Checks `quality-config.json` — exits silently if BEADS is disabled
+- Loads server config and credentials (including Docker auto-detection)
+- Creates the BEADS epic for this scope (or resumes an existing one)
+- Exits 0 on any failure — never blocks the workflow
 
-**Load password from credentials file:**
+**You MUST run this before Step 1.** It's one command. Don't skip it.
+
+**During execution, use the lifecycle script for state updates:**
 
 ```bash
-# Read password from ~/.claude/.beads-credentials (INI-style, keyed by host:port)
-CREDS_FILE="${HOME}/.claude/.beads-credentials"
-if [[ -f "$CREDS_FILE" && -n "${BEADS_DOLT_SERVER_HOST:-}" ]]; then
-  BEADS_DOLT_PASSWORD=$(python3 -c "
-import configparser, os
-cp = configparser.ConfigParser()
-cp.read(os.path.expanduser('~/.claude/.beads-credentials'))
-key = '${BEADS_DOLT_SERVER_HOST}:${BEADS_DOLT_SERVER_PORT:-3307}'
-if cp.has_section(key) and cp.has_option(key, 'password'):
-    print(cp.get(key, 'password'))
-" 2>/dev/null) || true
-  [[ -n "$BEADS_DOLT_PASSWORD" ]] && export BEADS_DOLT_PASSWORD
-fi
+# Work unit decomposition (Step 1.3) — create tasks:
+bash .agent_process/scripts/beads-lifecycle.sh task-create {scope} WU-001 "Schema migration"
+
+# Work unit status changes:
+bash .agent_process/scripts/beads-lifecycle.sh task-update {scope} WU-001 in-progress
+bash .agent_process/scripts/beads-lifecycle.sh task-update {scope} WU-001 complete
+
+# Session recovery — check current state:
+bash .agent_process/scripts/beads-lifecycle.sh status {scope}
 ```
 
-The credentials file is shared across all projects (mounted via `~/.claude/` in Docker containers). The `bds` wrapper does this same resolution for command-line usage.
-
-**Docker auto-detection:** When running inside a container (detected via `/.dockerenv`), the config's `127.0.0.1` or `localhost` is automatically rewritten to `host.docker.internal`. This means the same `quality-config.json` works on the host and in containers without changes.
-
-**Check if BEADS prerequisites are available:**
-
-With a remote server configured, local Dolt installation is NOT required — `bd` connects directly. Without a remote server, both `dolt` (local server) and `bd` (CLI) must be present.
-
+**The orchestrator closes the epic** after review (not the implementation agent):
 ```bash
-# If remote server configured, only bd is needed. Otherwise both dolt and bd.
-if [[ -n "${BEADS_DOLT_SERVER_HOST:-}" ]]; then
-  command -v bd &>/dev/null && echo "BEADS available (remote)" || echo "BEADS not available"
-else
-  command -v dolt &>/dev/null && command -v bd &>/dev/null && echo "BEADS available (local)" || echo "BEADS not available"
-fi
+bash .agent_process/scripts/beads-lifecycle.sh close {scope} approved
 ```
-
-**If `bd` is not found and `beads.auto_install` is `true`:**
-
-Attempt to install the lightweight `bd` CLI (works with both local and remote Dolt):
-
-```bash
-if ! command -v bd &>/dev/null; then
-  if [[ ! -f ".agent_process/.beads_install_attempted" ]]; then
-    touch .agent_process/.beads_install_attempted
-    if command -v npm &>/dev/null; then
-      npm install -g @beads/bd 2>/dev/null
-    fi
-    if ! command -v bd &>/dev/null && command -v curl &>/dev/null; then
-      curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash 2>/dev/null
-    fi
-  fi
-fi
-```
-
-**If `bd` is available, ensure the database exists and initialize or resume the BEADS epic:**
-
-```bash
-# Initialize BEADS database if not yet created
-# For remote servers, bd init connects to the remote Dolt instance
-# For local, it starts the local Dolt server
-if [[ ! -d ".beads" ]]; then
-  bd init 2>/dev/null
-fi
-
-# Check if this scope already has a BEADS epic
-if ! bd epic show {scope} 2>/dev/null; then
-  bd epic create {scope} --description "AP scope: {scope}"
-fi
-```
-
-**If BEADS is not available after all checks:** Skip silently. File-based state (`current_iteration.conf`, `current_work_unit.conf`) handles everything. No warning, no error.
-
-If work unit decomposition runs (Step 1.3), create a BEADS task for each work unit:
-```bash
-bd task create {scope} --id WU-001 --description "{unit description}"
-```
-
-**If `bd` is not available after install attempt:** Proceed silently with file-based state (`current_iteration.conf`, `current_work_unit.conf`, results.md). No warning, no error.
-
-**Throughout execution, update BEADS state at these points:**
-- Work unit started: `bd task update {scope} WU-001 --label in-progress`
-- Work unit complete: `bd task update {scope} WU-001 --label complete`
-- Work unit blocked: `bd task update {scope} WU-001 --label blocked`
-- Iteration approved (on APPROVE): `bd epic close {scope} --label approved`
-
-**Session recovery:** If a session is interrupted and resumed, check BEADS for current state:
-```bash
-bd epic show {scope}  # Shows which tasks are complete/in-progress/blocked
-```
-This supplements `current_work_unit.conf` — BEADS is more durable across sessions but the file-based state is always the fallback.
 
 ---
 
