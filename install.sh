@@ -156,14 +156,43 @@ if [[ "$BEADS_CONFIGURED" == "no" ]]; then
   echo -e "${YELLOW}  ⊙${NC} BEADS disabled in quality-config.json"
 elif [[ "$BEADS_CONFIGURED" == "yes" ]]; then
   # Already configured as enabled — check prerequisites
-  if ! command -v dolt &>/dev/null; then
-    echo -e "${YELLOW}  ⊙${NC} BEADS enabled but Dolt not installed (prerequisite)"
-    echo -e "      Install Dolt: ${YELLOW}brew install dolt${NC} or https://docs.dolthub.com/introduction/installation"
+  # Dolt can be local (binary) or remote (Docker/GCE server in quality-config.json)
+  DOLT_AVAILABLE=false
+  if command -v dolt &>/dev/null; then
+    DOLT_AVAILABLE=true
+  else
+    # Check if a remote server is configured and reachable
+    REMOTE_HOST=$(python3 -c "
+import json
+try:
+    cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
+    print(cfg.get('beads', {}).get('server', {}).get('host', ''))
+except:
+    print('')
+" 2>/dev/null)
+    REMOTE_PORT=$(python3 -c "
+import json
+try:
+    cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
+    print(cfg.get('beads', {}).get('server', {}).get('port', '3307'))
+except:
+    print('3307')
+" 2>/dev/null)
+    if [[ -n "$REMOTE_HOST" ]] && nc -z "$REMOTE_HOST" "$REMOTE_PORT" 2>/dev/null; then
+      DOLT_AVAILABLE=true
+      echo -e "${GREEN}  ✓${NC} Dolt server reachable at ${REMOTE_HOST}:${REMOTE_PORT}"
+    fi
+  fi
+
+  if [[ "$DOLT_AVAILABLE" == false ]]; then
+    echo -e "${YELLOW}  ⊙${NC} BEADS enabled but Dolt not reachable"
+    echo -e "      Local install: ${YELLOW}brew install dolt${NC}"
+    echo -e "      Docker:        ${YELLOW}deploy/beads-server/dolt-docker.sh${NC}"
     echo -e "      Framework will use file-based state until Dolt is available"
   elif command -v bd &>/dev/null; then
-    echo -e "${GREEN}  ✓${NC} BEADS ready (dolt + bd both installed)"
+    echo -e "${GREEN}  ✓${NC} BEADS ready (Dolt + bd available)"
   else
-    echo -e "  Dolt found. Installing BEADS CLI (bd)..."
+    echo -e "  Dolt available. Installing BEADS CLI (bd)..."
     BEADS_INSTALLED=false
     if command -v npm &>/dev/null && npm install -g @beads/bd 2>/dev/null; then
       BEADS_INSTALLED=true
