@@ -210,19 +210,76 @@ else
     if [[ "$DOLT_FOUND" == false ]]; then
       echo ""
       echo -e "${YELLOW}  ⚠ Dolt is not installed.${NC} BEADS requires Dolt as its database backend."
-      echo -e "  To install Dolt:"
-      echo -e "    ${GREEN}brew install dolt${NC}  (macOS)"
-      echo -e "    or visit: https://docs.dolthub.com/introduction/installation"
+      echo -e "  Install options:"
+      echo -e "    ${GREEN}brew install dolt${NC}              (macOS — native binary)"
+      echo -e "    ${GREEN}deploy/beads-server/dolt-docker.sh${NC}  (any platform — Docker container)"
+      echo -e "    https://docs.dolthub.com/introduction/installation"
       echo ""
-      echo -e "  Options:"
-      echo -e "    1) Stop installation, install Dolt, then re-run install.sh"
-      echo -e "    2) Continue without BEADS (use file-based state instead)"
-      read -p "  Choose [1/2]: " -n 1 -r
+      echo -e "  What would you like to do?"
+      echo -e "    1) Start Dolt via Docker now (persistent data, runs in background)"
+      echo -e "    2) Stop installation — I'll install Dolt manually and re-run"
+      echo -e "    3) Continue without BEADS (use file-based state instead)"
+      read -p "  Choose [1/2/3]: " -n 1 -r
       echo ""
       if [[ "$REPLY" == "1" ]]; then
+        # Docker install
+        if ! command -v docker &>/dev/null; then
+          echo -e "${RED}  Docker not found.${NC} Install Docker first or choose another option."
+          echo -e "  Continuing without BEADS."
+          BEADS_SKIPPED=true
+        else
+          DOLT_DATA_DIR="${HOME}/.dolt-server/data"
+          DOLT_CFG_DIR="${HOME}/.dolt-server/config"
+          mkdir -p "$DOLT_DATA_DIR" "$DOLT_CFG_DIR"
+
+          # Generate password if not provided
+          DOLT_PASS=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 16)
+
+          echo -e "  Starting Dolt SQL server via Docker..."
+          docker run -d \
+            --name beads-dolt-server \
+            --restart unless-stopped \
+            -e DOLT_ROOT_HOST='%' \
+            -e DOLT_ROOT_PASSWORD="$DOLT_PASS" \
+            -p 3307:3306 \
+            -v "$DOLT_DATA_DIR":/var/lib/dolt \
+            -v "$DOLT_CFG_DIR":/etc/dolt/servercfg.d \
+            dolthub/dolt-sql-server:latest \
+            2>/dev/null
+
+          if [[ $? -eq 0 ]]; then
+            echo -e "${GREEN}  ✓${NC} Dolt server running in Docker (port 3307)"
+            echo -e "  Data persisted at: ${YELLOW}${DOLT_DATA_DIR}${NC}"
+            echo -e "  Password: ${YELLOW}${DOLT_PASS}${NC}"
+            echo -e "  ${YELLOW}Save this password — set as BEADS_DOLT_PASSWORD env var${NC}"
+            DOLT_FOUND=true
+
+            # Write server config into quality-config.json
+            python3 -c "
+import json
+path = '$AGENT_PROCESS_DIR/quality-config.json'
+try:
+    cfg = json.load(open(path))
+    cfg.setdefault('beads', {})['server'] = {
+        'host': '127.0.0.1',
+        'port': 3307,
+        'user': 'root'
+    }
+    json.dump(cfg, open(path, 'w'), indent=2)
+except:
+    pass
+" 2>/dev/null
+          else
+            echo -e "${YELLOW}  ⊙${NC} Docker failed to start Dolt. Continuing without BEADS."
+            BEADS_SKIPPED=true
+          fi
+        fi
+      elif [[ "$REPLY" == "2" ]]; then
         echo ""
         echo -e "${YELLOW}  Installation paused.${NC} Install Dolt, then re-run:"
         echo -e "    ${GREEN}brew install dolt && $0${NC}"
+        echo -e "  Or use Docker:"
+        echo -e "    ${GREEN}deploy/beads-server/dolt-docker.sh && $0${NC}"
         exit 0
       else
         # Continue without BEADS — mark as disabled
