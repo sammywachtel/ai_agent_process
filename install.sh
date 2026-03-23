@@ -208,30 +208,64 @@ else
   if [[ ! $REPLY =~ ^[Nn]$ ]]; then
     # User said yes
     if [[ "$DOLT_FOUND" == false ]]; then
-      echo -e "${YELLOW}  ⊙${NC} BEADS enabled in config but Dolt is not installed"
-      echo -e "      Install Dolt first: ${YELLOW}brew install dolt${NC}"
-      echo -e "      Then re-run install.sh to complete BEADS setup"
-    elif [[ "$BD_FOUND" == false ]]; then
-      BEADS_INSTALLED=false
-      if command -v npm &>/dev/null && npm install -g @beads/bd 2>/dev/null; then
-        BEADS_INSTALLED=true
-        echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via npm"
-      elif command -v brew &>/dev/null && brew install beads 2>/dev/null; then
-        BEADS_INSTALLED=true
-        echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via Homebrew"
-      elif command -v curl &>/dev/null && curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash 2>/dev/null; then
-        BEADS_INSTALLED=true
-        echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via installer script"
+      echo ""
+      echo -e "${YELLOW}  ⚠ Dolt is not installed.${NC} BEADS requires Dolt as its database backend."
+      echo -e "  To install Dolt:"
+      echo -e "    ${GREEN}brew install dolt${NC}  (macOS)"
+      echo -e "    or visit: https://docs.dolthub.com/introduction/installation"
+      echo ""
+      echo -e "  Options:"
+      echo -e "    1) Stop installation, install Dolt, then re-run install.sh"
+      echo -e "    2) Continue without BEADS (use file-based state instead)"
+      read -p "  Choose [1/2]: " -n 1 -r
+      echo ""
+      if [[ "$REPLY" == "1" ]]; then
+        echo ""
+        echo -e "${YELLOW}  Installation paused.${NC} Install Dolt, then re-run:"
+        echo -e "    ${GREEN}brew install dolt && $0${NC}"
+        exit 0
+      else
+        # Continue without BEADS — mark as disabled
+        python3 -c "
+import json
+path = '$AGENT_PROCESS_DIR/quality-config.json'
+try:
+    cfg = json.load(open(path))
+    cfg.setdefault('beads', {})['enabled'] = False
+    cfg['beads']['auto_install'] = False
+    cfg['beads']['_user_configured'] = True
+    json.dump(cfg, open(path, 'w'), indent=2)
+except:
+    pass
+" 2>/dev/null
+        echo -e "${GREEN}  ✓${NC} Continuing without BEADS (file-based state will be used)"
+        echo -e "  Re-run install.sh after installing Dolt to enable BEADS"
+        # Skip the rest of BEADS setup
+        BEADS_SKIPPED=true
       fi
-      if [[ "$BEADS_INSTALLED" == false ]]; then
-        echo -e "${YELLOW}  ⊙${NC} BEADS CLI installation failed — enabled in config, install bd manually"
-      fi
-    else
-      echo -e "${GREEN}  ✓${NC} BEADS CLI already available"
     fi
+    if [[ "${BEADS_SKIPPED:-}" != "true" ]]; then
+      if [[ "$BD_FOUND" == false ]]; then
+        BEADS_INSTALLED=false
+        if command -v npm &>/dev/null && npm install -g @beads/bd 2>/dev/null; then
+          BEADS_INSTALLED=true
+          echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via npm"
+        elif command -v brew &>/dev/null && brew install beads 2>/dev/null; then
+          BEADS_INSTALLED=true
+          echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via Homebrew"
+        elif command -v curl &>/dev/null && curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash 2>/dev/null; then
+          BEADS_INSTALLED=true
+          echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via installer script"
+        fi
+        if [[ "$BEADS_INSTALLED" == false ]]; then
+          echo -e "${YELLOW}  ⊙${NC} BEADS CLI installation failed — enabled in config, install bd manually"
+        fi
+      else
+        echo -e "${GREEN}  ✓${NC} BEADS CLI already available"
+      fi
 
-    # Update quality-config.json
-    python3 -c "
+      # Update quality-config.json
+      python3 -c "
 import json
 path = '$AGENT_PROCESS_DIR/quality-config.json'
 try:
@@ -243,7 +277,8 @@ try:
 except:
     pass
 " 2>/dev/null
-    echo -e "${GREEN}  ✓${NC} BEADS enabled in quality-config.json"
+      echo -e "${GREEN}  ✓${NC} BEADS enabled in quality-config.json"
+    fi
   else
     # User said no
     python3 -c "
