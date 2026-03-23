@@ -93,10 +93,7 @@ bash .agent_process/scripts/beads-lifecycle.sh task-update {scope} WU-001 comple
 bash .agent_process/scripts/beads-lifecycle.sh status {scope}
 ```
 
-**The orchestrator closes the epic** after review (not the implementation agent):
-```bash
-bash .agent_process/scripts/beads-lifecycle.sh close {scope} approved
-```
+**Note:** The orchestrator closes the epic after review — the implementation agent does NOT close it. See `02_review_iteration_instructions.md` for the close commands on APPROVE/BLOCK/PIVOT.
 
 ---
 

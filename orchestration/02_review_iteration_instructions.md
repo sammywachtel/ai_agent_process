@@ -605,7 +605,8 @@ NOT expected (full validation):
    - Replace stale "awaiting review" / "completed" review-note wording with "approved"
    - Ensure any implementation-status section reflects APPROVE
 4. Deposit knowledge (see Step 9.5 below)
-5. Proceed to next iteration/scope
+5. Close the BEADS epic: `bash .agent_process/scripts/beads-lifecycle.sh close {scope} approved`
+6. Proceed to next iteration/scope
 
 **Output template:**
 ```markdown
@@ -754,6 +755,7 @@ Create <next_iteration>/ folder and hand back to implementation session
 2. Escalate to human
 3. Do NOT create follow-up iteration
 4. Document blocker clearly
+5. Close the BEADS epic: `bash .agent_process/scripts/beads-lifecycle.sh close {scope} blocked`
 
 **Output template:**
 ```markdown
@@ -805,6 +807,7 @@ Escalate to human for go/no-go decision
 3. Propose scope change
 4. **Get human approval** before updating plan
 5. Update iteration_plan.md only with human consent
+6. Close the BEADS epic: `bash .agent_process/scripts/beads-lifecycle.sh close {scope} pivoted`
 
 **Output template:**
 ```markdown
