@@ -96,6 +96,25 @@ Add velocity and health metrics to the `report` subcommand. Analyzable from exis
 
 ---
 
+### `ap_project harvest-knowledge` — Backfill Knowledge from Past Scopes
+**Source:** Session discussion on knowledge base gaps (2026-03-23)
+**Type:** Feature
+
+New subcommand for selectively extracting knowledge entries from completed scopes that predate the knowledge base system. Takes specific scope names (not "all"), reads `results.md`, `iteration_plan.md`, and `adversarial-review.md`, proposes candidate entries, and presents each to the user for approval before depositing.
+
+Includes a staleness check: verifies referenced files still exist and flags entries where the codebase has significantly changed since the scope completed. This prevents polluting the knowledge base with outdated patterns from early scopes that no longer reflect the architecture.
+
+**Acceptance Criteria:**
+- [ ] Takes one or more scope names as arguments (not bulk "all")
+- [ ] Reads scope artifacts: results.md, iteration_plan.md, adversarial-review.md
+- [ ] Proposes candidate knowledge entries in standard JSONL format
+- [ ] Staleness check: flags entries where referenced files were deleted or heavily modified since scope completion
+- [ ] Presents each candidate to user for keep/edit/skip decision
+- [ ] Only deposits user-approved entries to knowledge base
+- [ ] Optional `--check-staleness` flag for extra validation
+
+---
+
 ## Field Test Observations
 
 ### Investigate `bd init` Requirement
