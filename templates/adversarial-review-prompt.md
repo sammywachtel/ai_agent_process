@@ -69,7 +69,7 @@ For each acceptance criterion, produce a verdict:
 
 ## Rules
 
-1. **Binary verdicts only**: PASS or FAIL. No "partial pass", no "mostly done", no "good enough." If a criterion is ambiguous, note the ambiguity but still choose PASS or FAIL based on what you can verify.
+1. **Binary verdicts only**: PASS or FAIL. No "partial pass", no "mostly done", no "good enough." No qualified passes like "PASS (framework ready)" or "PASS (pending data)" — if the criterion says "completed" and the work is a template with TBD placeholders, that's FAIL, period. If a criterion is ambiguous, note the ambiguity but still choose PASS or FAIL based on what you can verify. Read the criterion literally: "metrics are captured" means data exists, not that a place for data exists.
 
 2. **File:line evidence required**: Every verdict must cite specific file paths and line numbers. "I believe this is done" is not evidence. "File `auth.ts` line 34 exports `validateSession` function" is evidence.
 
