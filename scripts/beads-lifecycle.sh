@@ -104,20 +104,41 @@ breadcrumb() {
 }
 
 # --- Execute the requested action ---
+#
+# Real bd API:
+#   bd create "title" --type epic        Create an epic issue
+#   bd create "title" --parent <id>      Create a child task under an epic
+#   bd query "type:epic title:<scope>"   Find existing epic by title
+#   bd update <id> --labels <label>      Update labels on an issue
+#   bd close <id> --reason <reason>      Close an issue
+#   bd show <id>                         Show issue details
+#   bd list                              List all issues
+#   bd epic status <id>                  Show epic completion
 
 case "$ACTION" in
   start)
     breadcrumb "EPIC_START" "$SCOPE"
-    if ! bd epic show "$SCOPE" &>/dev/null; then
-      if bd epic create "$SCOPE" --description "AP scope: $SCOPE" 2>/dev/null; then
-        echo "[beads] Created epic: $SCOPE"
-        breadcrumb "EPIC_CREATED" "success"
+
+    # Check if an epic for this scope already exists
+    EPIC_ID=$(bd query "type=epic AND title=${SCOPE}" --json 2>/dev/null \
+      | python3 -c "import json,sys; issues=json.load(sys.stdin); print(issues[0]['id'] if issues else '')" 2>/dev/null) || true
+
+    if [[ -n "$EPIC_ID" ]]; then
+      echo "[beads] Epic already exists: $SCOPE ($EPIC_ID)"
+      breadcrumb "EPIC_CREATED" "already_exists:${EPIC_ID}"
+    else
+      # Create a new epic for this scope
+      EPIC_ID=$(bd create "$SCOPE" --type epic \
+        --description "AP scope: $SCOPE" \
+        --silent 2>/dev/null) || true
+
+      if [[ -n "$EPIC_ID" ]]; then
+        echo "[beads] Created epic: $SCOPE ($EPIC_ID)"
+        breadcrumb "EPIC_CREATED" "success:${EPIC_ID}"
       else
+        echo "[beads] Failed to create epic (bd error — continuing without BEADS)" >&2
         breadcrumb "EPIC_CREATED" "bd_failed"
       fi
-    else
-      echo "[beads] Epic already exists: $SCOPE"
-      breadcrumb "EPIC_CREATED" "already_exists"
     fi
     ;;
 
@@ -126,8 +147,17 @@ case "$ACTION" in
     DESC="${4:-}"
     if [[ -n "$WU_ID" ]]; then
       breadcrumb "TASK_CREATE" "$WU_ID"
-      bd task create "$SCOPE" --id "$WU_ID" --description "$DESC" 2>/dev/null && \
-        echo "[beads] Created task: $SCOPE/$WU_ID" || true
+
+      # Find the parent epic ID
+      EPIC_ID=$(bd query "type=epic AND title=${SCOPE}" --json 2>/dev/null \
+        | python3 -c "import json,sys; issues=json.load(sys.stdin); print(issues[0]['id'] if issues else '')" 2>/dev/null) || true
+
+      if [[ -n "$EPIC_ID" ]]; then
+        TASK_ID=$(bd create "${WU_ID}: ${DESC}" --parent "$EPIC_ID" --silent 2>/dev/null) || true
+        if [[ -n "$TASK_ID" ]]; then
+          echo "[beads] Created task: $WU_ID ($TASK_ID) under $EPIC_ID"
+        fi
+      fi
     fi
     ;;
 
@@ -136,20 +166,44 @@ case "$ACTION" in
     LABEL="${4:-}"
     if [[ -n "$WU_ID" && -n "$LABEL" ]]; then
       breadcrumb "TASK_UPDATE" "$WU_ID $LABEL"
-      bd task update "$SCOPE" "$WU_ID" --label "$LABEL" 2>/dev/null && \
-        echo "[beads] Updated $SCOPE/$WU_ID → $LABEL" || true
+
+      # Find the task by title prefix (WU-ID is in the title)
+      TASK_ID=$(bd query "title=${WU_ID}" --json 2>/dev/null \
+        | python3 -c "import json,sys; issues=json.load(sys.stdin); print(issues[0]['id'] if issues else '')" 2>/dev/null) || true
+
+      if [[ -n "$TASK_ID" ]]; then
+        bd label "$TASK_ID" --add "$LABEL" 2>/dev/null && \
+          echo "[beads] Updated $WU_ID ($TASK_ID) → $LABEL" || true
+      fi
     fi
     ;;
 
   close)
     LABEL="${3:-approved}"
     breadcrumb "EPIC_CLOSE" "$LABEL"
-    bd epic close "$SCOPE" --label "$LABEL" 2>/dev/null && \
-      echo "[beads] Closed epic: $SCOPE ($LABEL)" || true
+
+    # Find the epic by title
+    EPIC_ID=$(bd query "type=epic AND title=${SCOPE}" --json 2>/dev/null \
+      | python3 -c "import json,sys; issues=json.load(sys.stdin); print(issues[0]['id'] if issues else '')" 2>/dev/null) || true
+
+    if [[ -n "$EPIC_ID" ]]; then
+      bd close "$EPIC_ID" --reason "AP decision: $LABEL" 2>/dev/null && \
+        echo "[beads] Closed epic: $SCOPE ($EPIC_ID) — $LABEL" || true
+    else
+      echo "[beads] No epic found for: $SCOPE"
+    fi
     ;;
 
   status)
-    bd epic show "$SCOPE" 2>/dev/null || echo "[beads] No epic found for: $SCOPE"
+    # Find the epic and show its status
+    EPIC_ID=$(bd query "type=epic AND title=${SCOPE}" --json 2>/dev/null \
+      | python3 -c "import json,sys; issues=json.load(sys.stdin); print(issues[0]['id'] if issues else '')" 2>/dev/null) || true
+
+    if [[ -n "$EPIC_ID" ]]; then
+      bd epic status "$EPIC_ID" 2>/dev/null
+    else
+      echo "[beads] No epic found for: $SCOPE"
+    fi
     ;;
 
   verify)
