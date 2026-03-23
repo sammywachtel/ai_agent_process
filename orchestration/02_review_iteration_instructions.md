@@ -43,6 +43,25 @@ After iteration_01_c:
 
 ---
 
+### Step 1.5: Verify Implementation Lifecycle (BEADS)
+
+**Run this command to independently verify which lifecycle steps the implementation agent actually completed:**
+
+```bash
+bash .agent_process/scripts/beads-lifecycle.sh verify {scope} {iteration}
+```
+
+This checks breadcrumb evidence — not agent claims — to confirm:
+- Was Step 0.5 (BEADS epic start) executed?
+- Were work unit tasks created and completed (if decomposition was used)?
+- Is the epic still open (expected at this point — you close it after your decision)?
+
+**If no `.beads-state` file exists:** The implementation agent skipped Step 0.5. Note this in your review but do not block on it — file-based state (`current_iteration.conf`) is the fallback. If this happens repeatedly, it's a process issue worth noting as a knowledge deposit.
+
+**This step is informational, not blocking.** Proceed to Step 2 regardless of the result.
+
+---
+
 ### Step 2: Evaluate Against ORIGINAL Criteria
 
 **Compare results to LOCKED acceptance criteria in iteration_plan.md**
@@ -1206,6 +1225,7 @@ Or:
 **Verify these before making decision:**
 
 - [ ] Read original acceptance criteria (iteration_plan.md)
+- [ ] Verified BEADS lifecycle breadcrumbs (Step 1.5)
 - [ ] Reviewed actual code changes (Step 3)
 - [ ] Cross-checked results.md claims vs actual code
 - [ ] Verified documentation updates (Step 3.5)

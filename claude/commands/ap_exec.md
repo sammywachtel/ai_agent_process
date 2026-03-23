@@ -68,13 +68,14 @@ You are the implementation agent executing a planned iteration. Your job: read t
 **Run this command immediately — it handles all BEADS setup, config, and credentials internally:**
 
 ```bash
-bash .agent_process/scripts/beads-lifecycle.sh start {scope}
+BEADS_ITERATION={iteration} bash .agent_process/scripts/beads-lifecycle.sh start {scope}
 ```
 
 This single command:
 - Checks `quality-config.json` — exits silently if BEADS is disabled
 - Loads server config and credentials (including Docker auto-detection)
 - Creates the BEADS epic for this scope (or resumes an existing one)
+- Writes breadcrumbs to `.beads-state` so the orchestrator can verify this step ran
 - Exits 0 on any failure — never blocks the workflow
 
 **You MUST run this before Step 1.** It's one command. Don't skip it.
