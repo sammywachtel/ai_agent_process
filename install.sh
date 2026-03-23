@@ -354,20 +354,52 @@ except:
   fi
 fi
 
-# Initialize BEADS database if both dolt and bd are available, enabled, and .beads/ doesn't exist
-if command -v dolt &>/dev/null && command -v bd &>/dev/null && [[ ! -d "${TARGET_DIR}/.beads" ]]; then
-  BEADS_ENABLED=$(python3 -c "
+# Initialize BEADS database if bd is available, enabled, and .beads/ doesn't exist.
+# Works with both local Dolt (command -v dolt) and remote/Docker Dolt (beads.server in config).
+if command -v bd &>/dev/null && [[ ! -d "${TARGET_DIR}/.beads" ]]; then
+  # Read config to check enabled + get server connection
+  BEADS_INIT_INFO=$(python3 -c "
 import json
 try:
     cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
-    print('yes' if cfg.get('beads', {}).get('enabled', False) else 'no')
+    b = cfg.get('beads', {})
+    if not b.get('enabled', False):
+        print('disabled')
+    else:
+        server = b.get('server', {})
+        host = server.get('host', '')
+        port = server.get('port', '')
+        user = server.get('user', '')
+        has_local_dolt = True  # will be checked in shell
+        print(f'enabled|{host}|{port}|{user}')
 except:
-    print('no')
+    print('disabled')
 " 2>/dev/null)
-  if [[ "$BEADS_ENABLED" == "yes" ]]; then
-    (cd "$TARGET_DIR" && bd init 2>/dev/null) && \
-      echo -e "${GREEN}  ✓${NC} Initialized BEADS database (.beads/)" || \
-      echo -e "${YELLOW}  ⊙${NC} BEADS database initialization failed (will retry at runtime)"
+
+  if [[ "$BEADS_INIT_INFO" != "disabled" ]]; then
+    # Parse server config
+    IFS='|' read -r _ BHOST BPORT BUSER <<< "$BEADS_INIT_INFO"
+
+    # Export env vars so bd init can connect to the right server
+    [[ -n "$BHOST" ]] && export BEADS_DOLT_SERVER_HOST="$BHOST"
+    [[ -n "$BPORT" ]] && export BEADS_DOLT_SERVER_PORT="$BPORT"
+    [[ -n "$BUSER" ]] && export BEADS_DOLT_SERVER_USER="$BUSER"
+
+    # Check we can reach Dolt somehow (local binary OR remote server)
+    DOLT_REACHABLE=false
+    if [[ -n "$BHOST" ]]; then
+      # Remote server configured — check TCP connectivity
+      nc -z "$BHOST" "${BPORT:-3307}" 2>/dev/null && DOLT_REACHABLE=true
+    elif command -v dolt &>/dev/null; then
+      # Local Dolt binary
+      DOLT_REACHABLE=true
+    fi
+
+    if [[ "$DOLT_REACHABLE" == true ]]; then
+      (cd "$TARGET_DIR" && bd init 2>/dev/null) && \
+        echo -e "${GREEN}  ✓${NC} Initialized BEADS database (.beads/)" || \
+        echo -e "${YELLOW}  ⊙${NC} BEADS database initialization failed (will retry at runtime)"
+    fi
   fi
 fi
 
