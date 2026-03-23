@@ -18,6 +18,8 @@ Branch: `scope/metaswarm-integration`
 | 12 | `b44192c` | 2026-03-22 | Fix | Always prompt for BEADS on first configuration (even if bd already on PATH) |
 | 13 | `3ef56dc` | 2026-03-22 | — | Backlog: metaswarm-inspired ap_project enhancements |
 | 14 | `a2d2403` | 2026-03-22 | Enhancement | ap_project discover/init: knowledge summary, dependency analysis, BEADS state, complexity suggestions |
+| 15 | `3cc63b8` | 2026-03-22 | — | Commit log update + branch rename |
+| 16 | `95febdb` | 2026-03-22 | Fix | Require Dolt as prerequisite for BEADS (never auto-install ~100MB server), add `bd init` to install.sh + ap_exec |
 
 ### Files changed per commit
 
@@ -106,4 +108,12 @@ Branch: `scope/metaswarm-integration`
 - `process/naming_conventions.md` — `complexity` field in frontmatter schema
 - `README.md` — Design review, quality config, BEADS documentation
 - `.agent_process/requirements_docs/metaswarm/metaswarm_scope_03_optional_gates.md` — Status → completed
+</details>
+
+<details>
+<summary>95febdb — Dolt prerequisite for BEADS</summary>
+
+- `install.sh` — Check for `dolt` before installing `bd`; run `bd init` if `.beads/` missing; Dolt install instructions in prompt
+- `claude/commands/ap_exec.md` — Step 0.5: require both `dolt` and `bd`; `bd init` before `bd epic create`
+- `process/beads-integration.md` — Prerequisites section: Dolt never auto-installed, manual install instructions
 </details>
