@@ -83,8 +83,8 @@ The AI Agent Process solves a common problem: AI-assisted development often beco
 │                                                                 │
 │   1. PLAN          2. EXECUTE        3. REVIEW        4. SHIP   │
 │   ─────────        ─────────         ─────────        ──────    │
-│   Human defines    /ap_exec          Orchestrator     /ap_release
-│   scope + criteria implements        reviews          creates PR │
+│   Human defines    /ap_exec          Orchestrator     /ap_release │
+│   scope + criteria implements        reviews          creates PR  │
 │                                                                 │
 │   ┌─────────┐     ┌─────────┐       ┌─────────┐     ┌────────┐ │
 │   │ Define  │────▶│ Execute │──────▶│ Review  │────▶│ Ship   │ │
@@ -135,131 +135,126 @@ The AI Agent Process solves a common problem: AI-assisted development often beco
 The complete lifecycle from idea to acceptance, with all optional features enabled:
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    IDEA → ACCEPTANCE: FULL LIFECYCLE                    │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  ┌─── IDEATION ───────────────────────────────────────────────────────┐ │
-│  │                                                                     │ │
-│  │  Vague idea?              Clear requirement?    Existing spec?      │ │
-│  │  ────────────             ──────────────────    ──────────────      │ │
-│  │  /ap_brainstorm "idea"    /ap_requirements      /ap_requirements   │ │
-│  │    │                        add "title"           import "file"    │ │
-│  │    ├─ Product agent                │                   │           │ │
-│  │    ├─ Architecture agent           │                   │           │ │
-│  │    ├─ Critical agent               │                   │           │ │
-│  │    ▼                               │                   │           │ │
-│  │  Brainstorm synthesis              │                   │           │ │
-│  │    │                               │                   │           │ │
-│  │    ├─ Optional: design review      │                   │           │ │
-│  │    ▼                               ▼                   ▼           │ │
-│  │  ┌─────────────────────────────────────────────────────────────┐   │ │
-│  │  │  Formal AP Requirement (.agent_process/requirements_docs/) │   │ │
-│  │  │  • YAML frontmatter (id, type, category, status, priority) │   │ │
-│  │  │  • Objective, Technical Requirements, Success Criteria      │   │ │
-│  │  │  • Files Expected to Change, Out of Scope, Known Risks     │   │ │
-│  │  └─────────────────────────────────────────────────────────────┘   │ │
-│  └─────────────────────────────────────────────────────────────────────┘ │
-│                                    │                                     │
-│                                    ▼                                     │
-│  ┌─── PLANNING (Orchestrator) ────────────────────────────────────────┐ │
-│  │                                                                     │ │
-│  │  Human copies requirement → orchestration/01_plan_scope_prompt.md   │ │
-│  │                                                                     │ │
-│  │  Orchestrator:                                                      │ │
-│  │    1. Size check — fits 1-2 weeks? Split if too large              │ │
-│  │    2. Query knowledge base — load patterns, gotchas, decisions     │ │
-│  │    3. Create iteration_plan.md with LOCKED acceptance criteria     │ │
-│  │    4. Set up scoped validation script                               │ │
-│  │    5. If complexity: complex → design review gate (2-4 reviewers)  │ │
-│  │    6. Create work/ directory and iteration_01/ folder              │ │
-│  │                                                                     │ │
-│  │  Output: .agent_process/work/{scope}/iteration_plan.md             │ │
-│  │          .agent_process/scripts/after_edit/validate-{scope}.sh     │ │
-│  └─────────────────────────────────────────────────────────────────────┘ │
-│                                    │                                     │
-│                                    ▼                                     │
-│  ┌─── EXECUTION (/ap_exec) ───────────────────────────────────────────┐ │
-│  │                                                                     │ │
-│  │  Step 0.5: BEADS epic tracking (breadcrumbs for orchestrator)      │ │
-│  │  Step 0.7: Pre-flight checks                                       │ │
-│  │    • Session recovery — detect interrupted work                    │ │
-│  │    • Working tree check — uncommitted changes in scope?            │ │
-│  │    • Branch check — auto-checkout scope/{scope}                    │ │
-│  │    • Git context — recent commits for files in scope               │ │
-│  │  Step 1:   Load context (iteration plan, criteria, prior results)  │ │
-│  │  Step 1.25: Decomposition check (3+ files, 2+ layers → work units)│ │
-│  │  Step 2:   Implement (specialized agent or parallel work units)    │ │
-│  │  Step 3:   Scoped validation (hook fires automatically)            │ │
-│  │  Step 4:   Full validation + test-output.txt                       │ │
-│  │  Step 4.5: Adversarial review (fresh agent, zero context)          │ │
-│  │  Step 5:   Document results → results.md                          │ │
-│  │                                                                     │ │
-│  │  Output: results.md, test-output.txt, adversarial-review.md       │ │
-│  └─────────────────────────────────────────────────────────────────────┘ │
-│                                    │                                     │
-│                                    ▼                                     │
-│  ┌─── REVIEW (Orchestrator) ──────────────────────────────────────────┐ │
-│  │                                                                     │ │
-│  │  Step 1:   Load context (plan, results, test output)               │ │
-│  │  Step 1.5: BEADS verification (check breadcrumbs independently)    │ │
-│  │  Step 2:   Evaluate against frozen criteria (version-aware)        │ │
-│  │  Step 3:   Code verification (read actual files, not just claims)  │ │
-│  │  Step 3.5: Documentation verification gate                         │ │
-│  │  Step 3.6: Integration verification gate                           │ │
-│  │  Step 3.7: Read adversarial review verdict                         │ │
-│  │  Step 4:   CHOOSE ONE DECISION:                                    │ │
-│  │                                                                     │ │
-│  │    ✅ APPROVE ──────────────────────────────────────────────────┐   │ │
-│  │    │  • Close BEADS epic                                        │   │ │
-│  │    │  • Update requirement status → approved                    │   │ │
-│  │    │  • Deposit knowledge (0-3 learnings)                       │   │ │
-│  │    │  • Suggest: /ap_release pr                                 │   │ │
-│  │    │  • Suggest: evaluate-scope.sh                              │   │ │
-│  │    │                                                            │   │ │
-│  │    🔄 ITERATE ──────────────────────────────────────────────┐   │   │ │
-│  │    │  • 1-3 specific fixes with file:line evidence          │   │   │ │
-│  │    │  • Create sub-iteration folder (a/b/c)                 │   │   │ │
-│  │    │  • Max 3 sub-iterations, then must APPROVE or BLOCK    │   │   │ │
-│  │    │  • Loop back to EXECUTION ◄────────────────────────────┘   │   │ │
-│  │    │                                                            │   │ │
-│  │    🚫 BLOCK ────────────────────────────────────────────────┐   │   │ │
-│  │    │  • Close BEADS epic                                    │   │   │ │
-│  │    │  • Escalate to human immediately                       │   │   │ │
-│  │    │  • Deposit process knowledge (0-2 observations)        │   │   │ │
-│  │    │                                                        │   │   │ │
-│  │    🔀 PIVOT ────────────────────────────────────────────────┐   │   │ │
-│  │       • Requires human approval                             │   │   │ │
-│  │       • Update criteria → new major iteration               │   │   │ │
-│  │       • BEADS epic stays open                               │   │   │ │
-│  │       • Loop back to EXECUTION with v2 criteria ◄───────────┘   │   │ │
-│  │                                                                 │   │ │
-│  │  Step 10: Suggest artifact evaluation                           │   │ │
-│  └─────────────────────────────────────────────────────────────────┘   │ │
-│                                    │                                     │
-│                             (on APPROVE)                                 │
-│                                    ▼                                     │
-│  ┌─── RELEASE (/ap_release) ──────────────────────────────────────────┐ │
-│  │                                                                     │ │
-│  │  1. Gather scope context and changes                                │ │
-│  │  2. Update CHANGELOG.md (Added/Changed/Fixed/Removed/Security)     │ │
-│  │  3. Create build tag (build/N)                                      │ │
-│  │  4. Commit, push, create PR                                         │ │
-│  │  5. Optional: PR shepherd monitors CI + reviews                     │ │
-│  │                                                                     │ │
-│  │  Modes: pr | beta | release patch|minor|major                       │ │
-│  └─────────────────────────────────────────────────────────────────────┘ │
-│                                    │                                     │
-│                                    ▼                                     │
-│  ┌─── EVALUATION (optional) ──────────────────────────────────────────┐ │
-│  │                                                                     │ │
-│  │  bash .agent_process/scripts/evaluate-scope.sh .agent_process/...  │ │
-│  │                                                                     │ │
-│  │  Validates: iteration_plan.md, results.md, adversarial-review.md,  │ │
-│  │             .beads-state, knowledge/*.jsonl                         │ │
-│  └─────────────────────────────────────────────────────────────────────┘ │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│                  IDEA → ACCEPTANCE: FULL LIFECYCLE                     │
+├───────────────────────────────────────────────────────────────────────┤
+│                                                                       │
+│  ┌─── IDEATION ─────────────────────────────────────────────────────┐ │
+│  │                                                                   │ │
+│  │  Vague idea?            Clear requirement?    Existing spec?      │ │
+│  │  ────────────           ──────────────────    ──────────────      │ │
+│  │  /ap_brainstorm "idea"  /ap_requirements      /ap_requirements   │ │
+│  │    │                      add "title"           import "file"    │ │
+│  │    ├─ Product agent              │                   │           │ │
+│  │    ├─ Architecture agent         │                   │           │ │
+│  │    ├─ Critical agent             │                   │           │ │
+│  │    ▼                             │                   │           │ │
+│  │  Brainstorm synthesis            │                   │           │ │
+│  │    │                             │                   │           │ │
+│  │    ├─ Optional: design review    │                   │           │ │
+│  │    ▼                             ▼                   ▼           │ │
+│  │  ┌───────────────────────────────────────────────────────────┐   │ │
+│  │  │ Formal AP Requirement (.agent_process/requirements_docs/) │   │ │
+│  │  │ • YAML frontmatter (id, type, category, status, priority) │   │ │
+│  │  │ • Objective, Technical Requirements, Success Criteria      │   │ │
+│  │  │ • Files Expected to Change, Out of Scope, Known Risks     │   │ │
+│  │  └───────────────────────────────────────────────────────────┘   │ │
+│  └───────────────────────────────────────────────────────────────────┘ │
+│                                  │                                     │
+│                                  ▼                                     │
+│  ┌─── PLANNING (Orchestrator) ──────────────────────────────────────┐ │
+│  │                                                                   │ │
+│  │  Human copies requirement → orchestration/01_plan_scope_prompt    │ │
+│  │                                                                   │ │
+│  │  Orchestrator:                                                    │ │
+│  │    1. Size check — fits 1-2 weeks? Split if too large            │ │
+│  │    2. Query knowledge base — patterns, gotchas, decisions        │ │
+│  │    3. Create iteration_plan.md with LOCKED acceptance criteria   │ │
+│  │    4. Set up scoped validation script                             │ │
+│  │    5. If complexity: complex → design review gate (2-4 agents)   │ │
+│  │    6. Create work/ directory and iteration_01/ folder            │ │
+│  │                                                                   │ │
+│  │  Output: .agent_process/work/{scope}/iteration_plan.md           │ │
+│  │          .agent_process/scripts/after_edit/validate-{scope}.sh   │ │
+│  └───────────────────────────────────────────────────────────────────┘ │
+│                                  │                                     │
+│                                  ▼                                     │
+│  ┌─── EXECUTION (/ap_exec) ─────────────────────────────────────────┐ │
+│  │                                                                   │ │
+│  │  Step 0.5:  BEADS epic tracking (breadcrumbs for orchestrator)   │ │
+│  │  Step 0.7:  Pre-flight checks                                    │ │
+│  │    • Session recovery — detect interrupted work                  │ │
+│  │    • Working tree check — uncommitted changes in scope?          │ │
+│  │    • Branch check — auto-checkout scope/{scope}                  │ │
+│  │    • Git context — recent commits for files in scope             │ │
+│  │  Step 1:    Load context (plan, criteria, prior results)         │ │
+│  │  Step 1.25: Decomposition (3+ files, 2+ layers → work units)    │ │
+│  │  Step 2:    Implement (specialized agent or parallel units)      │ │
+│  │  Step 3:    Scoped validation (hook fires automatically)         │ │
+│  │  Step 4:    Full validation + test-output.txt                    │ │
+│  │  Step 4.5:  Adversarial review (fresh agent, zero context)       │ │
+│  │  Step 5:    Document results → results.md                        │ │
+│  │                                                                   │ │
+│  │  Output: results.md, test-output.txt, adversarial-review.md     │ │
+│  └───────────────────────────────────────────────────────────────────┘ │
+│                                  │                                     │
+│                                  ▼                                     │
+│  ┌─── REVIEW (Orchestrator) ────────────────────────────────────────┐ │
+│  │                                                                   │ │
+│  │  Step 1:   Load context (plan, results, test output)             │ │
+│  │  Step 1.5: BEADS verification (check breadcrumbs)                │ │
+│  │  Step 2:   Evaluate against frozen criteria (version-aware)      │ │
+│  │  Step 3:   Code verification (read actual files, not claims)     │ │
+│  │  Step 3.5: Documentation verification gate                       │ │
+│  │  Step 3.6: Integration verification gate                         │ │
+│  │  Step 3.7: Read adversarial review verdict                       │ │
+│  │  Step 4:   CHOOSE ONE DECISION:                                  │ │
+│  │                                                                   │ │
+│  │    ✅ APPROVE                                                     │ │
+│  │    │  Close BEADS epic, update requirement → approved,           │ │
+│  │    │  deposit knowledge (0-3 learnings),                         │ │
+│  │    │  suggest /ap_release and evaluate-scope.sh                  │ │
+│  │    │                                                              │ │
+│  │    🔄 ITERATE                                                     │ │
+│  │    │  1-3 specific fixes with file:line evidence,                │ │
+│  │    │  create sub-iteration (a/b/c), max 3 attempts               │ │
+│  │    │  ◄── loops back to EXECUTION                                │ │
+│  │    │                                                              │ │
+│  │    🚫 BLOCK                                                       │ │
+│  │    │  Close BEADS epic, escalate to human immediately,           │ │
+│  │    │  deposit process knowledge (0-2 observations)               │ │
+│  │    │                                                              │ │
+│  │    🔀 PIVOT                                                       │ │
+│  │       Requires human approval, update criteria → new major       │ │
+│  │       iteration, BEADS epic stays open                           │ │
+│  │       ◄── loops back to EXECUTION with v2 criteria               │ │
+│  │                                                                   │ │
+│  │  Step 10: Suggest artifact evaluation                            │ │
+│  └───────────────────────────────────────────────────────────────────┘ │
+│                                  │                                     │
+│                           (on APPROVE)                                 │
+│                                  ▼                                     │
+│  ┌─── RELEASE (/ap_release) ────────────────────────────────────────┐ │
+│  │                                                                   │ │
+│  │  1. Gather scope context and changes                              │ │
+│  │  2. Update CHANGELOG.md (Added/Changed/Fixed/Removed/Security)   │ │
+│  │  3. Create build tag (build/N)                                    │ │
+│  │  4. Commit, push, create PR                                       │ │
+│  │  5. Optional: PR shepherd monitors CI + reviews                   │ │
+│  │                                                                   │ │
+│  │  Modes: pr | beta | release patch|minor|major                     │ │
+│  └───────────────────────────────────────────────────────────────────┘ │
+│                                  │                                     │
+│                                  ▼                                     │
+│  ┌─── EVALUATION (optional) ────────────────────────────────────────┐ │
+│  │                                                                   │ │
+│  │  bash .agent_process/scripts/evaluate-scope.sh work/{scope}      │ │
+│  │                                                                   │ │
+│  │  Validates: iteration_plan.md, results.md, adversarial-review,   │ │
+│  │             .beads-state, knowledge/*.jsonl                       │ │
+│  └───────────────────────────────────────────────────────────────────┘ │
+│                                                                       │
+└───────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
