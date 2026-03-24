@@ -1282,25 +1282,27 @@ Or:
 
 ---
 
-## Step 10: Suggest Artifact Evaluation (All Decisions)
+## Step 10: Suggest Artifact Validation (All Decisions)
 
-After providing your decision output, inform the user they can validate the artifacts produced during this scope:
+After providing your decision output, inform the user they can validate the AP artifacts produced during this scope. This checks that the framework's own artifacts (results.md, adversarial-review.md, etc.) conform to the expected schema — it does not run the project's test suite.
 
 ```markdown
 ## Optional: Validate Scope Artifacts
 
-To check that all artifacts from this scope conform to the expected format, run:
+To check that AP artifacts from this scope conform to the expected schema:
 
 ```bash
 bash .agent_process/scripts/evaluate-scope.sh .agent_process/work/{scope}
 ```
 
-This validates:
+This validates AP process artifacts (not project code):
+- `iteration_plan.md` — frozen criteria, required sections, knowledge integration
 - `results.md` — status field, required sections, acceptance criteria
 - `adversarial-review.md` — binary verdicts, file evidence, no qualified passes
-- `iteration_plan.md` — frozen criteria, required sections, knowledge integration
 - `.beads-state` — lifecycle breadcrumb format (if BEADS enabled)
-- `knowledge/*.jsonl` — entry schema, required fields
+- `knowledge/*.jsonl` — metaswarm-compatible schema (fact, recommendation, confidence)
+
+See `process/artifact-evaluation.md` for details.
 ```
 
 ---

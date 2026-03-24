@@ -246,12 +246,16 @@ The complete lifecycle from idea to acceptance, with all optional features enabl
 │  └───────────────────────────────────────────────────────────────────┘│
 │                                  │                                    │
 │                                  ▼                                    │
-│  ┌─── EVALUATION (optional) ────────────────────────────────────────┐ │
+│  ┌─── ARTIFACT VALIDATION (optional) ────────────────────────────────┐│
 │  │                                                                  │ │
 │  │  bash .agent_process/scripts/evaluate-scope.sh work/{scope}      │ │
 │  │                                                                  │ │
-│  │  Validates: iteration_plan.md, results.md, adversarial-review,   │ │
-│  │             .beads-state, knowledge/*.jsonl                      │ │
+│  │  Checks scope artifacts conform to expected schema:              │ │
+│  │  iteration_plan.md, results.md, adversarial-review.md,           │ │
+│  │  .beads-state, knowledge/*.jsonl                                 │ │
+│  │                                                                  │ │
+│  │  Not the test suite — this validates AP's own artifacts,         │ │
+│  │  not your project's code. See process/artifact-evaluation.md     │ │
 │  └───────────────────────────────────────────────────────────────────┘│
 │                                                                       │
 └───────────────────────────────────────────────────────────────────────┘

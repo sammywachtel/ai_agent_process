@@ -27,11 +27,11 @@ No mid-iteration scope creep allowed.
 
 ## Known Patterns & Constraints
 
-*Populated from `.agent_process/knowledge/` — see `process/knowledge-base.md` for query instructions.*
+*Populated from knowledge base (`.beads/knowledge/` or `.agent_process/knowledge/` fallback) — see `process/knowledge-base.md` for query instructions. Use `/prime` when metaswarm is available.*
 
 **From knowledge base:**
-- [List relevant patterns, gotchas, decisions, and anti-patterns found]
-- [Include source_iteration for traceability]
+- [List relevant entries as: **[type]** fact (confidence: X, source: provenance reference)]
+- [Include provenance reference for traceability]
 
 **No matches found for:** [list keywords that returned nothing]
 

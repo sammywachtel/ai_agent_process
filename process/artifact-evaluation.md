@@ -35,7 +35,7 @@ bash test/run-tests.sh scan .agent_process/work
 | `results.md` | `validate-results.sh` | Status field (must be COMPLETE/NEEDS REVISION/BLOCKED), required sections, acceptance criteria checkboxes, date field |
 | `adversarial-review.md` | `validate-adversarial-review.sh` | Binary verdicts only (PASS/FAIL), no qualified passes, file:line evidence, summary with X/Y count |
 | `.beads-state` | `validate-beads-state.sh` | Valid breadcrumb format, lifecycle events (EPIC_START, TASK_CREATE, etc.) |
-| `knowledge/*.jsonl` | `validate-knowledge-entry.sh` | Valid JSON, required fields (scope, content), type matches filename |
+| `knowledge/*.jsonl` | `validate-knowledge-entry.sh` | Valid JSON, required fields (fact, recommendation for metaswarm schema; scope, content for legacy), type matches filename |
 
 ## Reading the Output
 
