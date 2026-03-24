@@ -158,7 +158,7 @@ prompt_feature() {
   local hint="Y/n"
   [[ "$current" == "no" ]] && hint="y/N"
   read -p "  $label ($desc) [$hint]: " -n 1 -r
-  echo ""
+  echo "" >&2
   if [[ -z "$REPLY" ]]; then
     # Enter pressed — keep current/default
     echo "$current"
