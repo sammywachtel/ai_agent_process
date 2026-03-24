@@ -7,7 +7,23 @@
 
 ## Overview
 
-The knowledge base is a set of JSONL files in `.agent_process/knowledge/` that accumulate project wisdom over time. Each APPROVE deposits 0-3 code learnings; each BLOCK or PIVOT may deposit 0-2 process observations; each planning phase queries for relevant entries. The system starts empty and gets smarter with every scope — even blocked ones.
+The knowledge base is a set of JSONL files that accumulate project wisdom over time. Each APPROVE deposits 0-3 code learnings; each BLOCK or PIVOT may deposit 0-2 process observations; each planning phase queries for relevant entries. The system starts empty and gets smarter with every scope — even blocked ones.
+
+### Storage Location
+
+Knowledge lives in **`.beads/knowledge/`** when BEADS is enabled. This is the same location metaswarm uses, creating a shared knowledge store that both AP orchestration and metaswarm's `/prime` command can access.
+
+When BEADS is disabled, knowledge falls back to **`.agent_process/knowledge/`**.
+
+**How to find the right directory:**
+```bash
+# Check BEADS-managed knowledge first, fall back to AP-managed
+if [ -d ".beads/knowledge" ]; then
+  KB_DIR=".beads/knowledge"
+elif [ -d ".agent_process/knowledge" ]; then
+  KB_DIR=".agent_process/knowledge"
+fi
+```
 
 ---
 
@@ -19,85 +35,129 @@ The knowledge base is a set of JSONL files in `.agent_process/knowledge/` that a
 | `gotchas.jsonl` | Things that bit us, non-obvious pitfalls | "Session tokens in localStorage breaks compliance" |
 | `decisions.jsonl` | Architectural choices with rationale | "Chose JWT refresh over sliding window (latency)" |
 | `anti-patterns.jsonl` | Approaches that failed or should be avoided | "Don't cache decoded tokens — invalidation nightmare" |
+| `codebase-facts.jsonl` | Facts about how code works | "Thread model stores drafts only, not threads" |
+| `api-behaviors.jsonl` | External API quirks and behaviors | "API returns 429 after ~100 req/min" |
+
+The first four files are core AP files. The last two (`codebase-facts`, `api-behaviors`) are metaswarm-compatible extensions — use them when BEADS is enabled and the distinction is helpful.
 
 ---
 
 ## Entry Schema
 
-Every entry (except the first `_schema` line) follows this format:
+AP uses the metaswarm-compatible knowledge schema. This enables `/prime` to query AP-deposited knowledge and vice versa.
+
+### Full Schema (BEADS-managed)
 
 ```json
 {
   "id": "unique_snake_case_id",
-  "scope": "category or area (e.g., auth, frontend, database)",
-  "summary": "One-line description for scanning",
-  "detail": "Full explanation with context, rationale, and evidence",
-  "source_iteration": "scope_name/iteration_XX where this was learned",
+  "type": "pattern|gotcha|decision|anti_pattern|api_behavior|code_quirk|performance|security",
+  "fact": "Clear description of the knowledge",
+  "recommendation": "What to do about it",
+  "confidence": "high|medium|low",
+  "provenance": [
+    {
+      "source": "agent|human|documentation|test|production",
+      "reference": "scope_name/iteration_XX",
+      "date": "YYYY-MM-DD"
+    }
+  ],
+  "tags": ["auth", "middleware"],
+  "affectedFiles": ["src/middleware/auth.ts"],
+  "createdAt": "YYYY-MM-DDTHH:MM:SSZ",
+  "updatedAt": "YYYY-MM-DDTHH:MM:SSZ"
+}
+```
+
+### Minimal Schema (fallback, no BEADS)
+
+When BEADS is disabled, a simpler schema works:
+
+```json
+{
+  "id": "unique_snake_case_id",
+  "type": "pattern|gotcha|decision|anti_pattern",
+  "fact": "Clear description of the knowledge",
+  "recommendation": "What to do about it",
+  "confidence": "high|medium|low",
+  "tags": ["auth"],
+  "source_iteration": "scope_name/iteration_XX",
   "date": "YYYY-MM-DD"
 }
 ```
 
+### Field Reference
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `id` | Yes | Unique snake_case identifier within the file |
+| `type` | Yes | Knowledge category (must match the file it's in) |
+| `fact` | Yes | Clear description — scannable in under 5 seconds |
+| `recommendation` | Yes | Actionable guidance — what to do with this knowledge |
+| `confidence` | Recommended | `high` (verified multiple times), `medium` (observed once), `low` (suspected) |
+| `provenance` | BEADS only | Source chain: who discovered it, where, when |
+| `tags` | Recommended | Search keywords for filtered queries |
+| `affectedFiles` | BEADS only | Glob patterns for files this applies to |
+| `source_iteration` | Fallback only | Shorthand for provenance when BEADS unavailable |
+| `date` | Fallback only | Shorthand for provenance date |
+
 **Rules:**
 - `id` must be unique within its file
-- `scope` should match requirement categories when possible (enables filtered queries)
-- `summary` should be scannable in under 5 seconds
-- `detail` should include enough context that someone unfamiliar can understand *why*
+- `fact` should be scannable in under 5 seconds
+- `recommendation` should be actionable — "Use X because Y", not just "X exists"
 - Entries are append-only in normal operation
 
 ---
 
 ## How to Query (Planning Phase)
 
-The orchestrator queries the knowledge base before creating `iteration_plan.md`. This is documented in `orchestration/01_plan_scope_instructions.md`, but here's the standalone process:
+The orchestrator queries the knowledge base before creating `iteration_plan.md`. Two methods, depending on what's available:
 
-### Step 1: Identify Search Terms
+### Method 1: `/prime` (when metaswarm is available)
 
-From the scope you're planning, extract:
-- The requirement category (e.g., `auth`, `frontend`, `lexical_editor`)
-- Key file paths or component names
-- Technical concepts involved (e.g., "JWT", "state management", "API design")
-
-### Step 2: Search Knowledge Files
+If metaswarm is installed and enabled, use `/prime` for intelligent context loading:
 
 ```bash
-# Search by category/scope
-grep -i "auth" .agent_process/knowledge/*.jsonl
+# Prime with keywords from the requirement
+/prime --keywords "auth" "session" "jwt" --work-type planning
 
-# Search by keyword across all files
-grep -i "session\|token\|jwt" .agent_process/knowledge/*.jsonl
-
-# Search for entries related to specific files
-grep -i "login\|session" .agent_process/knowledge/*.jsonl
+# Prime for specific files in scope
+/prime --files "src/middleware/**/*.ts" "src/auth/**/*.ts"
 ```
 
-### Step 3: Include Relevant Findings
+`/prime` reads `.beads/knowledge/` and returns facts organized by priority (MUST FOLLOW → GOTCHAS → PATTERNS → DECISIONS). Include the relevant output in the iteration plan's `## Known Patterns & Constraints` section.
 
-Add matches to the `## Known Patterns & Constraints` section of `iteration_plan.md`:
+### Method 2: grep (fallback, or when metaswarm unavailable)
+
+```bash
+# Find the knowledge directory
+KB_DIR=".beads/knowledge"
+[ ! -d "$KB_DIR" ] && KB_DIR=".agent_process/knowledge"
+
+# Search by keyword across all files
+grep -i "auth\|session\|jwt" "$KB_DIR"/*.jsonl
+
+# Search by affected files (BEADS schema)
+grep -i "middleware\|auth.ts" "$KB_DIR"/*.jsonl
+```
+
+### Include Findings in Plan
+
+Add matches to `## Known Patterns & Constraints`:
 
 ```markdown
 ## Known Patterns & Constraints
 
 **From knowledge base:**
-- **Pattern:** Auth uses middleware pattern (decision: 2024-Q3, source: auth_scope_01/iteration_02)
-- **Gotcha:** Session tokens must not use localStorage (compliance requirement)
-- **Decision:** JWT refresh tokens over sliding window (latency trade-off)
-- **Anti-pattern:** Don't cache decoded tokens — invalidation creates subtle bugs
+- **[pattern]** Auth uses middleware pattern, not route decorators (confidence: high)
+- **[gotcha]** Session tokens must not use localStorage — compliance requirement
+- **[decision]** JWT refresh tokens over sliding window (latency trade-off)
+- **[anti_pattern]** Don't cache decoded tokens — invalidation creates subtle bugs
 
-**No matches found for:** [list keywords that returned nothing — helps future curation]
+**No matches found for:** [list keywords that returned nothing]
 ```
 
-### Step 4: Handle Empty Results
-
-If no relevant entries exist (common early on), note it:
-
-```markdown
-## Known Patterns & Constraints
-
-*No relevant knowledge base entries found for scope: user_auth*
-*Keywords searched: auth, session, login, JWT*
-```
-
-This is fine — the knowledge base grows with each APPROVE.
+If no entries exist (common early on), note it — the knowledge base grows with each APPROVE.
 
 ---
 
@@ -113,9 +173,16 @@ The knowledge base accepts two types of deposits at different decision points:
 
 ### Code Knowledge Deposit (APPROVE)
 
-After an APPROVE decision, the orchestrator extracts 0-3 learnings. This is documented in `orchestration/02_review_iteration_instructions.md`, but here's the standalone process:
+After an APPROVE decision, the orchestrator extracts 0-3 learnings.
 
-### Step 1: Reflect on the Iteration
+### Step 1: Find the Knowledge Directory
+
+```bash
+KB_DIR=".beads/knowledge"
+[ ! -d "$KB_DIR" ] && KB_DIR=".agent_process/knowledge"
+```
+
+### Step 2: Reflect on the Iteration
 
 Ask these questions about the completed work:
 1. Did we discover a pattern worth reusing? → `patterns.jsonl`
@@ -123,26 +190,25 @@ Ask these questions about the completed work:
 3. Did we make an architectural choice with trade-offs? → `decisions.jsonl`
 4. Did we try something that failed? → `anti-patterns.jsonl`
 
-### Step 2: Write Entries
+### Step 3: Write Entries
 
-**Good entry (specific, reusable):**
+**Good entry (specific, reusable, metaswarm-compatible):**
 ```json
-{"id": "auth_middleware_pattern", "scope": "auth", "summary": "Auth checks use Express middleware, not route-level decorators", "detail": "Decorators caused issues with route ordering in Express 5. Middleware pattern applied in app.ts before route registration ensures consistent auth checking. See auth_scope_01/iteration_02 for migration details.", "source_iteration": "auth_scope_01/iteration_02", "date": "2025-03-15"}
+{"id": "auth_middleware_pattern", "type": "pattern", "fact": "Auth checks use Express middleware, not route-level decorators", "recommendation": "Apply auth middleware in app.ts before route registration. Don't use decorators — they cause route ordering issues in Express 5.", "confidence": "high", "provenance": [{"source": "agent", "reference": "auth_scope_01/iteration_02", "date": "2025-03-15"}], "tags": ["auth", "middleware", "express"], "affectedFiles": ["src/app.ts", "src/middleware/auth.ts"], "createdAt": "2025-03-15T00:00:00Z", "updatedAt": "2025-03-15T00:00:00Z"}
 ```
 
 **Bad entry (too vague to be useful):**
 ```json
-{"id": "auth_stuff", "scope": "general", "summary": "Auth is tricky", "detail": "Had some issues with auth.", "source_iteration": "unknown", "date": "2025-03-15"}
+{"id": "auth_stuff", "type": "pattern", "fact": "Auth is tricky", "recommendation": "Be careful.", "confidence": "low", "tags": [], "createdAt": "2025-03-15T00:00:00Z", "updatedAt": "2025-03-15T00:00:00Z"}
 ```
 
-### Step 3: Append to the Right File
+### Step 4: Append to the Right File
 
 ```bash
-# Append a pattern entry
-echo '{"id": "auth_middleware_pattern", "scope": "auth", ...}' >> .agent_process/knowledge/patterns.jsonl
+echo '{"id": "auth_middleware_pattern", ...}' >> "$KB_DIR/patterns.jsonl"
 ```
 
-### Step 4: Deposit 0 Entries When Appropriate
+### Step 5: Deposit 0 Entries When Appropriate
 
 Not every scope produces learnings. If the work was straightforward and nothing surprising happened, deposit nothing. Don't force entries just to fill the knowledge base.
 
@@ -166,7 +232,7 @@ After a BLOCK or PIVOT decision, the orchestrator may extract 0-2 *process obser
 #### Example
 
 ```json
-{"id": "impl_agents_miss_stale_doc_refs", "scope": "architecture-refactor", "summary": "Implementation agents claim docs need no update while stale references remain", "detail": "During hard cutover, the agent reported docs/reference/data-model.md needed no changes, but review found it still documented removed fields. When removing code, always grep docs/ for references.", "source_iteration": "gemini_hybrid_06_hard_cutover/iteration_01", "date": "2026-03-21"}
+{"id": "impl_agents_miss_stale_doc_refs", "type": "gotcha", "fact": "Implementation agents claim docs need no update while stale references remain", "recommendation": "When removing code, always grep docs/ for references. Agents skip this — review must catch it.", "confidence": "high", "provenance": [{"source": "agent", "reference": "gemini_hybrid_06_hard_cutover/iteration_01", "date": "2026-03-21"}], "tags": ["documentation", "refactoring", "agent-behavior"], "affectedFiles": ["docs/**/*.md"], "createdAt": "2026-03-21T00:00:00Z", "updatedAt": "2026-03-21T00:00:00Z"}
 ```
 
 Most BLOCKs and PIVOTs won't produce process learnings — that's fine. Only deposit when you see something likely to repeat.
@@ -205,10 +271,12 @@ Over time, the knowledge base may need cleanup. This is a manual process — do 
 
 | Phase | Action | File |
 |-------|--------|------|
-| Planning (Step 2.5) | Query knowledge base for scope-relevant entries | `01_plan_scope_instructions.md` |
+| Planning (Step 2.5) | Query knowledge via `/prime` or grep | `01_plan_scope_instructions.md` |
 | Planning output | Include findings in `## Known Patterns & Constraints` | `templates/iteration-plan.md` |
-| Review (APPROVE, Step 9.5) | Extract 0-3 code learnings and append to knowledge files | `02_review_iteration_instructions.md` |
-| Review (BLOCK/PIVOT, Step 9.6) | Extract 0-2 process observations and append to knowledge files | `02_review_iteration_instructions.md` |
+| Review (APPROVE, Step 9.5) | Extract 0-3 code learnings → `$KB_DIR/*.jsonl` | `02_review_iteration_instructions.md` |
+| Review (BLOCK/PIVOT, Step 9.6) | Extract 0-2 process observations → `$KB_DIR/*.jsonl` | `02_review_iteration_instructions.md` |
+| Metaswarm `/prime` | Loads relevant facts by files/keywords/work-type | Reads `$KB_DIR/*.jsonl` |
+| Metaswarm `/self-reflect` | Mines PR comments + conversation history → knowledge | Writes `$KB_DIR/*.jsonl` |
 
 ---
 

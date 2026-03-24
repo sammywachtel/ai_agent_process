@@ -102,18 +102,35 @@ else
   echo -e "${YELLOW}  ⊙${NC} Preserving existing .agent_process/work/ directory"
 fi
 
-# Only create knowledge/ if it doesn't exist (preserve accumulated learnings)
+# Knowledge base directory — .beads/knowledge/ when BEADS enabled, .agent_process/knowledge/ as fallback
+# Both are created; the orchestrator/agents pick the right one at runtime
+KB_FILES="patterns gotchas decisions anti-patterns"
+KB_FILES_EXTENDED="codebase-facts api-behaviors"  # metaswarm-compatible extras
+
+# Always ensure .agent_process/knowledge/ exists (fallback when BEADS disabled)
 if [[ ! -d "$AGENT_PROCESS_DIR/knowledge" ]]; then
   mkdir -p "$AGENT_PROCESS_DIR/knowledge"
-  # Seed with schema-line-only JSONL files
-  for kb_file in patterns gotchas decisions anti-patterns; do
+  for kb_file in $KB_FILES; do
     if [[ ! -f "$AGENT_PROCESS_DIR/knowledge/${kb_file}.jsonl" ]]; then
-      echo "{\"_schema\": \"v1\", \"_description\": \"${kb_file} knowledge entries. See process/knowledge-base.md for format.\"}" > "$AGENT_PROCESS_DIR/knowledge/${kb_file}.jsonl"
+      echo "# Schema: ${kb_file}.jsonl — see process/knowledge-base.md for format" > "$AGENT_PROCESS_DIR/knowledge/${kb_file}.jsonl"
     fi
   done
-  echo -e "${GREEN}  ✓${NC} Created .agent_process/knowledge/ directory with JSONL files"
+  echo -e "${GREEN}  ✓${NC} Created .agent_process/knowledge/ (fallback)"
 else
-  echo -e "${YELLOW}  ⊙${NC} Preserving existing .agent_process/knowledge/ directory"
+  echo -e "${YELLOW}  ⊙${NC} Preserving existing .agent_process/knowledge/"
+fi
+
+# Create .beads/knowledge/ for BEADS-managed knowledge (metaswarm-compatible)
+if [[ ! -d "$TARGET_DIR/.beads/knowledge" ]]; then
+  mkdir -p "$TARGET_DIR/.beads/knowledge"
+  for kb_file in $KB_FILES $KB_FILES_EXTENDED; do
+    if [[ ! -f "$TARGET_DIR/.beads/knowledge/${kb_file}.jsonl" ]]; then
+      echo "# Schema: ${kb_file}.jsonl — metaswarm-compatible. See process/knowledge-base.md" > "$TARGET_DIR/.beads/knowledge/${kb_file}.jsonl"
+    fi
+  done
+  echo -e "${GREEN}  ✓${NC} Created .beads/knowledge/ (primary, metaswarm-compatible)"
+else
+  echo -e "${YELLOW}  ⊙${NC} Preserving existing .beads/knowledge/"
 fi
 
 # Ensure quality-config.json exists (seed from template if missing)

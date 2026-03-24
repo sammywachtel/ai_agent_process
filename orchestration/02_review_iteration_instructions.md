@@ -1110,17 +1110,24 @@ Ask these questions about the just-approved work:
 | Did we make an architectural choice with trade-offs? | `knowledge/decisions.jsonl` |
 | Did we try an approach that failed? | `knowledge/anti-patterns.jsonl` |
 
-#### Entry Format
+#### Find the Knowledge Directory
+
+```bash
+KB_DIR=".beads/knowledge"
+[ ! -d "$KB_DIR" ] && KB_DIR=".agent_process/knowledge"
+```
+
+#### Entry Format (metaswarm-compatible)
 
 ```json
-{"id": "unique_snake_case_id", "scope": "category_or_area", "summary": "One-line scannable description", "detail": "Full context: what, why, and evidence", "source_iteration": "scope_name/iteration_XX", "date": "YYYY-MM-DD"}
+{"id": "unique_snake_case_id", "type": "pattern", "fact": "Clear description", "recommendation": "What to do about it", "confidence": "high|medium|low", "provenance": [{"source": "agent", "reference": "scope/iteration_XX", "date": "YYYY-MM-DD"}], "tags": ["keyword1", "keyword2"], "affectedFiles": ["path/to/file.ts"], "createdAt": "YYYY-MM-DDTHH:MM:SSZ", "updatedAt": "YYYY-MM-DDTHH:MM:SSZ"}
 ```
 
 #### How to Deposit
 
 ```bash
-# Append to the appropriate file
-echo '{"id": "auth_middleware_pattern", "scope": "auth", "summary": "Auth checks use Express middleware, not route decorators", "detail": "Decorators caused route ordering issues in Express 5. Middleware applied in app.ts before route registration.", "source_iteration": "auth_scope_01/iteration_02", "date": "2025-03-15"}' >> .agent_process/knowledge/patterns.jsonl
+# Append to the appropriate file in whichever knowledge directory exists
+echo '{"id": "auth_middleware_pattern", "type": "pattern", "fact": "Auth checks use Express middleware, not route decorators", "recommendation": "Apply auth middleware in app.ts before route registration.", "confidence": "high", "provenance": [{"source": "agent", "reference": "auth_scope_01/iteration_02", "date": "2025-03-15"}], "tags": ["auth", "middleware"], "affectedFiles": ["src/app.ts"], "createdAt": "2025-03-15T00:00:00Z", "updatedAt": "2025-03-15T00:00:00Z"}' >> "$KB_DIR/patterns.jsonl"
 ```
 
 #### When to Deposit Nothing
@@ -1167,10 +1174,10 @@ Code patterns are only safe to deposit after APPROVE (the code is verified). But
 
 #### Entry Format
 
-Same schema as Step 9.5, but the `detail` field should make clear this is a process observation:
+Same schema as Step 9.5 (metaswarm-compatible), deposited to same `$KB_DIR`:
 
 ```json
-{"id": "ops_gate_always_blocks", "scope": "architecture-refactor", "summary": "Operational gate criteria always BLOCK on first implementation pass", "detail": "Implementation agents cannot generate deploy evidence. Scopes with ops gate criteria should expect BLOCK after first pass. This is the process working correctly, not a failure.", "source_iteration": "scope_name/iteration_01", "date": "YYYY-MM-DD"}
+{"id": "ops_gate_always_blocks", "type": "gotcha", "fact": "Operational gate criteria always BLOCK on first implementation pass", "recommendation": "Scopes with ops gate criteria should expect BLOCK after first pass. This is the process working correctly, not a failure.", "confidence": "high", "provenance": [{"source": "agent", "reference": "scope_name/iteration_01", "date": "YYYY-MM-DD"}], "tags": ["ops", "process", "agent-behavior"], "affectedFiles": [], "createdAt": "YYYY-MM-DDTHH:MM:SSZ", "updatedAt": "YYYY-MM-DDTHH:MM:SSZ"}
 ```
 
 #### When to Deposit Nothing

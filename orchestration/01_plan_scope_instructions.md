@@ -202,11 +202,23 @@ mkdir -p .agent_process/work/<scope_name>
 
 ### Step 2.5: Query Knowledge Base
 
-**Before reviewing code, check for accumulated project wisdom:**
+**Before reviewing code, check for accumulated project wisdom.**
 
-The knowledge base (`.agent_process/knowledge/`) stores patterns, gotchas, decisions, and anti-patterns from previous iterations. Querying it before code review helps you know what to look for and what to avoid.
+The knowledge base stores patterns, gotchas, decisions, and anti-patterns from previous iterations. It lives in `.beads/knowledge/` (when BEADS enabled) or `.agent_process/knowledge/` (fallback).
 
-**If knowledge directory exists:**
+**Find the knowledge directory:**
+```bash
+KB_DIR=".beads/knowledge"
+[ ! -d "$KB_DIR" ] && KB_DIR=".agent_process/knowledge"
+[ ! -d "$KB_DIR" ] && echo "No knowledge base — skip this step"
+```
+
+**If metaswarm is available**, use `/prime` for intelligent querying:
+```bash
+/prime --keywords "<category>" "<keyword1>" "<keyword2>" --work-type planning
+```
+
+**Otherwise, search with grep:**
 
 1. **Extract search terms** from the requirement:
    - Category name (e.g., `auth`, `frontend`, `lexical_editor`)
@@ -215,17 +227,18 @@ The knowledge base (`.agent_process/knowledge/`) stores patterns, gotchas, decis
 
 2. **Search all knowledge files:**
    ```bash
-   # Search by category/scope
-   grep -i "<category>" .agent_process/knowledge/*.jsonl
+   # Search by tags/keywords
+   grep -i "<keyword1>\|<keyword2>" "$KB_DIR"/*.jsonl
 
-   # Search by keywords from the requirement
-   grep -i "<keyword1>\|<keyword2>" .agent_process/knowledge/*.jsonl
+   # Search by affected files (metaswarm schema)
+   grep -i "<filename_pattern>" "$KB_DIR"/*.jsonl
    ```
 
 3. **Record findings** for the `## Known Patterns & Constraints` section of `iteration_plan.md`:
-   - Include the entry's `summary` and `source_iteration` for traceability
-   - Prioritize entries matching the scope's category over general entries
-   - Include gotchas and anti-patterns even if only tangentially related — they're cheap insurance
+   - Include the entry's `fact` and `recommendation` for actionability
+   - Include `confidence` level and `provenance` reference for traceability
+   - Prioritize entries matching the scope's tags over general entries
+   - Include gotchas and anti-patterns even if only tangentially related — cheap insurance
 
 4. **If no relevant entries found** (common for new categories or early in a project), note it:
    ```markdown
@@ -234,7 +247,7 @@ The knowledge base (`.agent_process/knowledge/`) stores patterns, gotchas, decis
    *Keywords searched: auth, session, login*
    ```
 
-**If knowledge directory doesn't exist:** Skip this step. The knowledge base is created by `install.sh` and grows organically through APPROVE deposits.
+**If knowledge directory doesn't exist:** Skip this step. The knowledge base grows organically through APPROVE deposits.
 
 **Reference:** See `process/knowledge-base.md` for the full knowledge base how-to guide.
 

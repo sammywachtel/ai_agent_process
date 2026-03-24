@@ -64,30 +64,40 @@ entry = json.loads(sys.stdin.read())
 errors = []
 warnings = []
 
-# Required fields
-for field in ['scope', 'content']:
-    if field not in entry:
-        errors.append(f'missing required field: {field}')
+# Detect schema: metaswarm (fact/recommendation) vs legacy AP (scope/content)
+is_metaswarm = 'fact' in entry
+is_legacy = 'content' in entry or 'scope' in entry
 
-# Type field (recommended)
+if is_metaswarm:
+    # Metaswarm schema: fact + recommendation required
+    for field in ['fact', 'recommendation']:
+        if field not in entry:
+            errors.append(f'missing required field: {field}')
+        elif not entry[field].strip():
+            errors.append(f'{field} is empty')
+    if 'confidence' not in entry:
+        warnings.append('missing confidence field')
+elif is_legacy:
+    # Legacy AP schema: scope + content required
+    for field in ['scope', 'content']:
+        if field not in entry:
+            errors.append(f'missing required field: {field}')
+        elif not str(entry[field]).strip():
+            errors.append(f'{field} is empty')
+    if 'date' not in entry and 'added' not in entry:
+        warnings.append('no date/added field')
+else:
+    errors.append('unrecognized schema — needs fact+recommendation or scope+content')
+
+# Type field (recommended for both schemas)
 if 'type' not in entry:
     warnings.append('missing type field')
 else:
     valid = '${VALID_TYPES}'.split('|')
+    # Also accept metaswarm types
+    valid.extend(['api_behavior', 'code_quirk', 'dependency', 'performance', 'security'])
     if entry['type'] not in valid:
         errors.append(f'invalid type \"{entry[\"type\"]}\" (expected: {valid})')
-
-# Content should be non-empty
-if 'content' in entry and not entry['content'].strip():
-    errors.append('content is empty')
-
-# Scope should be non-empty
-if 'scope' in entry and not str(entry['scope']).strip():
-    errors.append('scope is empty')
-
-# Date field (recommended)
-if 'date' not in entry and 'added' not in entry:
-    warnings.append('no date/added field')
 
 print('ERRORS:' + '|'.join(errors))
 print('WARNINGS:' + '|'.join(warnings))
