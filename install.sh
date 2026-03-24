@@ -430,12 +430,20 @@ if [[ "$FEAT_METASWARM" == "yes" ]]; then
     echo -e "${GREEN}  ✓${NC} Metaswarm commands detected"
   else
     echo -e "  Installing metaswarm..."
-    if command -v claude &>/dev/null && claude plugin install metaswarm 2>/dev/null; then
-      echo -e "${GREEN}  ✓${NC} Metaswarm installed"
+    if command -v claude &>/dev/null; then
+      # Add marketplace source first, then install the plugin
+      claude plugin marketplace add dsifry/metaswarm-marketplace 2>/dev/null
+      if claude plugin install metaswarm 2>/dev/null; then
+        echo -e "${GREEN}  ✓${NC} Metaswarm installed"
+      else
+        echo -e "${YELLOW}  ⊙${NC} Auto-install failed. Install manually:"
+        echo -e "    ${GREEN}claude plugin marketplace add dsifry/metaswarm-marketplace${NC}"
+        echo -e "    ${GREEN}claude plugin install metaswarm${NC}"
+      fi
     else
-      echo -e "${YELLOW}  ⊙${NC} Auto-install failed. Install manually:"
+      echo -e "${YELLOW}  ⊙${NC} Claude CLI not found. Install metaswarm manually:"
+      echo -e "    ${GREEN}claude plugin marketplace add dsifry/metaswarm-marketplace${NC}"
       echo -e "    ${GREEN}claude plugin install metaswarm${NC}"
-      echo -e "    Or: ${GREEN}claude plugin marketplace add dsifry/metaswarm-marketplace${NC}"
     fi
   fi
 fi
