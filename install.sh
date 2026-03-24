@@ -133,6 +133,87 @@ else
   echo -e "${YELLOW}  ⊙${NC} Preserving existing .beads/knowledge/"
 fi
 
+# Migrate legacy .agent_process/knowledge/ entries → .beads/knowledge/ (idempotent)
+if [[ -d "$AGENT_PROCESS_DIR/knowledge" && -d "$TARGET_DIR/.beads/knowledge" ]]; then
+  MIGRATED=$(python3 -c "
+import json, os, glob
+
+src = '$AGENT_PROCESS_DIR/knowledge'
+dst = '$TARGET_DIR/.beads/knowledge'
+migrated = 0
+
+# Build set of existing ids in .beads/knowledge/ to avoid duplicates
+existing_ids = set()
+for f in glob.glob(f'{dst}/*.jsonl'):
+    with open(f) as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith('#') or line.startswith('{\"_schema\"'):
+                continue
+            try:
+                existing_ids.add(json.loads(line).get('id', ''))
+            except:
+                pass
+
+# Type mapping from filename to entry type
+type_map = {
+    'patterns': 'pattern',
+    'gotchas': 'gotcha',
+    'decisions': 'decision',
+    'anti-patterns': 'anti_pattern',
+}
+
+for f in glob.glob(f'{src}/*.jsonl'):
+    basename = os.path.basename(f)
+    stem = basename.replace('.jsonl', '')
+    entry_type = type_map.get(stem, stem)
+    dst_file = f'{dst}/{basename}'
+
+    with open(f) as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith('{\"_schema\"') or line.startswith('#'):
+                continue
+            try:
+                entry = json.loads(line)
+            except:
+                continue
+
+            eid = entry.get('id', '')
+            if not eid or eid in existing_ids:
+                continue
+
+            # Convert legacy schema → metaswarm-compatible
+            new_entry = {
+                'id': eid,
+                'type': entry_type,
+                'fact': entry.get('summary', entry.get('content', entry.get('fact', ''))),
+                'recommendation': entry.get('detail', entry.get('recommendation', '')),
+                'confidence': entry.get('confidence', 'medium'),
+                'provenance': entry.get('provenance', [{
+                    'source': 'agent',
+                    'reference': entry.get('source_iteration', ''),
+                    'date': entry.get('date', '')
+                }]),
+                'tags': entry.get('tags', [entry.get('scope', 'general')]),
+                'affectedFiles': entry.get('affectedFiles', []),
+                'createdAt': entry.get('createdAt', (entry.get('date', '') + 'T00:00:00Z') if entry.get('date') else ''),
+                'updatedAt': entry.get('updatedAt', (entry.get('date', '') + 'T00:00:00Z') if entry.get('date') else '')
+            }
+
+            with open(dst_file, 'a') as out:
+                out.write(json.dumps(new_entry) + '\n')
+            existing_ids.add(eid)
+            migrated += 1
+
+print(migrated)
+" 2>/dev/null || echo "0")
+
+  if [[ "$MIGRATED" -gt 0 ]]; then
+    echo -e "${GREEN}  ✓${NC} Migrated ${MIGRATED} knowledge entries from .agent_process/knowledge/ → .beads/knowledge/"
+  fi
+fi
+
 # Ensure quality-config.json exists (seed from template if missing)
 QUALITY_CONFIG_FRESH=false
 if [[ ! -f "$AGENT_PROCESS_DIR/quality-config.json" ]]; then
