@@ -826,7 +826,7 @@ Escalate to human for go/no-go decision
 3. Propose scope change
 4. **Get human approval** before updating plan
 5. Update iteration_plan.md only with human consent
-6. Close the BEADS epic: `bash .agent_process/scripts/beads-lifecycle.sh close {scope} pivoted`
+6. Do NOT close the BEADS epic — the scope continues with revised criteria under a new major iteration
 
 **Output template:**
 ```markdown
