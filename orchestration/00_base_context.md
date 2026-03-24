@@ -52,7 +52,7 @@
 
 ### 3. Review (You)
 - Load `02_review_iteration_instructions.md`
-- Read original `iteration_plan.md` (frozen criteria)
+- Read `iteration_plan.md` (frozen criteria for this major iteration)
 - **Adversarial review (platform-adaptive):** Check for `adversarial-review.md` in the iteration folder — the implementation agent runs this via a fresh Task agent. If it exists, factor the verdict into your decision. If it doesn't exist and you have Task capability, run it yourself. If neither, perform a rubric-based self-review (see Step 3.7)
 - Evaluate against the frozen criteria **for this major iteration** (after PIVOT, use the revised criteria — not the original v1)
 - **Choose exactly one:** APPROVE / ITERATE / BLOCK / PIVOT

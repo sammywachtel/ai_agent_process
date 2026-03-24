@@ -51,10 +51,10 @@
 
 1. Fix issues listed above (max 3)
 2. Run `/ap_exec {{scope}} {{iteration}}`
-3. Orchestrator reviews against ORIGINAL criteria
+3. Orchestrator reviews against frozen criteria for this major iteration
 4. If iteration_01_c reached, must escalate to human
 
 ## Notes
 - **Iteration budget:** {{attempts_remaining}} attempts left before escalation
-- **Criteria:** Evaluate against ORIGINAL only (no new requirements)
+- **Criteria:** Evaluate against frozen criteria for this major iteration (after PIVOT, use revised criteria — not v1)
 - **Escalation:** If blockers found, use BLOCK decision instead of creating more iterations

@@ -117,7 +117,7 @@ The AI Agent Process solves a common problem: AI-assisted development often beco
 - Creates `results.md` (with Work Unit Summary if decomposed) and `test-output.txt`
 
 #### Step 3: Review (Orchestrator)
-- Evaluates results against **ORIGINAL** frozen criteria
+- Evaluates results against **frozen criteria for this major iteration** (after PIVOT, uses revised criteria)
 - Chooses exactly one decision: **APPROVE / ITERATE / BLOCK / PIVOT**
 - Updates iteration plan with decision
 

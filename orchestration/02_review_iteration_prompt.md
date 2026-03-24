@@ -29,7 +29,7 @@ Before proceeding, use the Read tool to load these files:
 3. `.agent_process/orchestration/02_review_iteration_instructions.md` - Complete review workflow
 
 **Iteration artifacts:**
-4. `.agent_process/work/[scope]/iteration_plan.md` - ORIGINAL criteria (LOCKED)
+4. `.agent_process/work/[scope]/iteration_plan.md` - Frozen criteria for this major iteration (check `## Criteria History` if a PIVOT occurred)
 5. `.agent_process/work/[scope]/[iteration]/results.md` - Implementation self-report
 6. `.agent_process/work/[scope]/[iteration]/test-output.txt` - Validation results
 
@@ -57,8 +57,9 @@ Follow the complete workflow in `02_review_iteration_instructions.md`.
    - Cross-check results.md claims against reality
    - Include code verification in your decision
 
-2. **Evaluate against ORIGINAL criteria only**
-   - Use criteria from iteration_plan.md (LOCKED)
+2. **Evaluate against the frozen criteria for THIS major iteration**
+   - Use the current `## Acceptance Criteria` section in iteration_plan.md
+   - After a PIVOT, criteria were revised — use the revised version, not v1
    - Do NOT add new criteria discovered during iteration
    - New issues → backlog, not this review
 
@@ -81,7 +82,7 @@ Use the decision templates from `02_review_iteration_instructions.md`.
 **Required elements:**
 - Decision type (APPROVE/ITERATE/BLOCK/PIVOT)
 - Code verification section (what you found in actual files)
-- Criteria status (checked against ORIGINAL criteria)
+- Criteria status (checked against frozen criteria for this major iteration)
 - Next step
 
 **After providing your decision, ask the human:**

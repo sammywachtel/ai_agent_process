@@ -1227,7 +1227,8 @@ Or:
 - Cannot silently expand scope
 
 ### ❌ Evaluating against new requirements
-- Review against ORIGINAL criteria only
+- Review against the frozen criteria for this major iteration only
+- After PIVOT, use revised criteria — do NOT re-litigate the PIVOT
 - Ignore issues discovered during iteration
 
 ---
@@ -1236,7 +1237,7 @@ Or:
 
 **Verify these before making decision:**
 
-- [ ] Read original acceptance criteria (iteration_plan.md)
+- [ ] Read frozen acceptance criteria for this major iteration (iteration_plan.md)
 - [ ] Verified BEADS lifecycle breadcrumbs (Step 1.5)
 - [ ] Reviewed actual code changes (Step 3)
 - [ ] Cross-checked results.md claims vs actual code
@@ -1248,7 +1249,7 @@ Or:
 - [ ] Counted attempts used (1/2/3/4 of 4)
 - [ ] Verified scoped validation (not full codebase)
 - [ ] Checked for external blockers
-- [ ] Evaluated against ORIGINAL criteria (not new ones)
+- [ ] Evaluated against frozen criteria for this major iteration (not new ones, not pre-PIVOT versions)
 - [ ] Chose exactly one: APPROVE/ITERATE/BLOCK/PIVOT
 - [ ] If ITERATE: Specified 1-3 concrete fixes
 - [ ] If ITERATE: Verified attempts remaining
@@ -1283,4 +1284,4 @@ Or:
 
 ---
 
-**Remember:** Evaluate against ORIGINAL criteria, enforce iteration budget, make explicit decisions.
+**Remember:** Evaluate against the frozen criteria for this major iteration (after PIVOT, use revised criteria), enforce iteration budget, make explicit decisions.
