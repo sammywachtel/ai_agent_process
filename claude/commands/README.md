@@ -8,7 +8,9 @@ This directory serves as a reference placeholder in the template structure.
 
 | Command | Invocation | Purpose |
 |---------|------------|---------|
-| `ap_project.md` | `/ap_project <action>` | Roadmap, requirements, backlog management |
+| `ap_brainstorm.md` | `/ap_brainstorm "idea"` | Multi-agent brainstorm → formal requirement |
+| `ap_requirements.md` | `/ap_requirements <action>` | Create, import, and list requirements |
+| `ap_project.md` | `/ap_project <action>` | Roadmap, backlog, and project management |
 | `ap_exec.md` | `/ap_exec <scope> <iteration>` | Execute implementation iterations |
 | `ap_release.md` | `/ap_release <mode>` | Changelog, PR creation, release tagging |
 | `ap_iteration_results.md` | `/ap_iteration_results <scope> <iteration>` | Document iteration results |
@@ -21,7 +23,12 @@ This directory serves as a reference placeholder in the template structure.
 /ap_project init                    # Initialize roadmap
 /ap_project status                  # Check project status
 /ap_project add-todo "description"  # Add backlog item
-/ap_project add-requirement "name"  # Create requirement
+
+# Requirements management
+/ap_brainstorm "idea"                # Multi-agent brainstorm → requirement
+/ap_requirements add "name"          # Create requirement (offers brainstorm)
+/ap_requirements import "file.md"    # Import existing file as requirement
+/ap_requirements list                # Show all requirements
 
 # Iteration workflow
 /ap_exec scope_name iteration_01    # Execute iteration

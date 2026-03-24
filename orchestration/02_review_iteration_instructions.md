@@ -1275,6 +1275,29 @@ Or:
 
 ---
 
+## Step 10: Suggest Artifact Evaluation (All Decisions)
+
+After providing your decision output, inform the user they can validate the artifacts produced during this scope:
+
+```markdown
+## Optional: Validate Scope Artifacts
+
+To check that all artifacts from this scope conform to the expected format, run:
+
+```bash
+bash .agent_process/scripts/evaluate-scope.sh .agent_process/work/{scope}
+```
+
+This validates:
+- `results.md` — status field, required sections, acceptance criteria
+- `adversarial-review.md` — binary verdicts, file evidence, no qualified passes
+- `iteration_plan.md` — frozen criteria, required sections, knowledge integration
+- `.beads-state` — lifecycle breadcrumb format (if BEADS enabled)
+- `knowledge/*.jsonl` — entry schema, required fields
+```
+
+---
+
 ## Documentation References
 
 - **Base context:** `00_base_context.md`

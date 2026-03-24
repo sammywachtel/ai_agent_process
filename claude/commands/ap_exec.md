@@ -34,6 +34,7 @@ cat .agent_process/quality-config.json 2>/dev/null
 If this file exists, it controls which quality gates are active. Features check their section before activating. If the file doesn't exist, all features use built-in defaults (see `process/quality-configuration.md` for schema).
 
 Key settings that affect this workflow:
+- `pre_flight.enabled` — controls Step 0.7 (session recovery, working tree, branch, git context)
 - `adversarial_review.enabled` — controls Step 4.5
 - `work_unit_decomposition.enabled` and thresholds — controls Step 1.25
 - `knowledge_base.enabled` — controls Step 2.5
@@ -95,6 +96,107 @@ bash .agent_process/scripts/beads-lifecycle.sh status {scope}
 ```
 
 **Note:** The orchestrator closes the epic after review — the implementation agent does NOT close it. See `02_review_iteration_instructions.md` for the close commands on APPROVE/BLOCK/PIVOT.
+
+---
+
+## Step 0.7: Pre-flight Checks
+
+**Check `quality-config.json`:** If `pre_flight.enabled` is `false`, skip this entire step and proceed to Step 1.
+
+Run these checks before loading context. They catch common problems that waste iteration time. Individual checks can be disabled via `pre_flight.session_recovery`, `pre_flight.working_tree_check`, `pre_flight.branch_check`, and `pre_flight.git_context`.
+
+### 0.7a: Session Recovery — Detect Interrupted Work
+
+Check if a previous execution of this scope/iteration was interrupted:
+
+```bash
+# Check for an existing results.md in this iteration folder
+ls .agent_process/work/{scope}/{iteration}/results.md 2>/dev/null
+```
+
+**If results.md exists and has status COMPLETE or NEEDS REVISION:**
+- A previous execution already ran for this iteration
+- Ask the user: "This iteration already has results. Re-execute (overwrites), or is this a mistake?"
+- Don't silently overwrite — the user may have meant a sub-iteration (e.g., `iteration_01_a`)
+
+**If results.md exists but is empty or only has a template header:**
+- Previous execution was interrupted mid-flight
+- Inform the user: "Found interrupted work from a previous run. Resuming from scratch."
+- Check `.beads-state` for work unit progress:
+  ```bash
+  cat .agent_process/work/{scope}/{iteration}/.beads-state 2>/dev/null
+  ```
+  If work units were partially completed, report which ones finished.
+
+**If no results.md:** Clean start — proceed normally.
+
+### 0.7b: Working Tree Check
+
+Verify the working tree is in a good state before making changes:
+
+```bash
+# Check for uncommitted changes in files that are IN SCOPE
+git status --porcelain -- [files_in_scope from iteration_plan.md]
+```
+
+**Quick check (doesn't require reading the plan yet):**
+```bash
+# Are there any uncommitted changes at all?
+git status --porcelain 2>/dev/null | head -5
+```
+
+**If uncommitted changes exist in files that overlap with the scope:**
+- Warn: "You have uncommitted changes in files this scope will modify: [list files]"
+- Ask: "Commit or stash these first? Proceeding may cause merge conflicts."
+
+**If uncommitted changes are in unrelated files:** Note them but proceed — they're not in the blast radius.
+
+### 0.7c: Branch Check
+
+Verify you're on the correct scope branch:
+
+```bash
+CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
+EXPECTED_BRANCH="scope/{scope}"
+```
+
+**If on wrong branch:**
+- If `scope/{scope}` exists: `git checkout scope/{scope}`
+- If not: `git checkout -b scope/{scope}`
+
+**If on correct branch but behind remote:**
+```bash
+git fetch origin scope/{scope} 2>/dev/null
+BEHIND=$(git rev-list HEAD..origin/scope/{scope} --count 2>/dev/null || echo "0")
+```
+If behind, warn: "Your branch is {N} commits behind remote. Pull first?"
+
+### 0.7d: Supplemental Context — Recent Changes to Files in Scope
+
+Load git history for the files this scope will touch. This gives the implementation agent awareness of recent changes that the iteration plan may not capture.
+
+**Read the files-in-scope list from the iteration plan** (quick grep, not a full plan parse):
+```bash
+# Extract file paths from the "Files in Scope" section
+grep -A 50 "## Files in Scope\|## Files Expected to Change" .agent_process/work/{scope}/iteration_plan.md 2>/dev/null | grep "^- \`" | sed 's/^- `//;s/`$//'
+```
+
+**For each file in scope, get recent git context:**
+```bash
+# Last 5 commits touching these files (one-liners)
+git log --oneline -5 -- [files_in_scope] 2>/dev/null
+```
+
+**Save as supplemental context** for the implementation agent:
+```markdown
+### Recent Changes to Files in Scope
+[git log output — gives the agent awareness of recent modifications,
+who changed what, and whether files were recently refactored]
+```
+
+This context is injected into the implementation agent's prompt alongside the iteration plan. It prevents the agent from unknowingly conflicting with recent changes or re-implementing something that was just refactored.
+
+**If no git history exists** (new files): Skip this — nothing to report.
 
 ---
 

@@ -17,7 +17,9 @@ A structured workflow framework for AI-powered development with Claude Code. Pro
 ```
 
 After installation, you'll have access to slash commands:
-- `/ap_project` – Manage roadmap, requirements, and backlog
+- `/ap_brainstorm` – Multi-agent brainstorm → formal requirement
+- `/ap_requirements` – Create, import, and list requirements
+- `/ap_project` – Manage roadmap, backlog, and project status
 - `/ap_exec` – Execute implementation iterations
 - `/ap_release` – Update changelog, create PRs, and release
 
@@ -66,6 +68,7 @@ The AI Agent Process solves a common problem: AI-assisted development often beco
 | **Design Review Gate** | Multi-reviewer plan assessment for complex scopes (opt-in) |
 | **Quality Configuration** | Centralized feature control via `quality-config.json` |
 | **BEADS Integration** | Optional git-native durable state tracking for work units |
+| **Metaswarm Integration** | Optional brainstorming, design review, and PR automation (opt-in) |
 
 ---
 
@@ -332,6 +335,26 @@ Pre-existing issues are documented once in the iteration plan, not re-litigated 
 
 ## Slash Commands Reference
 
+### `/ap_brainstorm` – Ideation → Requirement
+
+```bash
+/ap_brainstorm "Improve the login experience"     # Multi-agent brainstorm → formal requirement
+/ap_brainstorm "We need better error handling"     # Works with or without metaswarm
+```
+
+Spawns 3 parallel agents (Product, Architecture, Critical) to explore the idea from different angles, synthesizes their output, optionally runs design review, and creates a formal AP requirement. See `process/metaswarm-integration.md` for details.
+
+### `/ap_requirements` – Requirements Management
+
+```bash
+/ap_requirements add "feature name"          # Create requirement (offers brainstorm option)
+/ap_requirements import "path/to/file.md"    # Import existing file as requirement
+/ap_requirements list                        # Show all requirements by category
+/ap_requirements list "infrastructure"       # Filter by category
+```
+
+**Metaswarm-enhanced:** When metaswarm is enabled, `add` offers to route through `/ap_brainstorm` and `import` offers design review. Without metaswarm, all commands work normally.
+
 ### `/ap_project` – Project Management
 
 ```bash
@@ -340,8 +363,6 @@ Pre-existing issues are documented once in the iteration plan, not re-litigated 
 /ap_project status                  # Check current project status
 
 /ap_project add-todo "description"  # Add item to backlog
-/ap_project add-requirement "name"  # Create new requirement
-/ap_project import-requirement "file_path"  # Import existing file
 
 /ap_project set-status "req_id complete reason"  # Set requirement status
 /ap_project archive "req_id type reason"         # Archive requirement
@@ -412,6 +433,8 @@ After installation, your project will have:
 your-project/
 ├── .claude/
 │   └── commands/           # Slash commands (Claude Code looks here)
+│       ├── ap_brainstorm.md
+│       ├── ap_requirements.md
 │       ├── ap_exec.md
 │       ├── ap_project.md
 │       ├── ap_release.md
@@ -492,7 +515,9 @@ your-project/
 Create a requirements document:
 
 ```bash
-/ap_project add-requirement "user_authentication"
+/ap_requirements add "user_authentication"
+# Or brainstorm first:
+/ap_brainstorm "improve user authentication"
 ```
 
 Or manually create `.agent_process/requirements_docs/user_auth/requirements.md`:

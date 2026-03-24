@@ -115,6 +115,31 @@ Includes a staleness check: verifies referenced files still exist and flags entr
 
 ---
 
+## Metaswarm Integration (Phase 1+)
+
+### `/ap_quick` — Lightweight Execution for Simple Tasks
+**Source:** Metaswarm `/start-task` simple/complex routing comparison (2026-03-24)
+**Type:** Investigation → Feature
+
+Metaswarm's `/start-task` routes simple tasks (bug fixes, config changes, UI tweaks) through a minimal-ceremony path — no orchestrator planning, no iteration plan, just execute and document. AP currently requires the full orchestrator → plan → ap_exec → review cycle for everything, which is too much friction for a one-line fix.
+
+Investigate and design `/ap_quick` — a lightweight command for simple, well-understood tasks that skips orchestrator planning but still provides tracking and documentation.
+
+**Questions to resolve:**
+- What's the threshold between "quick" and "needs full planning"? (file count? criteria count? user judgment?)
+- Should `/ap_quick` create a minimal results doc, or skip documentation entirely?
+- Should it still create a BEADS task (without an epic)?
+- Should it auto-detect when a task outgrew "quick" and suggest switching to `/ap_exec`?
+- How does the orchestrator review work — does it even need one, or is self-review sufficient?
+
+**Acceptance Criteria:**
+- [ ] Design doc for `/ap_quick` workflow (what it does, what it skips, when to use it)
+- [ ] Clear guidance on when to use `/ap_quick` vs `/ap_exec`
+- [ ] Implementation of the command
+- [ ] Documentation updated (README, commands/README)
+
+---
+
 ## Field Test Observations
 
 ### Investigate `bd init` Requirement

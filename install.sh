@@ -116,50 +116,107 @@ else
   echo -e "${YELLOW}  ⊙${NC} Preserving existing .agent_process/knowledge/ directory"
 fi
 
-# Only create quality-config.json if it doesn't exist (preserve project settings)
+# Ensure quality-config.json exists (seed from template if missing)
 QUALITY_CONFIG_FRESH=false
 if [[ ! -f "$AGENT_PROCESS_DIR/quality-config.json" ]]; then
   cp "$SOURCE_DIR/quality-config.json" "$AGENT_PROCESS_DIR/quality-config.json"
   QUALITY_CONFIG_FRESH=true
-  echo -e "${GREEN}  ✓${NC} Created .agent_process/quality-config.json with defaults"
-else
-  echo -e "${YELLOW}  ⊙${NC} Preserving existing .agent_process/quality-config.json"
 fi
 
-# BEADS CLI setup
+# ─── Feature Selection ───────────────────────────────────────────────
+# Always prompt — lets users review and change settings on every install.
+# Default is enabled (Enter = yes) for all features.
 echo ""
-echo -e "${BLUE}▸${NC} BEADS durable state tracking..."
+echo -e "${BLUE}▸${NC} Feature configuration..."
+echo -e "  Configure which quality gates are active. Press Enter to accept the default."
+echo ""
 
-# Check if BEADS preference was already set by the user (not just defaults)
-BEADS_CONFIGURED=""
-if [[ "$QUALITY_CONFIG_FRESH" == true ]]; then
-  # Config was just created with defaults — user hasn't chosen yet, prompt them
-  BEADS_CONFIGURED=""
-elif [[ -f "$AGENT_PROCESS_DIR/quality-config.json" ]]; then
-  # Config existed before this install — check if user has a BEADS preference
-  BEADS_CONFIGURED=$(python3 -c "
+# Read current values from config (or use defaults)
+read_feature() {
+  local feature="$1" default="$2"
+  python3 -c "
 import json
 try:
     cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
-    b = cfg.get('beads', {})
-    # _user_configured flag means the user explicitly chose Y or n
-    if b.get('_user_configured', False):
-        print('yes' if b.get('enabled', True) else 'no')
+    parts = '$feature'.split('.')
+    val = cfg
+    for p in parts:
+        val = val.get(p, {})
+    if isinstance(val, bool):
+        print('yes' if val else 'no')
     else:
-        print('')
+        print('$default')
 except:
-    print('')
-" 2>/dev/null || echo "")
-fi
+    print('$default')
+" 2>/dev/null || echo "$default"
+}
 
-if [[ "$BEADS_CONFIGURED" == "no" ]]; then
-  echo -e "${YELLOW}  ⊙${NC} BEADS disabled in quality-config.json"
-elif [[ "$BEADS_CONFIGURED" == "yes" ]]; then
-  # Already configured as enabled — check prerequisites
-  # Dolt can be local (binary) or remote (Docker/GCE server in quality-config.json)
+prompt_feature() {
+  local label="$1" desc="$2" feature="$3" default="$4"
+  local current
+  current=$(read_feature "$feature" "$default")
+  local hint="Y/n"
+  [[ "$current" == "no" ]] && hint="y/N"
+  read -p "  $label ($desc) [$hint]: " -n 1 -r
+  echo ""
+  if [[ -z "$REPLY" ]]; then
+    # Enter pressed — keep current/default
+    echo "$current"
+  elif [[ "$REPLY" =~ ^[Yy]$ ]]; then
+    echo "yes"
+  else
+    echo "no"
+  fi
+}
+
+FEAT_PREFLIGHT=$(prompt_feature "Pre-flight checks" "session recovery, branch check, git context" "pre_flight.enabled" "yes")
+FEAT_KNOWLEDGE=$(prompt_feature "Knowledge base" "patterns, gotchas, decisions across iterations" "knowledge_base.enabled" "yes")
+FEAT_ADVERSARIAL=$(prompt_feature "Adversarial review" "fresh-agent criterion verification" "adversarial_review.enabled" "yes")
+FEAT_DECOMPOSITION=$(prompt_feature "Work unit decomposition" "DAG-based parallel execution for multi-domain scopes" "work_unit_decomposition.enabled" "yes")
+FEAT_DESIGN_REVIEW=$(prompt_feature "Design review gate" "multi-reviewer plan assessment for complex scopes" "design_review.enabled" "no")
+FEAT_BEADS=$(prompt_feature "BEADS" "git-native durable state tracking via Dolt" "beads.enabled" "yes")
+FEAT_PR_SHEPHERD=$(prompt_feature "PR shepherd" "post-PR agent monitoring CI and reviews" "pr_shepherd.enabled" "yes")
+FEAT_METASWARM=$(prompt_feature "Metaswarm integration" "brainstorming, design review, knowledge priming" "metaswarm.enabled" "no")
+
+# Write all selections to quality-config.json
+python3 -c "
+import json
+path = '$AGENT_PROCESS_DIR/quality-config.json'
+try:
+    cfg = json.load(open(path))
+except:
+    cfg = {}
+
+def to_bool(s): return s == 'yes'
+
+cfg.setdefault('pre_flight', {})['enabled'] = to_bool('$FEAT_PREFLIGHT')
+cfg.setdefault('knowledge_base', {})['enabled'] = to_bool('$FEAT_KNOWLEDGE')
+cfg.setdefault('adversarial_review', {})['enabled'] = to_bool('$FEAT_ADVERSARIAL')
+cfg.setdefault('work_unit_decomposition', {})['enabled'] = to_bool('$FEAT_DECOMPOSITION')
+cfg.setdefault('design_review', {})['enabled'] = to_bool('$FEAT_DESIGN_REVIEW')
+cfg.setdefault('beads', {})['enabled'] = to_bool('$FEAT_BEADS')
+cfg['beads']['_user_configured'] = True
+cfg.setdefault('pr_shepherd', {})['enabled'] = to_bool('$FEAT_PR_SHEPHERD')
+cfg.setdefault('metaswarm', {})['enabled'] = to_bool('$FEAT_METASWARM')
+cfg['metaswarm']['_user_configured'] = True
+
+json.dump(cfg, open(path, 'w'), indent=2)
+print('OK')
+" 2>/dev/null
+
+echo ""
+echo -e "${GREEN}  ✓${NC} Feature configuration saved to quality-config.json"
+
+# ─── BEADS Setup (if enabled) ────────────────────────────────────────
+if [[ "$FEAT_BEADS" == "yes" ]]; then
+  echo ""
+  echo -e "${BLUE}▸${NC} BEADS durable state tracking..."
+
+  # Check Dolt prerequisites — local binary or remote server
   DOLT_AVAILABLE=false
   if command -v dolt &>/dev/null; then
     DOLT_AVAILABLE=true
+    echo -e "${GREEN}  ✓${NC} Dolt installed locally"
   else
     # Check if a remote server is configured and reachable
     REMOTE_HOST=$(python3 -c "
@@ -185,19 +242,17 @@ except:
   fi
 
   if [[ "$DOLT_AVAILABLE" == false ]]; then
-    echo ""
-    echo -e "${YELLOW}  ⚠ BEADS is enabled but Dolt is not reachable.${NC}"
-    echo -e "  How is Dolt set up for this project?"
-    echo -e "    1) Start Dolt via Docker now (persistent data, runs in background)"
-    echo -e "    2) It's on a remote server — let me enter the connection details"
-    echo -e "    3) I'll install Dolt locally (brew install dolt) and re-run"
+    echo -e "${YELLOW}  ⚠ Dolt is not reachable.${NC} BEADS needs Dolt as its database backend."
+    echo -e "  Options:"
+    echo -e "    1) Start Dolt via Docker now"
+    echo -e "    2) Enter remote server connection details"
+    echo -e "    3) I'll install Dolt manually and re-run"
     echo -e "    4) Skip BEADS for now (use file-based state)"
     read -p "  Choose [1/2/3/4]: " -n 1 -r
     echo ""
     if [[ "$REPLY" == "1" ]]; then
-      # Docker install — same logic as the first-time prompt
       if ! command -v docker &>/dev/null; then
-        echo -e "${RED}  Docker not found.${NC} Install Docker first or choose another option."
+        echo -e "${RED}  Docker not found.${NC} Continuing without BEADS."
       else
         DOLT_DATA_DIR="${HOME}/.dolt-server/data"
         DOLT_CFG_DIR="${HOME}/.dolt-server/config"
@@ -227,7 +282,6 @@ try:
 except:
     pass
 " 2>/dev/null
-          # Save credentials
           mkdir -p "${HOME}/.claude"
           python3 -c "
 import configparser, os
@@ -273,18 +327,18 @@ except:
 " 2>/dev/null
       else
         echo -e "${RED}  Cannot reach ${REMOTE_INPUT_HOST}:${REMOTE_INPUT_PORT}${NC}"
-        echo -e "  Continuing without BEADS. Fix the server and re-run install.sh."
       fi
     elif [[ "$REPLY" == "3" ]]; then
       echo -e "${YELLOW}  Installation paused.${NC} Install Dolt, then re-run:"
       echo -e "    ${GREEN}brew install dolt && $0${NC}"
       exit 0
     fi
-    # Option 4 (or failed options) — just continue without BEADS
-  elif command -v bd &>/dev/null; then
-    echo -e "${GREEN}  ✓${NC} BEADS ready (Dolt + bd available)"
-  else
-    echo -e "  Dolt available. Installing BEADS CLI (bd)..."
+    # Option 4 or failed options — continue without BEADS
+  fi
+
+  # Install BEADS CLI (bd) if Dolt is available but bd is not
+  if [[ "$DOLT_AVAILABLE" == true ]] && ! command -v bd &>/dev/null; then
+    echo -e "  Installing BEADS CLI (bd)..."
     BEADS_INSTALLED=false
     if command -v npm &>/dev/null && npm install -g @beads/bd 2>/dev/null; then
       BEADS_INSTALLED=true
@@ -297,199 +351,13 @@ except:
       echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via installer script"
     fi
     if [[ "$BEADS_INSTALLED" == false ]]; then
-      echo -e "${YELLOW}  ⊙${NC} BEADS CLI installation failed (framework will use file-based state)"
+      echo -e "${YELLOW}  ⊙${NC} BEADS CLI install failed — install bd manually"
     fi
-  fi
-else
-  # Not yet configured — prompt the user
-  DOLT_FOUND=false
-  BD_FOUND=false
-  command -v dolt &>/dev/null && DOLT_FOUND=true
-  command -v bd &>/dev/null && BD_FOUND=true
-
-  echo ""
-  echo -e "${YELLOW}  Optional: BEADS provides git-native durable state tracking for work units.${NC}"
-  echo -e "  When enabled, execution state persists across session interruptions."
-  echo -e "  Without it, the framework uses file-based state (works fine, just less resilient)."
-  if [[ "$DOLT_FOUND" == true ]]; then
-    echo -e "  ${GREEN}✓ Dolt is installed${NC} (required prerequisite)"
-    if [[ "$BD_FOUND" == true ]]; then
-      echo -e "  ${GREEN}✓ BEADS CLI (bd) is installed${NC}"
-    else
-      echo -e "  BEADS CLI (bd) will be installed automatically if you enable it"
-    fi
-  else
-    echo -e "  ${YELLOW}⚠ Requires Dolt:${NC} brew install dolt (or https://docs.dolthub.com/introduction/installation)"
-    echo -e "  Dolt is a ~100MB database server — the framework will not auto-install it."
-  fi
-  echo ""
-  read -p "  Enable BEADS? [Y/n] " -n 1 -r
-  echo ""
-
-  if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-    # User said yes
-    if [[ "$DOLT_FOUND" == false ]]; then
-      echo ""
-      echo -e "${YELLOW}  ⚠ Dolt is not installed.${NC} BEADS requires Dolt as its database backend."
-      echo -e "  Install options:"
-      echo -e "    ${GREEN}brew install dolt${NC}              (macOS — native binary)"
-      echo -e "    ${GREEN}deploy/beads-server/dolt-docker.sh${NC}  (any platform — Docker container)"
-      echo -e "    https://docs.dolthub.com/introduction/installation"
-      echo ""
-      echo -e "  What would you like to do?"
-      echo -e "    1) Start Dolt via Docker now (persistent data, runs in background)"
-      echo -e "    2) Stop installation — I'll install Dolt manually and re-run"
-      echo -e "    3) Continue without BEADS (use file-based state instead)"
-      read -p "  Choose [1/2/3]: " -n 1 -r
-      echo ""
-      if [[ "$REPLY" == "1" ]]; then
-        # Docker install
-        if ! command -v docker &>/dev/null; then
-          echo -e "${RED}  Docker not found.${NC} Install Docker first or choose another option."
-          echo -e "  Continuing without BEADS."
-          BEADS_SKIPPED=true
-        else
-          DOLT_DATA_DIR="${HOME}/.dolt-server/data"
-          DOLT_CFG_DIR="${HOME}/.dolt-server/config"
-          mkdir -p "$DOLT_DATA_DIR" "$DOLT_CFG_DIR"
-
-          # Generate password if not provided
-          DOLT_PASS=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 16)
-
-          echo -e "  Starting Dolt SQL server via Docker..."
-          docker run -d \
-            --name beads-dolt-server \
-            --restart unless-stopped \
-            -e DOLT_ROOT_HOST='%' \
-            -e DOLT_ROOT_PASSWORD="$DOLT_PASS" \
-            -p 3307:3306 \
-            -v "$DOLT_DATA_DIR":/var/lib/dolt \
-            -v "$DOLT_CFG_DIR":/etc/dolt/servercfg.d \
-            dolthub/dolt-sql-server:latest \
-            2>/dev/null
-
-          if [[ $? -eq 0 ]]; then
-            echo -e "${GREEN}  ✓${NC} Dolt server running in Docker (port 3307)"
-            echo -e "  Data persisted at: ${YELLOW}${DOLT_DATA_DIR}${NC}"
-            DOLT_FOUND=true
-
-            # Write server config into quality-config.json
-            python3 -c "
-import json
-path = '$AGENT_PROCESS_DIR/quality-config.json'
-try:
-    cfg = json.load(open(path))
-    cfg.setdefault('beads', {})['server'] = {
-        'host': '127.0.0.1',
-        'port': 3307,
-        'user': 'root'
-    }
-    json.dump(cfg, open(path, 'w'), indent=2)
-except:
-    pass
-" 2>/dev/null
-
-            # Save credentials to ~/.claude/.beads-credentials
-            mkdir -p "${HOME}/.claude"
-            python3 -c "
-import configparser, os
-path = os.path.expanduser('~/.claude/.beads-credentials')
-cp = configparser.ConfigParser()
-if os.path.exists(path):
-    cp.read(path)
-section = '127.0.0.1:3307'
-if not cp.has_section(section):
-    cp.add_section(section)
-cp.set(section, 'password', '$DOLT_PASS')
-with open(path, 'w') as f:
-    cp.write(f)
-os.chmod(path, 0o600)
-" 2>/dev/null
-            echo -e "${GREEN}  ✓${NC} Credentials saved to ~/.claude/.beads-credentials"
-          else
-            echo -e "${YELLOW}  ⊙${NC} Docker failed to start Dolt. Continuing without BEADS."
-            BEADS_SKIPPED=true
-          fi
-        fi
-      elif [[ "$REPLY" == "2" ]]; then
-        echo ""
-        echo -e "${YELLOW}  Installation paused.${NC} Install Dolt, then re-run:"
-        echo -e "    ${GREEN}brew install dolt && $0${NC}"
-        echo -e "  Or use Docker:"
-        echo -e "    ${GREEN}deploy/beads-server/dolt-docker.sh && $0${NC}"
-        exit 0
-      else
-        # Continue without BEADS — mark as disabled
-        python3 -c "
-import json
-path = '$AGENT_PROCESS_DIR/quality-config.json'
-try:
-    cfg = json.load(open(path))
-    cfg.setdefault('beads', {})['enabled'] = False
-    cfg['beads']['auto_install'] = False
-    cfg['beads']['_user_configured'] = True
-    json.dump(cfg, open(path, 'w'), indent=2)
-except:
-    pass
-" 2>/dev/null
-        echo -e "${GREEN}  ✓${NC} Continuing without BEADS (file-based state will be used)"
-        echo -e "  Re-run install.sh after installing Dolt to enable BEADS"
-        # Skip the rest of BEADS setup
-        BEADS_SKIPPED=true
-      fi
-    fi
-    if [[ "${BEADS_SKIPPED:-}" != "true" ]]; then
-      if [[ "$BD_FOUND" == false ]]; then
-        BEADS_INSTALLED=false
-        if command -v npm &>/dev/null && npm install -g @beads/bd 2>/dev/null; then
-          BEADS_INSTALLED=true
-          echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via npm"
-        elif command -v brew &>/dev/null && brew install beads 2>/dev/null; then
-          BEADS_INSTALLED=true
-          echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via Homebrew"
-        elif command -v curl &>/dev/null && curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash 2>/dev/null; then
-          BEADS_INSTALLED=true
-          echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via installer script"
-        fi
-        if [[ "$BEADS_INSTALLED" == false ]]; then
-          echo -e "${YELLOW}  ⊙${NC} BEADS CLI installation failed — enabled in config, install bd manually"
-        fi
-      else
-        echo -e "${GREEN}  ✓${NC} BEADS CLI already available"
-      fi
-
-      # Update quality-config.json
-      python3 -c "
-import json
-path = '$AGENT_PROCESS_DIR/quality-config.json'
-try:
-    cfg = json.load(open(path))
-    cfg.setdefault('beads', {})['enabled'] = True
-    cfg['beads']['auto_install'] = True
-    cfg['beads']['_user_configured'] = True
-    json.dump(cfg, open(path, 'w'), indent=2)
-except:
-    pass
-" 2>/dev/null
-      echo -e "${GREEN}  ✓${NC} BEADS enabled in quality-config.json"
-    fi
-  else
-    # User said no
-    python3 -c "
-import json
-path = '$AGENT_PROCESS_DIR/quality-config.json'
-try:
-    cfg = json.load(open(path))
-    cfg.setdefault('beads', {})['enabled'] = False
-    cfg['beads']['auto_install'] = False
-    cfg['beads']['_user_configured'] = True
-    json.dump(cfg, open(path, 'w'), indent=2)
-except:
-    pass
-" 2>/dev/null
-    echo -e "${GREEN}  ✓${NC} BEADS disabled in quality-config.json (file-based state will be used)"
+  elif [[ "$DOLT_AVAILABLE" == true ]]; then
+    echo -e "${GREEN}  ✓${NC} BEADS ready (Dolt + bd available)"
   fi
 fi
+
 
 # Initialize BEADS database if bd is available, enabled, and .beads/ doesn't exist.
 # Works with both local Dolt (command -v dolt) and remote/Docker Dolt (beads.server in config).
@@ -553,6 +421,20 @@ if cp.has_section(key) and cp.has_option(key, 'password'):
     fi
   fi
 fi
+
+# ─── Metaswarm Setup (if enabled) ─────────────────────────────────────
+if [[ "$FEAT_METASWARM" == "yes" ]]; then
+  echo ""
+  echo -e "${BLUE}▸${NC} Metaswarm integration..."
+  if ls ~/.claude/commands/brainstorm.md &>/dev/null 2>&1 || ls .claude/commands/brainstorm.md &>/dev/null 2>&1; then
+    echo -e "${GREEN}  ✓${NC} Metaswarm commands detected"
+  else
+    echo -e "${YELLOW}  ⊙${NC} Metaswarm not yet installed"
+    echo -e "  Install with: ${GREEN}claude plugin install metaswarm${NC}"
+    echo -e "  Or: ${GREEN}claude plugin marketplace add dsifry/metaswarm-marketplace${NC}"
+  fi
+fi
+
 
 # Install .claude/commands/ (Claude Code command scripts)
 echo ""
@@ -641,10 +523,20 @@ echo -e "${BLUE}▸${NC} Installing scripts..."
 cp -r "$SOURCE_DIR"/scripts/* "$AGENT_PROCESS_DIR/scripts/"
 echo -e "${GREEN}  ✓${NC} Installed $(find "$SOURCE_DIR/scripts" -type f | wc -l | tr -d ' ') script files"
 
+# Install contract validators (used by evaluate-scope.sh)
+if [[ -d "$SOURCE_DIR/test/contract" ]]; then
+  for validator in "$SOURCE_DIR"/test/contract/validate-*.sh; do
+    if [[ -f "$validator" ]]; then
+      cp "$validator" "$AGENT_PROCESS_DIR/scripts/"
+    fi
+  done
+  echo -e "${GREEN}  ✓${NC} Installed contract validators"
+fi
+
 # Make hook scripts executable
 chmod +x "$AGENT_PROCESS_DIR/scripts"/*.sh 2>/dev/null || true
 chmod +x "$AGENT_PROCESS_DIR/scripts/after_edit"/*.sh 2>/dev/null || true
-echo -e "${GREEN}  ✓${NC} Made hook scripts executable"
+echo -e "${GREEN}  ✓${NC} Made scripts executable"
 
 # Install templates
 echo ""

@@ -2,6 +2,14 @@
   "_comment": "Quality gate configuration for the AI Agent Process. See process/quality-configuration.md for schema reference.",
   "_version": "1.0",
 
+  "pre_flight": {
+    "enabled": true,
+    "session_recovery": true,
+    "working_tree_check": true,
+    "branch_check": true,
+    "git_context": true
+  },
+
   "knowledge_base": {
     "enabled": true,
     "query_during_planning": true,
@@ -38,5 +46,16 @@
 
   "pr_shepherd": {
     "enabled": true
+  },
+
+  "metaswarm": {
+    "enabled": false,
+    "features": {
+      "brainstorm": true,
+      "design_review": true,
+      "prime": true,
+      "pr_shepherd": true,
+      "self_reflect": true
+    }
   }
 }

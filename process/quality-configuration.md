@@ -12,6 +12,18 @@ If the file doesn't exist, all features use their built-in defaults (equivalent 
 
 ## Schema
 
+### `pre_flight`
+
+Controls pre-flight checks before implementation begins (Phase 2).
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | boolean | `true` | Master switch. When `false`, Step 0.7 is skipped entirely. |
+| `session_recovery` | boolean | `true` | Detect interrupted work from previous runs and warn before overwriting. |
+| `working_tree_check` | boolean | `true` | Check for uncommitted changes in files that overlap with the scope. |
+| `branch_check` | boolean | `true` | Verify correct scope branch, auto-checkout if needed, warn if behind remote. |
+| `git_context` | boolean | `true` | Load recent git history for files in scope to give the implementation agent awareness of recent changes. |
+
 ### `knowledge_base`
 
 Controls the JSONL knowledge base system (Phase 1).
@@ -95,6 +107,25 @@ Controls the PR shepherd agent (Phase 2).
 |-------|------|---------|-------------|
 | `enabled` | boolean | `true` | Master switch. When `false`, `--shepherd` flag is ignored. |
 
+### `metaswarm`
+
+Controls optional metaswarm integration for brainstorming, design review, and more.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | boolean | `false` | Master switch. **Disabled by default** — opt-in only. |
+| `_user_configured` | boolean | `false` | Set by `install.sh` after user makes a choice. Prevents re-prompting on reinstall. |
+| `features` | object | — | Per-feature toggles (all default `true` when master is enabled). |
+| `features.brainstorm` | boolean | `true` | Enable brainstorm workflow in `/ap_requirements`. |
+| `features.design_review` | boolean | `true` | Offer design review after brainstorm/import. |
+| `features.prime` | boolean | `true` | Enable knowledge priming in `/ap_exec` (Phase 2 — not yet implemented). |
+| `features.pr_shepherd` | boolean | `true` | Enable metaswarm PR shepherd in `/ap_release` (Phase 3 — not yet implemented). |
+| `features.self_reflect` | boolean | `true` | Enable self-reflection after APPROVE (Phase 3 — not yet implemented). |
+
+**Detection:** When `enabled` is `true`, AP commands also verify metaswarm is installed (checks for `~/.claude/commands/brainstorm.md`). If enabled but not installed, commands warn once and continue without metaswarm features.
+
+**See:** `process/metaswarm-integration.md` for full integration reference.
+
 ---
 
 ## How Features Check the Config
@@ -152,6 +183,7 @@ Or in prompt instructions, the agent reads the file and checks the relevant sect
 
 | Component | Checks |
 |-----------|--------|
+| `ap_exec` Step 0.7 | `pre_flight.enabled` and individual check flags |
 | `ap_exec` Step 1.25 | `work_unit_decomposition.enabled` and thresholds |
 | `ap_exec` Step 2.5 | `knowledge_base.enabled` and `query_during_planning` |
 | `ap_exec` Step 4.5 | `adversarial_review.enabled` and `skip_for_trivial` |
@@ -161,4 +193,7 @@ Or in prompt instructions, the agent reads the file and checks the relevant sect
 | `02_review_iteration_instructions.md` Step 9.5 | `knowledge_base.deposit_on_approve` |
 | `02_review_iteration_instructions.md` Step 9.6 | `knowledge_base.deposit_on_block_pivot` |
 | `ap_release` Step 9.5 | `pr_shepherd.enabled` |
+| `ap_requirements` brainstorm | `metaswarm.enabled` and `metaswarm.features.brainstorm` |
+| `ap_requirements` add | `metaswarm.enabled` (offers brainstorm option) |
+| `ap_requirements` import | `metaswarm.enabled` and `metaswarm.features.design_review` |
 | `install.sh` | Creates the file with defaults; preserves on reinstall |
