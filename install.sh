@@ -429,9 +429,14 @@ if [[ "$FEAT_METASWARM" == "yes" ]]; then
   if ls ~/.claude/commands/brainstorm.md &>/dev/null 2>&1 || ls .claude/commands/brainstorm.md &>/dev/null 2>&1; then
     echo -e "${GREEN}  ✓${NC} Metaswarm commands detected"
   else
-    echo -e "${YELLOW}  ⊙${NC} Metaswarm not yet installed"
-    echo -e "  Install with: ${GREEN}claude plugin install metaswarm${NC}"
-    echo -e "  Or: ${GREEN}claude plugin marketplace add dsifry/metaswarm-marketplace${NC}"
+    echo -e "  Installing metaswarm..."
+    if command -v claude &>/dev/null && claude plugin install metaswarm 2>/dev/null; then
+      echo -e "${GREEN}  ✓${NC} Metaswarm installed"
+    else
+      echo -e "${YELLOW}  ⊙${NC} Auto-install failed. Install manually:"
+      echo -e "    ${GREEN}claude plugin install metaswarm${NC}"
+      echo -e "    Or: ${GREEN}claude plugin marketplace add dsifry/metaswarm-marketplace${NC}"
+    fi
   fi
 fi
 
