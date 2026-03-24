@@ -8,23 +8,37 @@ The install script copies command files to `.claude/commands/` in your project. 
 
 ## Available Commands
 
+### Requirements & Ideation
+
+- **ap_brainstorm.md** – `/ap_brainstorm "idea"` – Multi-agent brainstorm that transforms a vague idea into a formal requirement.
+
+  Spawns 3 parallel agents (Product, Architecture, Critical) to explore the idea, synthesizes output, optionally runs design review, and creates a requirement document.
+
+- **ap_requirements.md** – `/ap_requirements <action> [details]` – Create, import, and list requirements.
+
+  **Actions:**
+  - `add "name"` – Create new requirement (offers brainstorm if metaswarm enabled)
+  - `import "path" [--supersedes old_id]` – Import existing file as requirement
+  - `brainstorm "idea"` – Redirects to `/ap_brainstorm`
+  - `list [category]` – Show all requirements with status
+
 ### Project Management
 
-- **ap_project.md** – `/ap_project <action> [details]` – Manages roadmap, requirements, and backlog.
+- **ap_project.md** – `/ap_project <action> [details]` – Manages roadmap, backlog, and project status.
 
   **Actions:**
   - `init` – Initialize roadmap infrastructure
   - `discover` – Scan project and build/update roadmap
   - `status` – Show current project status summary
   - `add-todo "description"` – Add item to backlog
-  - `add-requirement "name"` – Create new requirement from template
-  - `import-requirement "path"` – Import existing file as requirement
   - `set-status "req_id status reason"` – Manually set requirement status
   - `archive "req_id type reason"` – Archive a requirement
   - `archive-completed` – Bulk archive all approved work scopes
   - `sync` – Reconcile roadmap with actual work/ status
   - `report [type]` – Generate stakeholder report (executive/detailed/weekly)
   - `help` – Show detailed help
+
+  **Deprecated:** `add-requirement` and `import-requirement` have moved to `/ap_requirements`.
 
 ### Iteration Workflow
 
@@ -84,23 +98,24 @@ The install script copies command files to `.claude/commands/` in your project. 
 │                      TYPICAL WORKFLOW                           │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  /ap_project init         # One-time: set up roadmap           │
-│  /ap_project discover     # Optional: scan existing project    │
+│  /ap_project init            # One-time: set up roadmap        │
+│  /ap_project discover        # Optional: scan existing project │
 │                                                                 │
-│  /ap_project add-requirement "feature_name"                     │
-│                           # Create new requirement              │
+│  /ap_brainstorm "idea"       # Brainstorm → requirement        │
+│    — or —                                                       │
+│  /ap_requirements add "name" # Direct requirement creation     │
 │                                                                 │
-│  [Plan scope with orchestration/01_plan_scope_prompt.md]        │
+│  [Plan scope — orchestration/01_plan_scope_prompt.md]          │
 │                                                                 │
-│  /ap_exec feature_name iteration_01                             │
-│                           # Execute implementation              │
+│  /ap_exec feature iteration_01   # Execute implementation      │
 │                                                                 │
-│  [Review with orchestration/02_review_iteration_prompt.md]      │
+│  [Review — orchestration/02_review_iteration_prompt.md]        │
 │                                                                 │
-│  /ap_release pr           # Create PR with changelog            │
+│  bash .agent_process/scripts/evaluate-scope.sh ...  # Validate │
 │                                                                 │
-│  /ap_project archive-completed                                  │
-│                           # Clean up approved work              │
+│  /ap_release pr              # Create PR with changelog        │
+│                                                                 │
+│  /ap_project archive-completed   # Clean up approved work      │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
