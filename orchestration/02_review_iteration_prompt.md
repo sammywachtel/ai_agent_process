@@ -88,11 +88,17 @@ Use the decision templates from `02_review_iteration_instructions.md`.
 **After providing your decision, ask the human:**
 
 - **If ITERATE:** "Should I proceed to create iteration_01_a folder and update iteration_plan.md?"
-- **If APPROVE:** "Should I mark the scope approved and update iteration_plan.md and the requirement doc status?"
+- **If APPROVE:** "Should I mark the scope approved, update iteration_plan.md, the requirement doc status, and close the BEADS epic?"
 - **If BLOCK:** "This requires human decision - no further action from me."
 - **If PIVOT:** "Should I update iteration_plan.md with the proposed scope change (requires your approval first)?"
 
 ⏸️ **STOP and wait for human response before executing Steps 7-8.**
+
+**After human confirms, execute ALL post-decision steps** including BEADS lifecycle:
+- **APPROVE:** `bash .agent_process/scripts/beads-lifecycle.sh close {scope} approved`
+- **BLOCK:** `bash .agent_process/scripts/beads-lifecycle.sh close {scope} blocked`
+- **PIVOT:** Do NOT close the BEADS epic — the scope continues under a new major iteration
+- **ITERATE:** Do NOT close the BEADS epic — sub-iteration continues the same scope
 
 ---
 
