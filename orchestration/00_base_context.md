@@ -54,7 +54,7 @@
 - Load `02_review_iteration_instructions.md`
 - Read original `iteration_plan.md` (frozen criteria)
 - **Adversarial review (platform-adaptive):** Check for `adversarial-review.md` in the iteration folder — the implementation agent runs this via a fresh Task agent. If it exists, factor the verdict into your decision. If it doesn't exist and you have Task capability, run it yourself. If neither, perform a rubric-based self-review (see Step 3.7)
-- Evaluate against ORIGINAL criteria (no new requirements)
+- Evaluate against the frozen criteria **for this major iteration** (after PIVOT, use the revised criteria — not the original v1)
 - **Choose exactly one:** APPROVE / ITERATE / BLOCK / PIVOT
 
 ### 4. Converge (Forced)
@@ -140,7 +140,9 @@ After iteration_01_c:
 - Prevents scope creep
 
 ### During Review
-- Evaluate against ORIGINAL criteria only
+- Evaluate against the frozen criteria **for this major iteration**
+- After a PIVOT, the acceptance criteria section was updated — use the current version, not v1
+- Check `## Criteria History` in iteration_plan.md to confirm which version applies
 - Ignore new issues for this iteration's approval
 - Document new issues for backlog
 
@@ -223,7 +225,7 @@ npm test -- --testPathPattern="ScopeTests"
 ### For Reviewing Iteration
 1. Load `02_review_iteration_instructions.md`
 2. Read `iteration_plan.md` (original criteria)
-3. Review results against ORIGINAL criteria (if decomposed, review all units together — not per-unit)
+3. Review results against the frozen criteria for this major iteration (after PIVOT, use revised criteria; if decomposed, review all units together — not per-unit)
 4. Choose: APPROVE / ITERATE / BLOCK / PIVOT
 5. Deposit knowledge (Step 9.5 on APPROVE, Step 9.6 on BLOCK/PIVOT)
 6. Enforce iteration budget (max 3 sub-iterations)

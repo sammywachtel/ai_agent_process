@@ -62,14 +62,26 @@ This checks breadcrumb evidence — not agent claims — to confirm:
 
 ---
 
-### Step 2: Evaluate Against ORIGINAL Criteria
+### Step 2: Evaluate Against the Correct Frozen Criteria
 
-**Compare results to LOCKED acceptance criteria in iteration_plan.md**
+**Compare results to the LOCKED acceptance criteria for THIS major iteration in iteration_plan.md**
+
+**CRITICAL — which criteria to use:**
+After a PIVOT, the acceptance criteria section in `iteration_plan.md` is updated with revised criteria for the new major iteration. The `## Criteria History` section at the bottom records all versions. Always evaluate against the **current** `## Acceptance Criteria` section — that is the frozen set for this major iteration.
+
+| Reviewing... | Evaluate against... |
+|-------------|-------------------|
+| `iteration_01` or `iteration_01_a/b/c` | v1 criteria (original) |
+| `iteration_02` or `iteration_02_a/b/c` (after PIVOT) | **v2 criteria** (revised after PIVOT) |
+| `iteration_03` or `iteration_03_a/b/c` (after second PIVOT) | **v3 criteria** |
+
+"Frozen" means the criteria don't change **within** a major iteration (no mid-flight scope creep). But each PIVOT creates a new major iteration with new frozen criteria. Do NOT re-litigate a previous PIVOT by evaluating a later iteration against earlier criteria.
 
 **CRITICAL RULES:**
-- ✅ Evaluate against ORIGINAL criteria only
+- ✅ Evaluate against the frozen criteria for THIS major iteration
 - ❌ Do NOT add new criteria discovered during iteration
 - ❌ Do NOT expand scope based on new findings
+- ❌ Do NOT evaluate post-PIVOT iterations against pre-PIVOT criteria
 - ✅ New issues go to backlog for future scopes
 
 **Example:**
