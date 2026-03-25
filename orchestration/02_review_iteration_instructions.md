@@ -787,6 +787,7 @@ Create <next_iteration>/ folder and hand back to implementation session
 3. Do NOT create follow-up iteration
 4. Document blocker clearly
 5. Close the BEADS epic: `bash .agent_process/scripts/beads-lifecycle.sh close {scope} blocked`
+6. **Deposit process knowledge (Step 9.6)** — if this BLOCK reveals a systemic pattern (e.g., agents consistently fail a category of criterion), deposit to knowledge base. This is especially important for exhausted-budget BLOCKs — four failed iterations means something is worth recording.
 
 **Output template:**
 ```markdown
@@ -839,6 +840,7 @@ Escalate to human for go/no-go decision
 4. **Get human approval** before updating plan
 5. Update iteration_plan.md only with human consent
 6. Do NOT close the BEADS epic — the scope continues with revised criteria under a new major iteration
+7. **Deposit process knowledge (Step 9.6)** — if the pivot reveals a systemic pattern, deposit to knowledge base
 
 **Output template:**
 ```markdown
