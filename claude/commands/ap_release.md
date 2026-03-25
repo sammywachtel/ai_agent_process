@@ -838,16 +838,15 @@ EOF
 
 ---
 
-### Step 9.5: PR Shepherd (OPTIONAL)
-
-**This step is OPTIONAL** — activate with `--shepherd` flag or when the user requests PR monitoring.
+### Step 9.5: PR Shepherd
 
 After PR creation, the shepherd monitors the PR through CI and review until it's merge-ready.
 
-**Check if shepherd was requested:**
-- User passed `--shepherd` flag in the command
-- Or user explicitly asked for PR monitoring
-- If neither, skip to Step 9.6
+**Check if shepherd should run:**
+1. Read `quality-config.json` → `pr_shepherd.enabled`
+2. If `true` → run the shepherd automatically (no flag needed)
+3. If `false` → only run if user explicitly passed `--shepherd` flag
+4. User can also pass `--no-shepherd` to skip even when enabled in config
 
 **Launch the shepherd:**
 
