@@ -109,17 +109,32 @@ except:
 " 2>/dev/null)" || true
 
 # Load password from credentials file
-# In Docker, also check for host.docker.internal key in addition to the original host
+# Only try the project's configured host + its Docker-rewritten equivalent.
+# This prevents cross-project credential leakage (e.g., work vs personal Dolt).
 CREDS_FILE="${HOME}/.claude/.beads-credentials"
 if [[ -f "$CREDS_FILE" && -n "${BEADS_DOLT_SERVER_HOST:-}" ]]; then
+  # Read the ORIGINAL host from quality-config (before Docker rewriting)
+  ORIG_HOST=$(python3 -c "
+import json
+try:
+    cfg = json.load(open('$CONFIG_FILE'))
+    print(cfg.get('beads', {}).get('server', {}).get('host', ''))
+except:
+    print('')
+" 2>/dev/null)
+
   BPASS=$(python3 -c "
 import configparser, os
 cp = configparser.ConfigParser()
 cp.read(os.path.expanduser('~/.claude/.beads-credentials'))
-host = '${BEADS_DOLT_SERVER_HOST}'
+active_host = '${BEADS_DOLT_SERVER_HOST}'
+orig_host = '${ORIG_HOST}'
 port = '${BEADS_DOLT_SERVER_PORT:-3307}'
-# Try the exact key first, then fallback keys for Docker host rewriting
-for key in [f'{host}:{port}', f'127.0.0.1:{port}', f'host.docker.internal:{port}', f'localhost:{port}']:
+# Try active host (may be Docker-rewritten), then original config host
+candidates = [f'{active_host}:{port}']
+if orig_host and orig_host != active_host:
+    candidates.append(f'{orig_host}:{port}')
+for key in candidates:
     if cp.has_section(key) and cp.has_option(key, 'password'):
         print(cp.get(key, 'password'))
         break
