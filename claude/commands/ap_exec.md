@@ -66,11 +66,13 @@ You are the implementation agent executing a planned iteration. Your job: read t
 
 ## Step 0.5: BEADS State Tracking
 
-**Run this command immediately — it handles all BEADS setup, config, and credentials internally:**
+**Run this command EVERY iteration — including sub-iterations (iteration_01_a, _b, _c). Not just iteration_01. The orchestrator checks for breadcrumbs and will flag missing ones.**
 
 ```bash
 BEADS_ITERATION={iteration} bash .agent_process/scripts/beads-lifecycle.sh start {scope}
 ```
+
+**Replace `{iteration}` with the ACTUAL iteration name** (e.g., `iteration_01_a`, not the literal string `{iteration}`). The breadcrumb file is written to `.agent_process/work/{scope}/{iteration}/.beads-state` — if `{iteration}` isn't substituted, the breadcrumb lands in the wrong directory and the orchestrator will report it missing.
 
 This single command:
 - Checks `quality-config.json` — exits silently (exit 0) if BEADS is disabled
