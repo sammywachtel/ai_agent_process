@@ -22,6 +22,74 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Ensure ~/.claude/.beads-credentials exists with header template
+ensure_beads_credentials() {
+  local creds_file="${HOME}/.claude/.beads-credentials"
+  mkdir -p "${HOME}/.claude"
+  if [[ ! -f "$creds_file" ]]; then
+    cat > "$creds_file" << 'CREDS_TEMPLATE'
+# BEADS Dolt Server Credentials
+#
+# Each section is [host:port] matching the beads.server config in a project's
+# quality-config.json. Projects only read the section matching their configured host.
+#
+# In Docker containers, 127.0.0.1/localhost are rewritten to host.docker.internal
+# automatically — the script checks both the rewritten and original keys.
+#
+# To add a new server:
+#   [hostname:port]
+#   password = your_password_here
+#
+# Examples:
+#   [127.0.0.1:3307]          — local Dolt (personal projects)
+#   [beads.company.com:3307]  — shared team server (work projects)
+#   [10.0.1.50:3307]          — office network server
+#
+# This file is chmod 600. Do not commit it to any repo.
+CREDS_TEMPLATE
+    chmod 600 "$creds_file"
+  fi
+}
+
+# Save a password to .beads-credentials (idempotent, preserves header + existing entries)
+save_beads_credential() {
+  local host="$1" port="$2" password="$3"
+  ensure_beads_credentials
+  python3 -c "
+import os, re
+
+path = os.path.expanduser('~/.claude/.beads-credentials')
+content = open(path).read() if os.path.exists(path) else ''
+
+# Preserve comment header (everything before first [section])
+header = ''
+body = content
+first_section = re.search(r'^\[', content, re.MULTILINE)
+if first_section:
+    header = content[:first_section.start()]
+    body = content[first_section.start():]
+elif content.startswith('#'):
+    header = content
+    body = ''
+
+# Parse sections from body
+import configparser, io
+cp = configparser.ConfigParser()
+cp.read_string(body)
+
+section = '${host}:${port}'
+if not cp.has_section(section):
+    cp.add_section(section)
+cp.set(section, 'password', '${password}')
+
+# Write header + sections
+with open(path, 'w') as f:
+    f.write(header)
+    cp.write(f)
+os.chmod(path, 0o600)
+" 2>/dev/null
+}
+
 # Determine source directory (where this script lives)
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -308,21 +376,7 @@ try:
 except:
     pass
 " 2>/dev/null
-          mkdir -p "${HOME}/.claude"
-          python3 -c "
-import configparser, os
-path = os.path.expanduser('~/.claude/.beads-credentials')
-cp = configparser.ConfigParser()
-if os.path.exists(path):
-    cp.read(path)
-section = '127.0.0.1:3307'
-if not cp.has_section(section):
-    cp.add_section(section)
-cp.set(section, 'password', '$DOLT_PASS')
-with open(path, 'w') as f:
-    cp.write(f)
-os.chmod(path, 0o600)
-" 2>/dev/null
+          save_beads_credential "127.0.0.1" "3307" "$DOLT_PASS"
           echo -e "${GREEN}  ✓${NC} Credentials saved to ~/.claude/.beads-credentials"
         else
           echo -e "${YELLOW}  ⊙${NC} Docker failed. Continuing without BEADS."
