@@ -73,11 +73,18 @@ BEADS_ITERATION={iteration} bash .agent_process/scripts/beads-lifecycle.sh start
 ```
 
 This single command:
-- Checks `quality-config.json` — exits silently if BEADS is disabled
-- Loads server config and credentials (including Docker auto-detection)
+- Checks `quality-config.json` — exits silently (exit 0) if BEADS is disabled
+- If `bd` not found and `beads.auto_install` is true — attempts to install it
+- Loads server config and credentials (including Docker auto-detection: 127.0.0.1 → host.docker.internal)
+- Runs `bd init` if `.beads/metadata.json` is missing
 - Creates the BEADS epic for this scope (or resumes an existing one)
 - Writes breadcrumbs to `.beads-state` so the orchestrator can verify this step ran
-- Exits 0 on any failure — never blocks the workflow
+
+**Exit codes:**
+- Exit 0 — BEADS disabled (skip silently) or all operations succeeded
+- Exit 1 — BEADS enabled but `bd` cannot be installed or critical setup failed
+
+**If this exits non-zero, STOP and tell the user:** "BEADS is enabled but failed to initialize. Either fix the issue or disable BEADS in `.agent_process/quality-config.json`."
 
 **You MUST run this before Step 1.** It's one command. Don't skip it.
 
