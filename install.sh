@@ -385,9 +385,10 @@ except:
 fi
 
 
-# Initialize BEADS database if bd is available, enabled, and .beads/ doesn't exist.
+# Initialize BEADS database if bd is available and enabled.
+# Check for metadata.json (not just .beads/) since knowledge migration creates .beads/knowledge/ early.
 # Works with both local Dolt (command -v dolt) and remote/Docker Dolt (beads.server in config).
-if command -v bd &>/dev/null && [[ ! -d "${TARGET_DIR}/.beads" ]]; then
+if command -v bd &>/dev/null && [[ ! -f "${TARGET_DIR}/.beads/metadata.json" ]]; then
   # Read config to check enabled + get server connection
   BEADS_INIT_INFO=$(python3 -c "
 import json
