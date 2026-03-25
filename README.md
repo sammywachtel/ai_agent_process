@@ -226,7 +226,8 @@ The complete lifecycle from idea to acceptance, with all optional features enabl
 │  │    │                                                             │ │
 │  │    🔀 PIVOT                                                       │ │
 │  │       Requires human approval, update criteria → new major       │ │
-│  │       iteration, BEADS epic stays open                           │ │
+│  │       iteration, BEADS epic stays open,                          │ │
+│  │       deposit process knowledge (0-2 observations)               │ │
 │  │       ◄── loops back to EXECUTION with v2 criteria               │ │
 │  │                                                                  │ │
 │  │  Step 10: Suggest artifact evaluation                            │ │
@@ -355,7 +356,8 @@ knowledge/
 ```
 
 - **Planning phase** queries the knowledge base for entries matching the scope
-- **APPROVE decisions** deposit 0-3 learnings back into the knowledge base
+- **APPROVE decisions** deposit 0-3 code learnings (patterns, gotchas, decisions)
+- **BLOCK/PIVOT decisions** deposit 0-2 process observations (agent behavior, scope structure issues)
 - Starts empty, grows organically — no manual population needed
 - Entries are JSONL (one JSON object per line) for easy grep/search
 

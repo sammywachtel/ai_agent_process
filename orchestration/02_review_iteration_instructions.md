@@ -1265,7 +1265,8 @@ Or:
 - [ ] If BLOCK: Documented blocker clearly
 - [ ] If PIVOT: Will get human approval before updating plan
 - [ ] If APPROVE/BLOCK: Updated requirement source doc frontmatter/status note to terminal review state
-- [ ] If APPROVE: Deposited 0-3 knowledge entries (Step 9.5)
+- [ ] If APPROVE: Deposited 0-3 code learnings (Step 9.5)
+- [ ] If BLOCK/PIVOT: Deposited 0-2 process observations if systemic pattern found (Step 9.6)
 
 ---
 

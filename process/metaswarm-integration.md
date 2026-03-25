@@ -56,7 +56,7 @@ Individual feature flags allow granular control even when the master switch is o
 | `/ap_requirements import` | Standard import | Offers design review after import |
 | `/ap_exec` | Pre-flight checks: session recovery, working tree, branch, git context (Step 0.7) | Same (metaswarm `/prime` inspired the design) |
 | `/ap_release` | Works as-is | `/pr-shepherd` monitors PR (Phase 3) |
-| Post-APPROVE | Manual knowledge deposit | `/self-reflect` extracts learnings (Phase 3) |
+| Post-decision | Knowledge deposit (APPROVE: code learnings, BLOCK/PIVOT: process observations) | `/self-reflect` extracts learnings (Phase 3) |
 
 **Key:** `/ap_brainstorm` always works — it uses built-in multi-agent brainstorming via the Agent tool. Metaswarm enhances it when available but is never required.
 

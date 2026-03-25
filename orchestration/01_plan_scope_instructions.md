@@ -247,7 +247,7 @@ KB_DIR=".beads/knowledge"
    *Keywords searched: auth, session, login*
    ```
 
-**If knowledge directory doesn't exist:** Skip this step. The knowledge base grows organically through APPROVE deposits.
+**If knowledge directory doesn't exist:** Skip this step. The knowledge base grows organically through APPROVE deposits (code learnings) and BLOCK/PIVOT deposits (process observations).
 
 **Reference:** See `process/knowledge-base.md` for the full knowledge base how-to guide.
 

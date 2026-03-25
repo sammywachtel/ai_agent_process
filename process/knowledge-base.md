@@ -157,7 +157,7 @@ Add matches to `## Known Patterns & Constraints`:
 **No matches found for:** [list keywords that returned nothing]
 ```
 
-If no entries exist (common early on), note it — the knowledge base grows with each APPROVE.
+If no entries exist (common early on), note it — the knowledge base grows with each APPROVE (code learnings) and BLOCK/PIVOT (process observations).
 
 ---
 
