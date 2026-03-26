@@ -87,12 +87,20 @@ if ! command -v bd &>/dev/null; then
   fi
 fi
 
-# --- Load server config and credentials ---
+# --- Ensure bd init has been run ---
+# If .beads/metadata.json exists, bd already has native config (host/port/user
+# set via bd dolt set) and the bd wrapper at ~/.local/bin/bd handles credential
+# loading. No config parsing needed here.
+#
+# If metadata.json is MISSING, we need to run bd init. This requires loading
+# server config from quality-config.json and credentials from ~/.config/beads/credentials
+# since bd's native config doesn't exist yet.
 
-IN_DOCKER=false
-[[ -f "/.dockerenv" ]] && IN_DOCKER=true
+if [[ ! -f ".beads/metadata.json" ]]; then
+  echo "[beads] No .beads/metadata.json — running bd init..." >&2
 
-eval "$(python3 -c "
+  # Load server config from quality-config.json (only needed for init)
+  eval "$(python3 -c "
 import json, os
 try:
     cfg = json.load(open('$CONFIG_FILE'))
@@ -108,46 +116,36 @@ except:
     pass
 " 2>/dev/null)" || true
 
-# Load password from credentials file
-# Only try the project's configured host + its Docker-rewritten equivalent.
-# This prevents cross-project credential leakage (e.g., work vs personal Dolt).
-CREDS_FILE="${HOME}/.claude/.beads-credentials"
-if [[ -f "$CREDS_FILE" && -n "${BEADS_DOLT_SERVER_HOST:-}" ]]; then
-  # Read the ORIGINAL host from quality-config (before Docker rewriting)
-  ORIG_HOST=$(python3 -c "
-import json
-try:
-    cfg = json.load(open('$CONFIG_FILE'))
-    print(cfg.get('beads', {}).get('server', {}).get('host', ''))
-except:
-    print('')
-" 2>/dev/null)
-
-  BPASS=$(python3 -c "
-import configparser, os
-cp = configparser.ConfigParser()
-cp.read(os.path.expanduser('~/.claude/.beads-credentials'))
-active_host = '${BEADS_DOLT_SERVER_HOST}'
-orig_host = '${ORIG_HOST}'
-port = '${BEADS_DOLT_SERVER_PORT:-3307}'
-# Try active host (may be Docker-rewritten), then original config host
-candidates = [f'{active_host}:{port}']
-if orig_host and orig_host != active_host:
-    candidates.append(f'{orig_host}:{port}')
-for key in candidates:
-    if cp.has_section(key) and cp.has_option(key, 'password'):
-        print(cp.get(key, 'password'))
+  # Load password from credentials file (pure bash INI parsing)
+  CREDS_FILE="${BEADS_CREDENTIALS_FILE:-${HOME}/.config/beads/credentials}"
+  if [[ -f "$CREDS_FILE" && -n "${BEADS_DOLT_SERVER_HOST:-}" ]]; then
+    SERVER_KEY="${BEADS_DOLT_SERVER_HOST}:${BEADS_DOLT_SERVER_PORT:-3307}"
+    BPASS=""
+    in_section=false
+    while IFS= read -r line; do
+      line="${line%%#*}"
+      line="${line#"${line%%[![:space:]]*}"}"
+      line="${line%"${line##*[![:space:]]}"}"
+      [[ -z "$line" ]] && continue
+      if [[ "$line" =~ ^\[(.+)\]$ ]]; then
+        [[ "${BASH_REMATCH[1]}" == "$SERVER_KEY" ]] && in_section=true || { $in_section && break; in_section=false; }
+        continue
+      fi
+      if $in_section && [[ "$line" =~ ^password[[:space:]]*=[[:space:]]*(.*) ]]; then
+        BPASS="${BASH_REMATCH[1]}"
         break
-" 2>/dev/null) || true
-  [[ -n "${BPASS:-}" ]] && export BEADS_DOLT_PASSWORD="$BPASS"
-fi
+      fi
+    done < "$CREDS_FILE"
+    [[ -n "$BPASS" ]] && export BEADS_DOLT_PASSWORD="$BPASS"
+  fi
 
-# --- Ensure bd init has been run ---
-
-if [[ ! -f ".beads/metadata.json" ]]; then
-  echo "[beads] No .beads/metadata.json — running bd init..." >&2
   if bd init 2>/dev/null; then
     echo "[beads] bd init completed" >&2
+    # Write server config to bd's native storage so future bd calls
+    # work without env vars. Mirrors what install.sh does.
+    [[ -n "${BEADS_DOLT_SERVER_HOST:-}" ]] && bd dolt set host "$BEADS_DOLT_SERVER_HOST" 2>/dev/null || true
+    [[ -n "${BEADS_DOLT_SERVER_PORT:-}" ]] && bd dolt set port "$BEADS_DOLT_SERVER_PORT" 2>/dev/null || true
+    [[ -n "${BEADS_DOLT_SERVER_USER:-}" ]] && bd dolt set user "$BEADS_DOLT_SERVER_USER" 2>/dev/null || true
   else
     echo "[beads] WARNING: bd init failed — BEADS tracking may not work" >&2
     # Don't exit — breadcrumb tracking still works even if bd init fails

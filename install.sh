@@ -22,10 +22,10 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Ensure ~/.claude/.beads-credentials exists with header template
+# Ensure ~/.config/beads/credentials exists with header template
 ensure_beads_credentials() {
-  local creds_file="${HOME}/.claude/.beads-credentials"
-  mkdir -p "${HOME}/.claude"
+  local creds_file="${HOME}/.config/beads/credentials"
+  mkdir -p "${HOME}/.config/beads"
   if [[ ! -f "$creds_file" ]]; then
     cat > "$creds_file" << 'CREDS_TEMPLATE'
 # BEADS Dolt Server Credentials
@@ -51,14 +51,14 @@ CREDS_TEMPLATE
   fi
 }
 
-# Save a password to .beads-credentials (idempotent, preserves header + existing entries)
+# Save a password to credentials file (idempotent, preserves header + existing entries)
 save_beads_credential() {
   local host="$1" port="$2" password="$3"
   ensure_beads_credentials
   python3 -c "
 import os, re
 
-path = os.path.expanduser('~/.claude/.beads-credentials')
+path = os.path.expanduser('~/.config/beads/credentials')
 content = open(path).read() if os.path.exists(path) else ''
 
 # Preserve comment header (everything before first [section])
@@ -377,7 +377,7 @@ except:
     pass
 " 2>/dev/null
           save_beads_credential "127.0.0.1" "3307" "$DOLT_PASS"
-          echo -e "${GREEN}  ✓${NC} Credentials saved to ~/.claude/.beads-credentials"
+          echo -e "${GREEN}  ✓${NC} Credentials saved to ~/.config/beads/credentials"
         else
           echo -e "${YELLOW}  ⊙${NC} Docker failed. Continuing without BEADS."
         fi
@@ -472,12 +472,12 @@ except:
     [[ -n "$BUSER" ]] && export BEADS_DOLT_SERVER_USER="$BUSER"
 
     # Load password from credentials file
-    CREDS_FILE="${HOME}/.claude/.beads-credentials"
+    CREDS_FILE="${HOME}/.config/beads/credentials"
     if [[ -f "$CREDS_FILE" && -n "$BHOST" ]]; then
       BPASS=$(python3 -c "
 import configparser, os
 cp = configparser.ConfigParser()
-cp.read(os.path.expanduser('~/.claude/.beads-credentials'))
+cp.read(os.path.expanduser('~/.config/beads/credentials'))
 key = '${BHOST}:${BPORT:-3307}'
 if cp.has_section(key) and cp.has_option(key, 'password'):
     print(cp.get(key, 'password'))
@@ -496,9 +496,23 @@ if cp.has_section(key) and cp.has_option(key, 'password'):
     fi
 
     if [[ "$DOLT_REACHABLE" == true ]]; then
-      (cd "$TARGET_DIR" && bd init 2>/dev/null) && \
-        echo -e "${GREEN}  ✓${NC} Initialized BEADS database (.beads/)" || \
+      if (cd "$TARGET_DIR" && bd init 2>/dev/null); then
+        echo -e "${GREEN}  ✓${NC} Initialized BEADS database (.beads/)"
+
+        # Write server config to bd's native storage so bd knows the connection
+        # without needing env vars or wrapper scripts at runtime.
+        if [[ -n "$BHOST" ]]; then
+          (cd "$TARGET_DIR" && bd dolt set host "$BHOST" 2>/dev/null) || true
+        fi
+        if [[ -n "${BPORT:-}" ]]; then
+          (cd "$TARGET_DIR" && bd dolt set port "$BPORT" 2>/dev/null) || true
+        fi
+        if [[ -n "${BUSER:-}" ]]; then
+          (cd "$TARGET_DIR" && bd dolt set user "$BUSER" 2>/dev/null) || true
+        fi
+      else
         echo -e "${YELLOW}  ⊙${NC} BEADS database initialization failed (will retry at runtime)"
+      fi
     fi
   fi
 fi
@@ -722,9 +736,10 @@ if [[ -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" ]]; then
     # New format with enabled config - update template
     echo -e "${YELLOW}  ⊙${NC} Updating template, preserving enabled config"
     cp "$SOURCE_DIR/process/ap_release_central_sync.md" "$AGENT_PROCESS_DIR/process/"
-    sed -i.bak "s|ENABLED:.*|ENABLED: true|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
-    sed -i.bak "s|CENTRAL_REPO_PATH:.*|CENTRAL_REPO_PATH: $EXISTING_CENTRAL_REPO_PATH|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
-    sed -i.bak "s|PROJECT_FOLDER:.*|PROJECT_FOLDER: $EXISTING_PROJECT_FOLDER|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    # Only replace the <PLACEHOLDER> tokens in the config block, not documentation examples
+    sed -i.bak "s|<ENABLED>|true|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<CENTRAL_REPO_PATH>|$EXISTING_CENTRAL_REPO_PATH|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<PROJECT_FOLDER>|$EXISTING_PROJECT_FOLDER|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
     rm -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md.bak"
     echo -e "${GREEN}  ✓${NC} Updated central sync config (enabled: $EXISTING_PROJECT_FOLDER)"
     EXISTING_ENABLED="true"  # Keep this set so we don't prompt below
@@ -732,9 +747,9 @@ if [[ -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" ]]; then
     # Already has disabled config - update template but keep disabled
     echo -e "${YELLOW}  ⊙${NC} Updating template, keeping disabled state"
     cp "$SOURCE_DIR/process/ap_release_central_sync.md" "$AGENT_PROCESS_DIR/process/"
-    sed -i.bak "s|ENABLED:.*|ENABLED: false|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
-    sed -i.bak "s|CENTRAL_REPO_PATH:.*|CENTRAL_REPO_PATH: <not_configured>|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
-    sed -i.bak "s|PROJECT_FOLDER:.*|PROJECT_FOLDER: <not_configured>|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<ENABLED>|false|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<CENTRAL_REPO_PATH>|<not_configured>|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<PROJECT_FOLDER>|<not_configured>|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
     rm -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md.bak"
     echo -e "${GREEN}  ✓${NC} Updated central sync config (disabled)"
     EXISTING_ENABLED="false"  # Set so we don't prompt below
@@ -772,42 +787,59 @@ if [[ -z "$EXISTING_ENABLED" ]]; then
     # Expand tilde in path (store as-is with tilde for portability)
     # Note: We keep the tilde in the config for portability across machines
 
-    # Copy template and substitute values - ENABLED: true
+    # Copy template and substitute placeholders only - ENABLED: true
     cp "$SOURCE_DIR/process/ap_release_central_sync.md" "$AGENT_PROCESS_DIR/process/"
-    sed -i.bak "s|ENABLED:.*|ENABLED: true|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
-    sed -i.bak "s|CENTRAL_REPO_PATH:.*|CENTRAL_REPO_PATH: $CENTRAL_REPO_PATH|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
-    sed -i.bak "s|PROJECT_FOLDER:.*|PROJECT_FOLDER: $PROJECT_FOLDER|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<ENABLED>|true|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<CENTRAL_REPO_PATH>|$CENTRAL_REPO_PATH|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<PROJECT_FOLDER>|$PROJECT_FOLDER|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
     rm -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md.bak"
 
     echo -e "${GREEN}  ✓${NC} Created central sync config (enabled)"
   else
-    # Copy template and set ENABLED: false - no path configuration needed
+    # Copy template and substitute placeholders - ENABLED: false
     cp "$SOURCE_DIR/process/ap_release_central_sync.md" "$AGENT_PROCESS_DIR/process/"
-    sed -i.bak "s|ENABLED:.*|ENABLED: false|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
-    sed -i.bak "s|CENTRAL_REPO_PATH:.*|CENTRAL_REPO_PATH: <not_configured>|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
-    sed -i.bak "s|PROJECT_FOLDER:.*|PROJECT_FOLDER: <not_configured>|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<ENABLED>|false|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<CENTRAL_REPO_PATH>|<not_configured>|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<PROJECT_FOLDER>|<not_configured>|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
     rm -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md.bak"
 
     echo -e "${GREEN}  ✓${NC} Created central sync config (disabled)"
   fi
 fi
 
-# Install bds wrapper (BEADS scoped CLI)
-if [[ -f "$SOURCE_DIR/bin/bds" ]]; then
-  # Install to ~/.local/bin (user-local, no sudo needed)
-  INSTALL_BIN="${HOME}/.local/bin"
-  mkdir -p "$INSTALL_BIN"
-  cp "$SOURCE_DIR/bin/bds" "$INSTALL_BIN/bds"
-  chmod +x "$INSTALL_BIN/bds"
-  if echo "$PATH" | grep -q "$INSTALL_BIN"; then
-    echo -e "${GREEN}  ✓${NC} Installed bds wrapper to $INSTALL_BIN/bds"
-  else
-    echo -e "${GREEN}  ✓${NC} Installed bds wrapper to $INSTALL_BIN/bds"
-    echo -e "${YELLOW}  Note:${NC} Add to PATH if not already: export PATH=\"$INSTALL_BIN:\$PATH\""
+# Installation complete
+# Ensure .gitignore excludes .run/ (ephemeral sub-agent scratch data)
+GITIGNORE_FILE="$AGENT_PROCESS_DIR/.gitignore"
+if [[ ! -f "$GITIGNORE_FILE" ]]; then
+  cat > "$GITIGNORE_FILE" << 'GITIGNORE'
+# Ephemeral sub-agent working data — recreated every run
+**/.run/
+
+# Session state — changes every ap_exec run
+work/current_iteration.conf
+work/current_work_unit.conf
+GITIGNORE
+  echo -e "${GREEN}  ✓${NC} Created .agent_process/.gitignore (.run/ excluded)"
+else
+  UPDATED=false
+  if ! grep -q '\.run' "$GITIGNORE_FILE"; then
+    echo "" >> "$GITIGNORE_FILE"
+    echo "# Ephemeral sub-agent working data — recreated every run" >> "$GITIGNORE_FILE"
+    echo "**/.run/" >> "$GITIGNORE_FILE"
+    UPDATED=true
+  fi
+  if ! grep -q 'current_iteration\.conf' "$GITIGNORE_FILE"; then
+    echo "" >> "$GITIGNORE_FILE"
+    echo "# Session state — changes every ap_exec run" >> "$GITIGNORE_FILE"
+    echo "work/current_iteration.conf" >> "$GITIGNORE_FILE"
+    echo "work/current_work_unit.conf" >> "$GITIGNORE_FILE"
+    UPDATED=true
+  fi
+  if [[ "$UPDATED" == true ]]; then
+    echo -e "${GREEN}  ✓${NC} Updated .agent_process/.gitignore"
   fi
 fi
 
-# Installation complete
 echo ""
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}  ✓ Installation Complete${NC}"
@@ -830,7 +862,7 @@ echo -e "     ${BLUE}/ap_exec${NC}, ${BLUE}/ap_iteration_results${NC}, ${BLUE}/a
 echo ""
 echo "  4. Create your first scope:"
 echo -e "     • Create ${GREEN}requirements_docs/my_feature_requirements.md${NC}"
-echo -e "     • Plan with ${BLUE}orchestration/01_plan_scope_prompt.md${NC}"
+echo -e "     • Plan with ${BLUE}orchestration/plan-scope.md${NC}"
 echo -e "     • Execute with ${BLUE}/ap_exec my_feature iteration_01${NC}"
 echo ""
 echo "  5. Set up scope-specific validation:"

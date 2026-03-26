@@ -35,14 +35,14 @@ Both additions are strictly additive. No existing AP workflows change; the orche
 1. Add `knowledge/` directory to `.agent_process/` with JSONL files: `patterns.jsonl`, `gotchas.jsonl`, `decisions.jsonl`, `anti-patterns.jsonl`
 2. Entries follow a consistent schema: `{"id": "...", "scope": "...", "summary": "...", "detail": "...", "source_iteration": "...", "date": "..."}`
 3. `install.sh` preserves `knowledge/` on reinstall (same treatment as `work/`)
-4. Add a "Knowledge Query" step to `01_plan_scope_instructions.md` — orchestrator queries knowledge base for entries matching the scope's category and file paths before creating `iteration_plan.md`
-5. Add a "Knowledge Deposit" step to `02_review_iteration_instructions.md` — on APPROVE, orchestrator extracts 0-3 learnings (patterns discovered, gotchas encountered, decisions made) and appends to knowledge base
+4. Add a "Knowledge Query" step to `orchestration/coordinators/plan-scope.md (coordinator) + orchestration/steps/planning/ (step files)` — orchestrator queries knowledge base for entries matching the scope's category and file paths before creating `iteration_plan.md`
+5. Add a "Knowledge Deposit" step to `orchestration/instructions/review-iteration.md` — on APPROVE, orchestrator extracts 0-3 learnings (patterns discovered, gotchas encountered, decisions made) and appends to knowledge base
 6. Add `## Known Patterns & Constraints` section to `templates/iteration-plan.md` for knowledge base findings
 7. Knowledge entries are append-only in normal operation; manual curation via direct file editing
 
 ### Adversarial Review
 
-8. Add adversarial review step to `02_review_iteration_instructions.md` — after implementation completes and before the orchestrator's 4-choice decision, spawn a fresh Task agent with no implementation context
+8. Add adversarial review step to `orchestration/instructions/review-iteration.md` — after implementation completes and before the orchestrator's 4-choice decision, spawn a fresh Task agent with no implementation context
 9. The fresh reviewer receives ONLY: the frozen acceptance criteria, the list of files changed (`git diff --name-only`), and the current file contents — NOT the results.md or implementation rationale
 10. The reviewer produces a structured verdict: PASS or FAIL per criterion, with file:line evidence for each assessment
 11. The orchestrator receives the adversarial review verdict as additional input alongside results.md and its own code reading
@@ -55,10 +55,10 @@ Both additions are strictly additive. No existing AP workflows change; the orche
 ## Success Criteria
 - [ ] `knowledge/` directory exists in `.agent_process/` with the four JSONL files (can be empty initially)
 - [ ] `install.sh` preserves `knowledge/` directory on reinstall
-- [ ] `01_plan_scope_instructions.md` includes knowledge query step with search instructions
+- [ ] `orchestration/coordinators/plan-scope.md (coordinator) + orchestration/steps/planning/ (step files)` includes knowledge query step with search instructions
 - [ ] `templates/iteration-plan.md` includes `## Known Patterns & Constraints` section
-- [ ] `02_review_iteration_instructions.md` includes adversarial review step (spawn fresh Task, receive structured verdict)
-- [ ] `02_review_iteration_instructions.md` includes knowledge deposit step on APPROVE
+- [ ] `orchestration/instructions/review-iteration.md` includes adversarial review step (spawn fresh Task, receive structured verdict)
+- [ ] `orchestration/instructions/review-iteration.md` includes knowledge deposit step on APPROVE
 - [ ] `templates/results.md` includes `## Adversarial Review` section for recording the verdict
 - [ ] Adversarial reviewer prompt template exists (specifies: frozen criteria only, file:line evidence required, binary PASS/FAIL per criterion, no access to results.md)
 - [ ] Developer documentation updated: README.md reflects new capabilities, process docs explain knowledge base and adversarial review
@@ -66,8 +66,8 @@ Both additions are strictly additive. No existing AP workflows change; the orche
 ---
 
 ## Files Expected to Change
-- `orchestration/01_plan_scope_instructions.md` (add knowledge query step)
-- `orchestration/02_review_iteration_instructions.md` (add adversarial review step + knowledge deposit)
+- `orchestration/coordinators/plan-scope.md (coordinator) + orchestration/steps/planning/ (step files)` (add knowledge query step)
+- `orchestration/instructions/review-iteration.md` (add adversarial review step + knowledge deposit)
 - `templates/iteration-plan.md` (add Known Patterns section)
 - `templates/results.md` (add Adversarial Review section)
 - `install.sh` (preserve knowledge/ directory on reinstall)
@@ -105,8 +105,8 @@ Both additions are strictly additive. No existing AP workflows change; the orche
 ## References
 - [metaswarm knowledge/ directory](https://github.com/dsifry/metaswarm) — JSONL schema and priming patterns
 - [metaswarm code-review-agent.md](https://github.com/dsifry/metaswarm/blob/main/agents/code-review-agent.md) — fresh reviewer pattern
-- `orchestration/01_plan_scope_instructions.md` — current planning instructions (will be modified)
-- `orchestration/02_review_iteration_instructions.md` — current review instructions (will be modified)
+- `orchestration/coordinators/plan-scope.md (coordinator) + orchestration/steps/planning/ (step files)` — current planning instructions (will be modified)
+- `orchestration/instructions/review-iteration.md` — current review instructions (will be modified)
 - `process/documentation-checklist.md` — documentation standards this scope must follow
 
 ---

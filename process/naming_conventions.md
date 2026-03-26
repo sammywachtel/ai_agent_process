@@ -163,7 +163,7 @@ priority: low | medium | high | critical
 
 **Breakdown files** use `type: breakdown` — these are parent files that were split into multiple
 smaller requirements. They preserve the original content for reference but are excluded from
-roadmap discovery. See `orchestration/01_plan_scope_instructions.md` § "Large Requirements File Breakdown".
+roadmap discovery. See `orchestration/coordinators/plan-scope.md (coordinator) + orchestration/steps/planning/ (step files)` § "Large Requirements File Breakdown".
 
 ### Optional Fields
 

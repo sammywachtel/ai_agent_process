@@ -81,7 +81,7 @@ Both patterns require changes to the implementation-side commands (`ap_exec.md`,
 - `claude/commands/ap_exec.md` (add decomposition step, per-unit execution, tracking)
 - `claude/commands/ap_release.md` (add --shepherd flag and PR lifecycle step)
 - `templates/results.md` (add Work Unit Summary section)
-- `orchestration/00_base_context.md` (mention work units in execution overview)
+- `orchestration/context/base-context.md` (mention work units in execution overview)
 - `README.md` (document new capabilities)
 
 **New files:**
@@ -148,8 +148,8 @@ The trigger condition for decomposition (3+ files across 2+ layers) should be tu
 - `claude/commands/ap_release.md` — Added `--shepherd` flag and Step 9.5 (PR shepherd)
 - `claude/commands/ap_iteration_results.md` — Added adversarial review verdict loading and results template section
 - `templates/results.md` — Added Work Unit Summary section and updated Adversarial Review section (now populated by impl agent)
-- `orchestration/00_base_context.md` — Added work unit mentions in Execute step and adversarial review in Review step
-- `orchestration/02_review_iteration_instructions.md` — Step 3.7 rewritten as platform-adaptive (Path A/B/C)
+- `orchestration/context/base-context.md` — Added work unit mentions in Execute step and adversarial review in Review step
+- `orchestration/instructions/review-iteration.md` — Step 3.7 rewritten as platform-adaptive (Path A/B/C)
 - `README.md` — Updated adversarial review, work unit, and PR shepherd documentation
 
 ### New Files

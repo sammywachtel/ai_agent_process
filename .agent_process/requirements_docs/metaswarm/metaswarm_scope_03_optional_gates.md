@@ -35,7 +35,7 @@ Both features are strictly optional. The framework must work identically without
 ### Design Review Gate
 
 1. Add optional `complexity` field to requirement frontmatter: `complexity: simple | moderate | complex` (default: omitted, treated as `moderate`)
-2. When `complexity: complex` is set, the orchestrator's planning phase (`01_plan_scope_instructions.md`) inserts a design review gate between plan creation and execution handoff
+2. When `complexity: complex` is set, the orchestrator's planning phase (`orchestration/coordinators/plan-scope.md (coordinator) + orchestration/steps/planning/ (step files)`) inserts a design review gate between plan creation and execution handoff
 3. The design review spawns 2-4 specialist reviewers in parallel, selected based on scope characteristics:
    - **Security-touching scopes** (auth, tokens, encryption, user data): Security Design Agent
    - **Multi-system scopes** (API + frontend + database): Architect Agent
@@ -109,7 +109,7 @@ Both features are strictly optional. The framework must work identically without
 ---
 
 ## Files Expected to Change
-- `orchestration/01_plan_scope_instructions.md` (add design review gate step, complexity detection)
+- `orchestration/coordinators/plan-scope.md (coordinator) + orchestration/steps/planning/ (step files)` (add design review gate step, complexity detection)
 - `claude/commands/ap_exec.md` (add BEADS detection and epic lifecycle)
 - `templates/iteration-plan.md` (add Design Review section)
 - `process/naming_conventions.md` or `process/roadmap_schema.md` (document complexity field)
@@ -152,7 +152,7 @@ Both features are strictly optional. The framework must work identically without
 - [BEADS CLI](https://github.com/dsifry/metaswarm) — git-native issue tracking for durable state
 - `metaswarm_scope_01_knowledge_review` — prerequisite (knowledge base feeds design reviewers)
 - `metaswarm_scope_02_execution_enhancement` — prerequisite (work unit decomposition feeds BEADS tracking)
-- `orchestration/01_plan_scope_instructions.md` — planning instructions (will be modified for design review gate)
+- `orchestration/coordinators/plan-scope.md (coordinator) + orchestration/steps/planning/ (step files)` — planning instructions (will be modified for design review gate)
 - `claude/commands/ap_exec.md` — execution flow (will be modified for BEADS lifecycle)
 
 ---
@@ -182,8 +182,8 @@ BEADS integration is the most speculative feature here. It's valuable for long-r
 ### Files Changed
 - `install.sh` — BEADS prompt (Y/n), auto-install (npm → brew → curl), quality-config.json creation/preservation
 - `claude/commands/ap_exec.md` — Quality config loading, BEADS Step 0.5 (detect/install/epic lifecycle), config checks on Steps 1.25 and 4.5
-- `orchestration/01_plan_scope_instructions.md` — Step 8.5 (design review gate, platform-adaptive)
-- `orchestration/02_review_iteration_instructions.md` — Config checks on Steps 3.7, 9.5, 9.6
+- `orchestration/coordinators/plan-scope.md (coordinator) + orchestration/steps/planning/ (step files)` — Step 8.5 (design review gate, platform-adaptive)
+- `orchestration/instructions/review-iteration.md` — Config checks on Steps 3.7, 9.5, 9.6
 - `templates/iteration-plan.md` — Design Review section
 - `process/naming_conventions.md` — `complexity` field in frontmatter schema
 - `README.md` — Design review gate, quality configuration, BEADS documentation

@@ -7,7 +7,7 @@
 
 ## Overview
 
-Work unit decomposition is an optional step in `/ap_exec` that breaks large, multi-domain scopes into independently-executable units. Each unit has its own files, agent, and validation. Units form a DAG — independent units run in parallel, dependent units wait for prerequisites.
+Work unit decomposition is an optional preflight step in `/ap_exec` (Step 1.25, defined in `orchestration/steps/execution/0125-decomposition.md`) that breaks large, multi-domain scopes into independently-executable units. Each unit has its own files, agent, and validation. Units form a DAG — independent units run in parallel, dependent units wait for prerequisites.
 
 **When it triggers:** 3+ files across 2+ system layers (backend + frontend, schema + API + tests, etc.)
 

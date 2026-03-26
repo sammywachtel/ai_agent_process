@@ -1256,7 +1256,7 @@ Recommend next actions based on actual work scope state:
      Status: Needs orchestrator planning
 
      Next steps:
-     1. Copy requirement to .agent_process/orchestration/01_plan_scope_prompt.md
+     1. Copy requirement to .agent_process/orchestration/plan-scope.md
      2. Run through orchestrator to create iteration plan
      3. Orchestrator creates work/{scope_name}/iteration_01/
      4. Then execute with /ap_exec {scope_name} iteration_01
@@ -1326,7 +1326,7 @@ Recommend next actions based on actual work scope state:
    **Work Scope:** work/ailab_import_pattern_cleanup_02_prevail_scripts_and_mace_imports/ ✗ (missing)
    **Approval:** N/A (no work yet)
    **Next Steps:**
-   - Copy requirement to .agent_process/orchestration/01_plan_scope_prompt.md
+   - Copy requirement to .agent_process/orchestration/plan-scope.md
    - Run through orchestrator to create iteration plan
    - Orchestrator creates the work scope directory
    - Then execute with /ap_exec {scope_name} iteration_01
@@ -1767,7 +1767,7 @@ Show which requirements need planning with clear mapping:
    **Approval:** N/A (no work scope yet)
 
    Next steps:
-   1. Copy requirement to .agent_process/orchestration/01_plan_scope_prompt.md
+   1. Copy requirement to .agent_process/orchestration/plan-scope.md
    2. Run through orchestrator to create iteration plan
    3. Orchestrator creates work/{scope_name}/iteration_01/
    4. Then execute with /ap_exec {scope_name} iteration_01
@@ -1785,7 +1785,7 @@ Show which requirements need planning with clear mapping:
 Would you like me to populate the orchestration prompt for one of these? (yes/no)
 
 If yes, I'll:
-1. Update .agent_process/orchestration/01_plan_scope_prompt.md with the requirement
+1. Update .agent_process/orchestration/plan-scope.md with the requirement
 2. You run it through your orchestrator (separate agent/process)
 3. Orchestrator creates the work scope and iteration_01/
 4. Then you can execute with /ap_exec {scope_name} iteration_01

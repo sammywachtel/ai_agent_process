@@ -11,7 +11,7 @@ The knowledge base is a set of JSONL files that accumulate project wisdom over t
 
 ### Storage Location
 
-Knowledge lives in **`.beads/knowledge/`** when BEADS is enabled. This is the same location metaswarm uses, creating a shared knowledge store that both AP orchestration and metaswarm's `/prime` command can access.
+Knowledge lives in **`.beads/knowledge/`** when BEADS is enabled. This is the same location metaswarm uses, creating a shared knowledge store accessible to both AP orchestration and metaswarm.
 
 When BEADS is disabled, knowledge falls back to **`.agent_process/knowledge/`**.
 
@@ -44,7 +44,7 @@ The first four files are core AP files. The last two (`codebase-facts`, `api-beh
 
 ## Entry Schema
 
-AP uses the metaswarm-compatible knowledge schema. This enables `/prime` to query AP-deposited knowledge and vice versa.
+AP uses the metaswarm-compatible knowledge schema so entries are shared between AP and metaswarm.
 
 ### Full Schema (BEADS-managed)
 
@@ -113,21 +113,18 @@ When BEADS is disabled, a simpler schema works:
 
 The orchestrator queries the knowledge base before creating `iteration_plan.md`. Two methods, depending on what's available:
 
-### Method 1: `/prime` (when metaswarm is available)
+### Method 1: `bd prime` (BEADS workflow context)
 
-If metaswarm is installed and enabled, use `/prime` for intelligent context loading:
+`bd prime` outputs generic BEADS workflow context (session close protocol, command reference). It does **not** query or filter knowledge entries — it's a context dump, not a knowledge search tool.
 
 ```bash
-# Prime with keywords from the requirement
-/prime --keywords "auth" "session" "jwt" --work-type planning
-
-# Prime for specific files in scope
-/prime --files "src/middleware/**/*.ts" "src/auth/**/*.ts"
+bd prime        # Generic workflow context
+bd prime --full # Force full CLI output
 ```
 
-`/prime` reads `.beads/knowledge/` and returns facts organized by priority (MUST FOLLOW → GOTCHAS → PATTERNS → DECISIONS). Include the relevant output in the iteration plan's `## Known Patterns & Constraints` section.
+**Note:** Metaswarm's `/metaswarm:prime` skill wraps `bd prime` with additional intelligence, but those filtering capabilities (`--keywords`, `--work-type`, `--files`) are metaswarm features, not `bd` features. If you see documentation referencing those flags on `bd prime` directly, it's incorrect.
 
-### Method 2: grep (fallback, or when metaswarm unavailable)
+### Method 2: grep (primary query method)
 
 ```bash
 # Find the knowledge directory
@@ -271,12 +268,13 @@ Over time, the knowledge base may need cleanup. This is a manual process — do 
 
 | Phase | Action | File |
 |-------|--------|------|
-| Planning (Step 2.5) | Query knowledge via `/prime` or grep | `01_plan_scope_instructions.md` |
+| Planning (Step 2.5) | Query knowledge via grep | `orchestration/steps/planning/025-knowledge-query.md` |
 | Planning output | Include findings in `## Known Patterns & Constraints` | `templates/iteration-plan.md` |
-| Review (APPROVE, Step 9.5) | Extract 0-3 code learnings → `$KB_DIR/*.jsonl` | `02_review_iteration_instructions.md` |
-| Review (BLOCK/PIVOT, Step 9.6) | Extract 0-2 process observations → `$KB_DIR/*.jsonl` | `02_review_iteration_instructions.md` |
-| Metaswarm `/prime` | Loads relevant facts by files/keywords/work-type | Reads `$KB_DIR/*.jsonl` |
-| Metaswarm `/self-reflect` | Mines PR comments + conversation history → knowledge | Writes `$KB_DIR/*.jsonl` |
+| Review (APPROVE, Step 9.5) | Extract 0-3 code learnings → `$KB_DIR/*.jsonl` | `orchestration/steps/review/07-10-post-decision.md` |
+| Review (BLOCK/PIVOT, Step 9.6) | Extract 0-2 process observations → `$KB_DIR/*.jsonl` | `orchestration/steps/review/07-10-post-decision.md` |
+| `bd prime` | Generic BEADS workflow context (not knowledge search) | Reads `.beads/` metadata |
+| Metaswarm `/metaswarm:prime` | Wraps `bd prime` with keyword/file filtering | Reads `$KB_DIR/*.jsonl` |
+| Metaswarm `/metaswarm:self-reflect` | Mines PR comments + conversation history → knowledge | Writes `$KB_DIR/*.jsonl` |
 
 ---
 

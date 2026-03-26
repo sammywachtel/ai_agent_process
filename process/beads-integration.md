@@ -77,9 +77,31 @@ bd init
 
 ## How It Works
 
+### ⚠️ Agents: Use beads-lifecycle.sh, NOT bd Directly
+
+**All agent-initiated BEADS operations MUST go through `beads-lifecycle.sh`**, not raw `bd` commands. The lifecycle script handles:
+
+- **Docker host rewriting:** Rewrites `127.0.0.1` → `host.docker.internal` inside containers (Codex, Docker dev environments). Without this, `bd` tries to connect to localhost *inside the container*, which has no Dolt server — resulting in "access denied for user root" errors.
+- **Credential loading:** Reads `~/.config/beads/credentials` and scopes to the project's configured host.
+- **Auto-installation:** Installs `bd` if missing.
+- **Breadcrumb writing:** Records state to `.beads-state` so the orchestrator can verify the step ran.
+
+```bash
+# ✅ Correct — agents always use the lifecycle script
+BEADS_ITERATION=iteration_01 bash .agent_process/scripts/beads-lifecycle.sh start my_scope
+bash .agent_process/scripts/beads-lifecycle.sh task-create my_scope WU-001 "Schema migration"
+bash .agent_process/scripts/beads-lifecycle.sh status my_scope
+
+# ❌ Wrong — fails inside containers, no credential scoping
+bd epic create my_scope
+bd task update my_scope WU-001 --label in-progress
+```
+
+The raw `bd` commands shown below are for **conceptual illustration** and **human CLI use** only. Agents must use `beads-lifecycle.sh`.
+
 ### Epic Lifecycle
 
-Each AP scope maps to a BEADS epic:
+Each AP scope maps to a BEADS epic. Conceptually:
 
 ```
 /ap_exec my_feature iteration_01
@@ -168,10 +190,10 @@ Local Dolt installation is NOT required — `bd` connects directly to the remote
 
 ### Credentials
 
-Passwords are stored in `~/.claude/.beads-credentials` (INI-style, keyed by host:port):
+Passwords are stored in `~/.config/beads/credentials` (INI-style, keyed by host:port):
 
 ```ini
-# ~/.claude/.beads-credentials
+# ~/.config/beads/credentials
 [127.0.0.1:3307]
 password=localDevPassword
 
@@ -182,23 +204,24 @@ password=companyPassword
 This file is:
 - **Created automatically** when Docker install generates a password during `install.sh`
 - **Shared across all projects** — one file, all servers
-- **Available in Docker containers** — `~/.claude/` is already volume-mounted in docker-dev setups
-- **Permissions:** `chmod 600` (set automatically by installer)
+- **Read natively by `bd`** — no wrapper scripts needed
+- **Overridable** via `BEADS_CREDENTIALS_FILE` env var (for non-default locations)
+- **Permissions:** `chmod 600` (set automatically by installer, `bd` warns if too open)
 
-Both `ap_exec` Step 0.5 and the `bds` wrapper read this file to resolve the password for the server configured in the project's `quality-config.json`.
+In Docker containers, mount `~/.config/beads` read-only and set `BEADS_DOLT_SERVER_HOST=host.docker.internal` in the container environment.
 
-### Command-Line Usage: `bds`
+### Command-Line Usage
 
-The `bds` wrapper is installed to `~/.local/bin/` during framework installation. It reads `quality-config.json` + credentials file and passes through to `bd`:
+`bd` reads credentials natively. Just use it directly:
 
 ```bash
-# Use bds instead of bd — it handles per-project server routing and auth
-bds list
-bds epic show my_scope
-bds doctor
+bd list
+bd prime
+bd dolt test
+bd doctor
 ```
 
-`bds` finds the project root by walking up from the current directory looking for `.agent_process/`. It exports the right env vars for that project's configured server, then execs `bd`.
+Server config (host/port/user) is stored per-project in `.beads/` via `bd dolt set`. Credentials are resolved by matching the configured `[host:port]` against the credentials file.
 
 ### Disabled (no BEADS)
 
@@ -266,8 +289,7 @@ See `deploy/beads-server/` for scripts that create a GCE e2-micro VM (~$7/month)
 | `ap_exec` Step 0.5 | Detects BEADS, auto-installs if enabled, loads credentials, creates/resumes epic |
 | `ap_exec` Step 1.3 | Creates BEADS tasks for each work unit |
 | `ap_exec` execution loop | Updates task labels (in-progress, complete, blocked) |
-| `install.sh` | Prompts user, installs CLI + `bds` wrapper, seeds credentials, sets config |
+| `install.sh` | Prompts user, installs CLI, seeds credentials, configures `bd dolt set` |
 | `quality-config.json` | `beads` section controls enabled state, server routing, and auto-install |
-| `~/.claude/.beads-credentials` | INI-style credentials file, keyed by host:port, shared across projects |
-| `bds` wrapper (`~/.local/bin/bds`) | CLI wrapper that reads project config + credentials, then delegates to `bd` |
+| `~/.config/beads/credentials` | INI-style credentials file, keyed by host:port, read natively by `bd` |
 | results.md | BEADS epic status included in Work Unit Summary when available |

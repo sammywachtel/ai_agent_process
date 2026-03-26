@@ -97,7 +97,7 @@ Controls BEADS durable state integration (Phase 3).
 { "beads": { "enabled": false } }
 ```
 
-When `server` is present, local Dolt installation is not required — `bd` connects to the remote instance directly. The `ap_exec` Step 0.5 exports `BEADS_DOLT_SERVER_HOST`, `BEADS_DOLT_SERVER_PORT`, and `BEADS_DOLT_SERVER_USER` from this config before any `bd` commands run.
+When `server` is present, local Dolt installation is not required — `bd` connects to the remote instance directly. Server config is written to `bd`'s native storage during `install.sh` (via `bd dolt set host/port/user`), and `bd` reads credentials from `~/.config/beads/credentials`. The `beads-lifecycle.sh` script handles BEADS lifecycle during execution (Step 0.5).
 
 ### `pr_shepherd`
 
@@ -188,10 +188,10 @@ Or in prompt instructions, the agent reads the file and checks the relevant sect
 | `ap_exec` Step 2.5 | `knowledge_base.enabled` and `query_during_planning` |
 | `ap_exec` Step 4.5 | `adversarial_review.enabled` and `skip_for_trivial` |
 | `ap_exec` BEADS init | `beads.enabled` and `beads.auto_install` |
-| `01_plan_scope_instructions.md` | `design_review.enabled` and settings |
-| `02_review_iteration_instructions.md` Step 3.7 | `adversarial_review.enabled` |
-| `02_review_iteration_instructions.md` Step 9.5 | `knowledge_base.deposit_on_approve` |
-| `02_review_iteration_instructions.md` Step 9.6 | `knowledge_base.deposit_on_block_pivot` |
+| `orchestration/coordinators/plan-scope.md (coordinator) + orchestration/steps/planning/ (step files)` | `design_review.enabled` and settings |
+| `orchestration/coordinators/review-iteration.md + steps/review/` Step 3.7 | `adversarial_review.enabled` |
+| `orchestration/coordinators/review-iteration.md + steps/review/` Step 9.5 | `knowledge_base.deposit_on_approve` |
+| `orchestration/coordinators/review-iteration.md + steps/review/` Step 9.6 | `knowledge_base.deposit_on_block_pivot` |
 | `ap_release` Step 9.5 | `pr_shepherd.enabled` |
 | `ap_requirements` brainstorm | `metaswarm.enabled` and `metaswarm.features.brainstorm` |
 | `ap_requirements` add | `metaswarm.enabled` (offers brainstorm option) |

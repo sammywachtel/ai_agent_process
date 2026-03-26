@@ -8,7 +8,7 @@ The design review gate is an optional quality checkpoint between planning and ex
 
 **Activation:** Set `complexity: complex` in the requirement frontmatter AND enable `design_review.enabled: true` in `quality-config.json`.
 
-**Where it runs:** Step 8.5 of `01_plan_scope_instructions.md`, after the iteration plan is complete but before execution begins.
+**Where it runs:** Step 8.5 of `orchestration/coordinators/plan-scope.md (coordinator) + orchestration/steps/planning/ (step files)`, after the iteration plan is complete but before execution begins.
 
 **Default:** Disabled. This is an opt-in gate for architecturally significant scopes.
 
@@ -130,7 +130,7 @@ The same prompt template (`templates/design-review-prompt.md`) is used in both c
 
 | Component | Interaction |
 |-----------|-------------|
-| `01_plan_scope_instructions.md` Step 8.5 | Runs the gate between plan creation and execution handoff |
+| `orchestration/coordinators/plan-scope.md (coordinator) + orchestration/steps/planning/ (step files)` Step 8.5 | Runs the gate between plan creation and execution handoff |
 | `templates/design-review-prompt.md` | Specialist reviewer prompt template |
 | `templates/iteration-plan.md` | `## Design Review` section records the outcome |
 | `quality-config.json` | `design_review` section controls enabled state and settings |

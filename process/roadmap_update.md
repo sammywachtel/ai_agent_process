@@ -506,7 +506,7 @@ After any update, validate:
 
 ### With Orchestration
 
-The orchestration system should include instructions for Claude to follow after iteration completion. These instructions should be embedded in the iteration review prompts (e.g., `02_review_iteration_prompt.md` or similar) and reference this process document.
+The orchestration system should include instructions for Claude to follow after iteration completion. These instructions should be embedded in the iteration review prompts (e.g., `orchestration/review-iteration.md` or similar) and reference this process document.
 
 **Key points for orchestration integration:**
 - After writing results.md, Claude should check if roadmap exists

@@ -164,7 +164,7 @@ The complete lifecycle from idea to acceptance, with all optional features enabl
 │                                  ▼                                    │
 │  ┌─── PLANNING (Orchestrator) ──────────────────────────────────────┐ │
 │  │                                                                  │ │
-│  │  Human copies requirement → orchestration/01_plan_scope_prompt   │ │
+│  │  Human copies requirement → orchestration/plan-scope.md          │ │
 │  │                                                                  │ │
 │  │  Orchestrator:                                                   │ │
 │  │    1. Size check — fits 1-2 weeks? Split if too large            │ │
@@ -575,11 +575,24 @@ your-project/
 │
 └── .agent_process/
     ├── orchestration/      # Planning and review prompts
-    │   ├── 00_base_context.md
-    │   ├── 01_plan_scope_instructions.md
-    │   ├── 01_plan_scope_prompt.md
-    │   ├── 02_review_iteration_instructions.md
-    │   └── 02_review_iteration_prompt.md
+    │   ├── plan-scope.md                  # Planning prompt (entry point)
+    │   ├── review-iteration.md            # Review prompt (entry point)
+    │   ├── scope-sizing-rules.md          # Configurable scope thresholds
+    │   ├── context/
+    │   │   └── base-context.md            # Orchestrator onboarding
+    │   ├── coordinators/
+    │   │   ├── plan-scope.md              # Decomposed planning coordinator
+    │   │   ├── execute-preflight.md       # Execution preflight coordinator
+    │   │   ├── execute-main.md            # Execution main prompt (~200 lines)
+    │   │   ├── review-iteration.md        # Decomposed review coordinator
+    │   │   ├── release.md                 # Decomposed release coordinator
+    │   │   └── brainstorm.md              # Decomposed brainstorm coordinator
+    │   └── steps/
+    │       ├── planning/                  # 12 focused planning step files
+    │       ├── execution/                 # 7 focused execution step files
+    │       ├── review/                    # 9 focused review step files
+    │       ├── release/                   # 9 focused release step files
+    │       └── brainstorm/                # 6 focused brainstorm step files
     │
     ├── knowledge/          # Accumulated project wisdom (JSONL)
     │   ├── patterns.jsonl
@@ -682,7 +695,7 @@ Implement basic user login/logout functionality.
 
 Load the planning prompt and work with the orchestrator:
 
-1. Open `orchestration/01_plan_scope_prompt.md`
+1. Open `orchestration/plan-scope.md`
 2. Define scope name and objectives with the orchestrator
 3. Create `iteration_plan.md` with frozen criteria
 4. Set up scoped validation script
@@ -695,7 +708,7 @@ Load the planning prompt and work with the orchestrator:
 
 ### 6. Review and Decide
 
-Load `orchestration/02_review_iteration_prompt.md` and:
+Load `orchestration/review-iteration.md` and:
 - Review results against original criteria
 - Choose: APPROVE / ITERATE / BLOCK / PIVOT
 
@@ -759,9 +772,10 @@ For teams using this framework across multiple projects, you can configure centr
 
 | Document | Location | Purpose |
 |----------|----------|---------|
-| Base Context | `orchestration/00_base_context.md` | Quick onboarding for orchestration |
-| Plan Scope | `orchestration/01_plan_scope_instructions.md` | How to plan new scopes |
-| Review Iteration | `orchestration/02_review_iteration_instructions.md` | How to review and decide |
+| Base Context | `orchestration/context/base-context.md` | Quick onboarding for orchestration |
+| Plan Scope | `orchestration/coordinators/plan-scope.md` + `steps/planning/` | How to plan new scopes |
+| Execute Iteration | `orchestration/coordinators/execute-preflight.md` + `execute-main.md` + `steps/execution/` | How to execute iterations |
+| Review Iteration | `orchestration/coordinators/review-iteration.md` + `steps/review/` | How to review and decide |
 | Validation Playbook | `process/validation-playbook.md` | Testing patterns |
 | Naming Conventions | `process/naming_conventions.md` | IDs, files, categories |
 

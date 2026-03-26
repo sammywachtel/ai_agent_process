@@ -98,24 +98,24 @@ The install script copies command files to `.claude/commands/` in your project. 
 │                      TYPICAL WORKFLOW                           │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  /ap_project init            # One-time: set up roadmap        │
-│  /ap_project discover        # Optional: scan existing project │
+│  /ap_project init            # One-time: set up roadmap         │
+│  /ap_project discover        # Optional: scan existing project  │
 │                                                                 │
-│  /ap_brainstorm "idea"       # Brainstorm → requirement        │
+│  /ap_brainstorm "idea"       # Brainstorm → requirement         │
 │    — or —                                                       │
-│  /ap_requirements add "name" # Direct requirement creation     │
+│  /ap_requirements add "name" # Direct requirement creation      │
 │                                                                 │
-│  [Plan scope — orchestration/01_plan_scope_prompt.md]          │
+│  [Plan scope — orchestration/plan-scope.md]           │
 │                                                                 │
-│  /ap_exec feature iteration_01   # Execute implementation      │
+│  /ap_exec feature iteration_01   # Execute implementation       │
 │                                                                 │
-│  [Review — orchestration/02_review_iteration_prompt.md]        │
+│  [Review — orchestration/review-iteration.md]         │
 │                                                                 │
-│  bash .agent_process/scripts/evaluate-scope.sh ...  # Validate │
+│  bash .agent_process/scripts/evaluate-scope.sh ...  # Validate  │
 │                                                                 │
-│  /ap_release pr              # Create PR with changelog        │
+│  /ap_release pr              # Create PR with changelog         │
 │                                                                 │
-│  /ap_project archive-completed   # Clean up approved work      │
+│  /ap_project archive-completed   # Clean up approved work       │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -139,5 +139,5 @@ This file is preserved across re-installations.
 ## See Also
 
 - **README.md** – Full framework documentation
-- **orchestration/00_base_context.md** – Quick onboarding for orchestration
+- **orchestration/context/base-context.md** – Quick onboarding for orchestration
 - **process/validation-playbook.md** – Testing patterns

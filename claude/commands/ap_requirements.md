@@ -200,7 +200,7 @@ Recommend:
 - Fill in the requirement details with acceptance criteria and scope
 - Set appropriate priority based on impact and effort
 - **Use orchestrator planning workflow** when ready:
-  1. Copy requirement content to `.agent_process/orchestration/01_plan_scope_prompt.md`
+  1. Copy requirement content to `.agent_process/orchestration/plan-scope.md`
   2. Run through orchestrator to create iteration plan with validation
   3. Orchestrator will create work scope directory and iteration_01/
   4. Then use `/ap_exec {scope_name} iteration_01` to execute the plan
