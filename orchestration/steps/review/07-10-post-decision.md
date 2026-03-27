@@ -99,5 +99,8 @@ Write to `.run/review/07-10-post-decision.md`:
 - Epic {closed/left open}: {reason}
 
 ## Next Step
-{What the human should do next}
+{APPROVE: Run `/ap_release pr` to create PR}
+{ITERATE: Run `/ap_exec {scope} {next_iteration}` in implementation session}
+{BLOCK: Human decides — ship as-is, pivot, or abort}
+{PIVOT: Human approves revised criteria, then re-plan with `orchestration/plan-scope.md`}
 ```

@@ -211,6 +211,8 @@ Provide summary to user:
 **Known Issues:** [list or none]
 **Adversarial Review:** [PASS/FAIL per criterion or skipped]
 **Ready for Review:** [YES/NO]
+
+**Next step:** Open a fresh orchestrator session and load `orchestration/review-iteration.md` for {scope} {iteration}. There is no `/ap_review` command — review is a separate orchestrator session, not a slash command.
 ```
 
 ---
@@ -222,4 +224,5 @@ Provide summary to user:
 - New issues discovered → backlog, not this iteration
 - Sub-iterations: max 3 per major iteration (_a, _b, _c)
 - After 3 sub-iterations: must BLOCK (escalate to human)
+- **There is no `/ap_review` command.** Review is done by loading `orchestration/review-iteration.md` in a fresh orchestrator session. Do not suggest `/ap_review`.
 - Orchestrator review comes next — this is implementation only
