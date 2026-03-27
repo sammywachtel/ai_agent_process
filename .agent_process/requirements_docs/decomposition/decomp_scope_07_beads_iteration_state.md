@@ -2,7 +2,7 @@
 id: decomp_scope_07_beads_iteration_state
 type: requirement
 category: decomposition
-status: planned
+status: in_progress
 priority: medium
 ---
 
@@ -30,27 +30,32 @@ bd state {epic_id} iteration  # → iteration_01_a
 
 ## Acceptance Criteria
 
-### AC-1: Iteration state stored in BEADS
-- [ ] `beads-lifecycle.sh start` sets `iteration={iteration}` state on the epic
-- [ ] Review post-decision step (ITERATE) updates iteration state in BEADS
-- [ ] Review post-decision step (APPROVE) records final iteration in BEADS before close
+### AC-1: Iteration state stored in BEADS ✅
+- [x] `beads-lifecycle.sh start` sets `iteration={iteration}` state on the epic via `bd set-state`
+- [x] Review post-decision step (ITERATE) uses `beads-lifecycle.sh set-iteration` for handoff
+- [x] `close` action records final iteration in BEADS before closing epic
 
-### AC-2: Preflight reads from BEADS when available
-- [ ] Execute preflight checks BEADS for current iteration when `beads.enabled` is true
-- [ ] Falls back to `current_iteration.conf` when BEADS is disabled or `bd` unavailable
+### AC-2: Preflight reads from BEADS when available ✅
+- [x] `beads-lifecycle.sh get-iteration` checks BEADS first via `bd state`
+- [x] Falls back to `current_iteration.conf` when BEADS disabled, `bd` unavailable, or no epic found
 
-### AC-3: current_iteration.conf becomes fallback
-- [ ] Still written on every state change (backwards compatibility)
-- [ ] Preflight prefers BEADS when available, conf file when not
-- [ ] No behavior change for BEADS-disabled projects
+### AC-3: current_iteration.conf becomes fallback ✅
+- [x] `set-iteration` always writes conf file alongside BEADS
+- [x] `get-iteration` reads BEADS first, conf file second
+- [x] No behavior change for BEADS-disabled projects (conf file is only source)
 
-### AC-4: Session recovery uses BEADS
-- [ ] `007b-session-recovery.md` checks BEADS epic state for interrupted work when BEADS enabled
-- [ ] Falls back to file-based check when BEADS disabled
+### AC-4: Session recovery uses BEADS ✅
+- [x] `007b-session-recovery.md` calls `get-iteration` to check BEADS for iteration state
+- [x] Falls back to file-based check when BEADS disabled
 
-### AC-5: Documentation updated
-- [ ] `process/beads-integration.md` documents iteration state tracking
-- [ ] `process/quality-configuration.md` notes BEADS as authoritative when enabled
+### AC-5: Documentation updated ✅
+- [x] `process/beads-integration.md` documents iteration state tracking with BEADS authority note
+- [ ] `process/quality-configuration.md` notes BEADS as authoritative when enabled — **pending**
+
+### AC-6: Real-project validation — **PENDING**
+- [ ] Run `ap_exec` with BEADS enabled — verify `bd state` shows correct iteration
+- [ ] Review with ITERATE — verify BEADS iteration updates to `_a`
+- [ ] Disable BEADS — verify `current_iteration.conf` fallback works
 
 ---
 
