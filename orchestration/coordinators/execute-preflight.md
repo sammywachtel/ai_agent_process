@@ -25,7 +25,10 @@ BEADS lifecycle is handled by a direct bash call below (Step 0.5), not by sub-ag
 
 Read `.agent_process/process/local_environment_instructions.md` before starting steps. If any section is not `<none>`:
 - **Pre-Execution Setup:** Run those commands before Step 0.5
-- **Multi-Repository Configuration:** Pass to Step 0.7a (branch check) — run multi-repo checks in addition to the default single-repo check
+- **Multi-Repository Configuration:** Affects steps 007a, 007c, and 007d:
+  - **007a (branch check):** After checking the root repo, also check/create the scope branch in each sub-repo that has files in scope. Map files from the iteration plan to repos using the local env repo mapping.
+  - **007c (working tree):** Run `git status` inside each sub-repo that has files in scope — the root repo's `git status` cannot see changes inside sub-repos with their own `.git/`.
+  - **007d (git context):** Run `git log` inside each sub-repo for that repo's scope files — the root repo's `git log` won't show history for sub-repo files.
 - **Validation Extensions:** Pass to the main execution prompt for Step 4
 
 These instructions are ADDITIVE — they augment but never skip default steps.
