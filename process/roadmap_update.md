@@ -58,7 +58,7 @@
 #### Step 1: Detect Completion
 
 ```markdown
-# Instructions for Claude (in orchestration prompt)
+# Instructions for Claude (in review coordinator)
 
 After writing results.md, check if status changed to ✅ APPROVED, ✅ COMPLETE, 🚫 BLOCKED, etc.
 
@@ -541,7 +541,7 @@ For projects with existing requirements but no roadmap:
 1. **Run discovery** on current state
 2. **Create initial roadmap files** from discovered data
 3. **Migrate todo_requirements.md** to backlog.md
-4. **Add orchestration prompts** for future maintenance
+4. **Add coordinators** for future maintenance
 
 ### Backwards Compatibility
 

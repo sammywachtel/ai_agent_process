@@ -1264,7 +1264,7 @@ Recommend next actions based on actual work scope state:
      DO NOT run /ap_exec yet - no work scope exists
   ```
 - DO NOT suggest `/ap_exec {requirement_id} iteration_01` (no work scope exists yet)
-- Offer to populate the orchestration prompt file for the user
+- Offer to populate the planning entry point (`orchestration/plan-scope.md`) for the user
 
 **For requirements WITH work scope (work/{scope_name}/ directory exists):**
 - Verify directory exists: `ls .agent_process/work/{scope_name}/ 2>/dev/null`
@@ -1782,7 +1782,7 @@ Show which requirements need planning with clear mapping:
 
 **Offer to help:**
 ```
-Would you like me to populate the orchestration prompt for one of these? (yes/no)
+Would you like me to set up planning for one of these? (yes/no)
 
 If yes, I'll:
 1. Update .agent_process/orchestration/plan-scope.md with the requirement

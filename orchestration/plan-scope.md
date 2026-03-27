@@ -1,7 +1,7 @@
 # Plan New Scope
 
 ## Your Role
-You are the orchestrator planning a new development scope. You will follow a coordinator prompt that breaks planning into focused sub-agent steps.
+You are the orchestrator planning a new development scope. You will follow a coordinator that breaks planning into focused sub-agent steps.
 
 ## ⚠️ SESSION BOUNDARIES
 

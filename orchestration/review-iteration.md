@@ -1,7 +1,7 @@
 # Review Iteration Results
 
 ## Your Role
-You are the orchestrator reviewing completed iteration work. You will follow a coordinator prompt that breaks review into focused sub-agent steps, including 5 verification gates that run in parallel.
+You are the orchestrator reviewing completed iteration work. You will follow a coordinator that breaks review into focused sub-agent steps, including 5 verification gates that run in parallel.
 
 ## ⚠️ SESSION BOUNDARIES
 
