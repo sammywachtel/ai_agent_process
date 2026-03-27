@@ -25,6 +25,34 @@
 New issues discovered during iteration → backlog for future scopes.
 No mid-iteration scope creep allowed.
 
+## Known Patterns & Constraints
+
+*Populated from knowledge base (`.beads/knowledge/` or `.agent_process/knowledge/` fallback) — see `process/knowledge-base.md` for query instructions. Use `/prime` when metaswarm is available.*
+
+**From knowledge base:**
+- [List relevant entries as: **[type]** fact (confidence: X, source: provenance reference)]
+- [Include provenance reference for traceability]
+
+**No matches found for:** [list keywords that returned nothing]
+
+*If knowledge base is empty or no relevant entries found, note: "No relevant knowledge base entries for this scope."*
+
+## Design Review
+
+*Populated by Step 8.5 of the planning instructions when `complexity: complex` is set and design review is enabled in `quality-config.json`.*
+
+N/A — scope complexity is not `complex` (or design review gate disabled)
+
+<!-- When design review runs, replace the above with:
+**Gate triggered:** Yes (complexity: complex)
+**Reviewers:** [list specialist domains]
+**Revision cycles:** [0-2]
+**Outcome:** APPROVED | ESCALATED TO HUMAN
+
+### Reviewer Verdicts
+- **[Domain]:** APPROVE/REQUEST_CHANGES — [one-line summary]
+-->
+
 ## Technical Assessment (by Orchestrator)
 
 **Code Review Findings:**

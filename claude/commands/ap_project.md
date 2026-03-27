@@ -1,7 +1,7 @@
 ---
 name: ap_project
 description: Generic project roadmap and requirements management for .agent_process projects
-argument-hint: init | discover | status | set-status | archive | archive-completed | add-todo | add-requirement | import-requirement | sync | report | help ["details"]
+argument-hint: init | discover | status | set-status | archive | archive-completed | add-todo | add-requirement (→ /ap_requirements) | import-requirement (→ /ap_requirements) | sync | report | help ["details"]
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, TodoWrite]
 arguments:
   - name: action
@@ -16,8 +16,8 @@ arguments:
       - archive: Archive a requirement (completed|abandoned|superseded|out-of-scope)
       - archive-completed: Move all approved work scopes from work/ to work_archive/approved/
       - add-todo: Add item to backlog
-      - add-requirement: Create new requirement from template
-      - import-requirement: Import existing file as requirement (adds frontmatter, standardizes name)
+      - add-requirement: (deprecated → /ap_requirements add)
+      - import-requirement: (deprecated → /ap_requirements import)
       - sync: Reconcile roadmap with actual work/ status
       - report: Generate stakeholder status report
       - help: Show detailed help for all commands
@@ -29,8 +29,8 @@ arguments:
       - set-status: "<requirement_id> <status> [reason]"
       - archive: "<requirement_id> <type> [reason]"
       - add-todo: "description"
-      - add-requirement: "name"
-      - import-requirement: "file_path [--supersedes old_id]"
+      - add-requirement: "(deprecated → /ap_requirements add)"
+      - import-requirement: "(deprecated → /ap_requirements import)"
       - report: "type (executive|detailed|weekly)"
 ---
 
@@ -266,7 +266,47 @@ Create roadmap files with proper structure. Note: Previous versions used separat
 
 **NOTE:** Status markers are now STANDARDIZED. All `/ap_exec` iterations should use `**Status:** COMPLETE`, `**Status:** BLOCKED`, etc. This eliminates the need for discovery-based marker detection.
 
-### Step 5: Offer Next Steps
+### Step 5: Display Feature Summary
+
+Show the user what's active in their installation:
+
+```bash
+echo "=== Installed Features ==="
+# Knowledge base
+KB_COUNT=0
+if [ -d ".agent_process/knowledge" ]; then
+  for f in .agent_process/knowledge/*.jsonl; do
+    c=$(($(wc -l < "$f" 2>/dev/null || echo 1) - 1))
+    KB_COUNT=$((KB_COUNT + c))
+  done
+fi
+echo "Knowledge base: $KB_COUNT entries"
+
+# Quality config
+if [ -f ".agent_process/quality-config.json" ]; then
+  python3 -c "
+import json
+cfg = json.load(open('.agent_process/quality-config.json'))
+features = []
+for key, val in cfg.items():
+    if key.startswith('_'): continue
+    if isinstance(val, dict):
+        features.append(f\"{key}: {'enabled' if val.get('enabled', True) else 'disabled'}\")
+print('Quality gates: ' + ' | '.join(features))
+" 2>/dev/null
+else
+  echo "Quality gates: using built-in defaults (no quality-config.json)"
+fi
+
+# BEADS
+if command -v bd &>/dev/null; then
+  echo "BEADS CLI: installed ($(bd --version 2>/dev/null || echo 'unknown version'))"
+else
+  echo "BEADS CLI: not installed (file-based state will be used)"
+fi
+```
+
+### Step 6: Offer Next Steps
 
 Recommend next actions:
 1. Run `/ap_project discover` to scan existing project
@@ -385,6 +425,57 @@ PYEOF
 - `priority:` - Explicit priority (no regex parsing needed)
 
 **No fallback:** Files without `type: requirement` frontmatter are not processed. There is no path-based ID generation fallback. To include a file in discovery, add the required frontmatter (use `/ap_project import-requirement` to add it interactively).
+
+### Step 1.5: Knowledge Base & Quality Config Summary
+
+**Scan the knowledge base and quality configuration to include project-wide context in the roadmap.**
+
+This step runs only if `.agent_process/knowledge/` exists. It adds a project intelligence summary to the roadmap — entry counts, most recent deposits, and which quality gates are active.
+
+```bash
+# Count knowledge entries (subtract 1 per file for schema header line)
+echo "=== Knowledge Base ==="
+for f in .agent_process/knowledge/*.jsonl; do
+  name=$(basename "$f" .jsonl)
+  count=$(($(wc -l < "$f" 2>/dev/null || echo 1) - 1))
+  if [ "$count" -gt 0 ]; then
+    echo "$name: $count entries"
+  fi
+done
+
+# Show quality config status
+echo "=== Quality Gates ==="
+if [ -f .agent_process/quality-config.json ]; then
+  python3 -c "
+import json
+cfg = json.load(open('.agent_process/quality-config.json'))
+for key, val in cfg.items():
+    if key.startswith('_'): continue
+    enabled = val.get('enabled', True) if isinstance(val, dict) else val
+    print(f'{key}: {\"enabled\" if enabled else \"disabled\"}')
+" 2>/dev/null
+else
+  echo "No quality-config.json found (using built-in defaults)"
+fi
+```
+
+**Include in roadmap output** (Step 5) as a `## Project Intelligence` section:
+
+```markdown
+## Project Intelligence
+
+**Knowledge Base:** N entries across M categories
+- patterns: X | gotchas: Y | decisions: Z | anti-patterns: W
+- Most recent deposit: {date} from {source_iteration}
+
+**Quality Gates:**
+- Knowledge base: enabled | Adversarial review: enabled
+- Work unit decomposition: enabled (3+ files, 2+ layers)
+- Design review gate: disabled | BEADS: enabled
+- PR shepherd: enabled
+```
+
+If the knowledge base is empty, note: "Knowledge base is empty — entries will accumulate as scopes are completed."
 
 ### Step 2: Scan Work Directories
 
@@ -535,6 +626,24 @@ PYEOF
 3. `final_state` - Overall scope status: APPROVED, NEEDS_REVIEW, IN_PROGRESS, BLOCKED, NOT_STARTED
 4. `latest_iter_name` - Most recent iteration directory name (e.g., iteration_01_b)
 5. `mtime` - Last modified date of results.md (YYYY-MM-DD)
+
+### Step 2.5: BEADS State Supplement (if available)
+
+**Check `quality-config.json`:** If `beads.enabled` is `false` or `bd` is not on PATH, skip this step.
+
+If BEADS is available, query it for additional execution state that the file-based scan may miss (e.g., work unit progress within an in-progress scope):
+
+```bash
+# List all BEADS epics with their status
+bd list --type epic 2>/dev/null
+```
+
+For each epic that maps to a work scope:
+- Cross-reference BEADS task states with the file-based status from Step 2
+- If BEADS shows tasks in-progress or blocked that the file scan didn't catch, note the discrepancy
+- Include BEADS task counts in the roadmap output (e.g., "3/5 work units complete")
+
+**This is supplementary.** File-based state (results.md, iteration_plan.md) remains authoritative. BEADS adds granularity, not authority.
 6. `approval_decision` - Orchestrator decision from iteration_plan.md: APPROVE, ITERATE, PIVOT, BLOCK, or PENDING
 
 **State determination logic:**
@@ -730,6 +839,121 @@ Before finalizing discovery, critically evaluate:
 - Document genuinely orphan work in the orphan summary
 
 See `.agent_process/process/roadmap_discovery.md` Phase 3.5 for full investigation protocol.
+
+### Step 3.7: Dependency & Complexity Analysis
+
+**Scan requirements for dependency relationships and suggest complexity tags.**
+
+This step reads all discovered requirements and:
+1. Extracts `depends_on` fields from frontmatter
+2. Detects file scope overlaps between requirements (potential implicit dependencies)
+3. Suggests `complexity: complex` for requirements touching multiple system layers
+
+```python
+python3 << 'PYEOF'
+import re
+import yaml
+from pathlib import Path
+from collections import defaultdict
+
+req_dir = Path(".agent_process/requirements_docs")
+deps = {}          # {req_id: [depends_on_ids]}
+file_scopes = {}   # {req_id: set(files)}
+complexity = {}    # {req_id: current complexity or None}
+layers = {}        # {req_id: set(detected layers)}
+
+LAYER_PATTERNS = {
+    "database": ["migrations/", ".sql", "schema", "models/"],
+    "backend": ["backend/", "api/", "routes/", "functions/", ".py"],
+    "frontend": ["frontend/", "src/components/", "src/pages/", ".tsx", ".jsx"],
+    "tests": ["tests/", "test/", ".test.", ".spec."],
+    "infrastructure": ["scripts/", ".yml", ".yaml", "Dockerfile", "cloud"],
+    "docs": ["docs/", "README", "CLAUDE.md"],
+}
+
+def detect_layers(files):
+    detected = set()
+    for f in files:
+        for layer, patterns in LAYER_PATTERNS.items():
+            if any(p in f for p in patterns):
+                detected.add(layer)
+    return detected
+
+for md_file in req_dir.rglob("*.md"):
+    try:
+        content = md_file.read_text()
+    except:
+        continue
+    if not content.startswith("---"):
+        continue
+    end_match = re.search(r'\n---\s*\n', content[3:])
+    if not end_match:
+        continue
+    try:
+        fm = yaml.safe_load(content[3:end_match.start() + 3])
+    except:
+        continue
+    if not fm or fm.get("type") != "requirement":
+        continue
+
+    req_id = fm.get("id", "")
+    if not req_id:
+        continue
+
+    # Collect depends_on
+    dep_list = fm.get("depends_on", [])
+    if isinstance(dep_list, str):
+        dep_list = [dep_list]
+    deps[req_id] = dep_list
+
+    # Collect complexity
+    complexity[req_id] = fm.get("complexity")
+
+    # Extract file scope from "Files Expected to Change" section
+    files = set()
+    in_files_section = False
+    for line in content.split("\n"):
+        if re.match(r'^##\s*Files\s+(Expected|in Scope)', line, re.IGNORECASE):
+            in_files_section = True
+            continue
+        if in_files_section:
+            if line.startswith("##"):
+                break
+            file_match = re.match(r'^-\s*`([^`]+)`', line)
+            if file_match:
+                files.add(file_match.group(1))
+    file_scopes[req_id] = files
+    layers[req_id] = detect_layers(files)
+
+# Report
+print("=== Dependencies ===")
+for req_id, dep_list in deps.items():
+    if dep_list:
+        print(f"{req_id} depends on: {', '.join(dep_list)}")
+
+print("\n=== File Scope Overlaps ===")
+req_ids = list(file_scopes.keys())
+for i, r1 in enumerate(req_ids):
+    for r2 in req_ids[i+1:]:
+        overlap = file_scopes[r1] & file_scopes[r2]
+        if overlap:
+            print(f"{r1} ↔ {r2}: {', '.join(sorted(overlap))}")
+
+print("\n=== Complexity Suggestions ===")
+for req_id, layer_set in layers.items():
+    current = complexity.get(req_id)
+    if len(layer_set) >= 2 and current != "complex":
+        print(f"{req_id}: touches {len(layer_set)} layers ({', '.join(sorted(layer_set))}) — consider complexity: complex")
+PYEOF
+```
+
+**Include in roadmap output** (Step 5):
+- Dependencies as a `## Dependency Graph` section (list format or ASCII DAG if few enough)
+- File scope overlaps as warnings under affected requirements
+- Complexity suggestions as actionable notes
+
+**Include in BEADS** (if available):
+- Create dependency relationships: `bd dep add {blocked} {blocking}` for each `depends_on` entry
 
 ### Step 4: Aggregate Status
 
@@ -1032,7 +1256,7 @@ Recommend next actions based on actual work scope state:
      Status: Needs orchestrator planning
 
      Next steps:
-     1. Copy requirement to .agent_process/orchestration/01_plan_scope_prompt.md
+     1. Copy requirement to .agent_process/orchestration/plan-scope.md
      2. Run through orchestrator to create iteration plan
      3. Orchestrator creates work/{scope_name}/iteration_01/
      4. Then execute with /ap_exec {scope_name} iteration_01
@@ -1040,7 +1264,7 @@ Recommend next actions based on actual work scope state:
      DO NOT run /ap_exec yet - no work scope exists
   ```
 - DO NOT suggest `/ap_exec {requirement_id} iteration_01` (no work scope exists yet)
-- Offer to populate the orchestration prompt file for the user
+- Offer to populate the planning entry point (`orchestration/plan-scope.md`) for the user
 
 **For requirements WITH work scope (work/{scope_name}/ directory exists):**
 - Verify directory exists: `ls .agent_process/work/{scope_name}/ 2>/dev/null`
@@ -1102,7 +1326,7 @@ Recommend next actions based on actual work scope state:
    **Work Scope:** work/ailab_import_pattern_cleanup_02_prevail_scripts_and_mace_imports/ ✗ (missing)
    **Approval:** N/A (no work yet)
    **Next Steps:**
-   - Copy requirement to .agent_process/orchestration/01_plan_scope_prompt.md
+   - Copy requirement to .agent_process/orchestration/plan-scope.md
    - Run through orchestrator to create iteration plan
    - Orchestrator creates the work scope directory
    - Then execute with /ap_exec {scope_name} iteration_01
@@ -1313,405 +1537,29 @@ After adding the item:
 
 {% elif action == "add-requirement" %}
 
-## Create New Requirement
+## Moved → `/ap_requirements add`
 
-**Requirement Name:** {{ details }}
+This command has moved to `/ap_requirements add "{{ details }}"`.
 
-### Step 1: Validate Input
+The new command includes:
+- **Brainstorm-assisted creation** (via metaswarm, optional)
+- **Unified workflow** for add, import, and brainstorm
+- **List view** of all requirements
 
-{% if not details %}
-Error: Please provide a requirement name.
-Usage: `/ap_project add-requirement "User authentication system"`
-{% endif %}
-
-### Step 2: Determine Location
-
-Ask user where to place the requirement:
-- Root level (`requirements_docs/{name}.md`)
-- Existing category (`requirements_docs/{category}/{name}.md`)
-- New category (`requirements_docs/{new_category}/{name}.md`)
-
-### Step 3: Generate Requirement ID
-
-Create normalized ID from name and location:
-```
-Name: "User authentication system"
-Location: Root level
-→ ID: user_authentication_system
-→ File: requirements_docs/user_authentication_system.md
-```
-
-### Step 4: Create from Template
-
-Use the requirement template from `.agent_process/requirements_docs/_TEMPLATE_requirements.md`:
-
-```markdown
----
-id: {{ requirement_id }}
-type: requirement
-category: {{ category }}
-status: not_started
-priority: {{ priority }}
----
-
-# Requirements: {{ details }}
-
----
-
-## Objective
-[One clear sentence describing what this scope achieves]
-
-## Background
-[Why is this needed? What problem does it solve?]
-
----
-
-## Technical Requirements
-
-1. [Specific requirement 1]
-2. [Specific requirement 2]
-3. [...]
-
----
-
-## Success Criteria
-- [ ] [Measurable criterion 1]
-- [ ] [Measurable criterion 2]
-- [ ] [...]
-
----
-
-## Files Expected to Change
-- `path/to/file1.tsx`
-- `path/to/file2.ts`
-
-**Estimated:** 4-8 files
-
----
-
-## Out of Scope
-[Explicitly list what is NOT included]
-
----
-
-## Known Risks
-- [Risk 1 and mitigation strategy]
-- [Risk 2 and mitigation strategy]
-```
-
-**Note:** The `type: requirement` field is mandatory — discovery and sync will ignore files without it.
-
-### Step 5: Update Roadmap
-
-Add new requirement to master roadmap with NOT_STARTED status.
-
-### Step 6: Suggest Next Steps
-
-Recommend:
-- Fill in the requirement details with acceptance criteria and scope
-- Set appropriate priority based on impact and effort
-- **Use orchestrator planning workflow** when ready:
-  1. Copy requirement content to `.agent_process/orchestration/01_plan_scope_prompt.md`
-  2. Run through orchestrator to create iteration plan with validation
-  3. Orchestrator will create work scope directory and iteration_01/
-  4. Then use `/ap_exec {scope_name} iteration_01` to execute the plan
-- If criteria change after review, use PIVOT to create iteration_02, etc.
-
-**Note:** Do NOT run `/ap_exec` directly - orchestrator must plan the scope first.
+**Run instead:** `/ap_requirements add "{{ details }}"`
 
 {% elif action == "import-requirement" %}
 
-## Import Existing File as Requirement
+## Moved → `/ap_requirements import`
 
-**Input:** {{ details }}
+This command has moved to `/ap_requirements import "{{ details }}"`.
 
-Import an existing markdown file as a formal requirement. Adds frontmatter if missing, standardizes the filename, and adds to roadmap.
+The new command includes:
+- **Same import workflow** (frontmatter, naming, roadmap update)
+- **Optional design review** (via metaswarm, if enabled)
+- **Unified interface** with add, brainstorm, and list
 
-**Reference:** `.agent_process/process/naming_conventions.md`
-
-### Step 1: Parse Input
-
-{% if not details %}
-**Error:** Please provide a file path.
-
-**Usage:**
-```bash
-/ap_project import-requirement "path/to/file.md"
-/ap_project import-requirement "path/to/file.md --supersedes old_requirement_id"
-```
-{% else %}
-
-Parse the details argument:
-- **File path:** First part (required)
-- **--supersedes:** Optional flag with old requirement ID to archive
-
-### Step 2: Read and Validate Source File
-
-1. Check file exists
-2. Read content
-3. Extract frontmatter if present
-
-```python
-from pathlib import Path
-import re
-
-file_path = Path("{{ details }}".split("--supersedes")[0].strip())
-if not file_path.exists():
-    raise FileNotFoundError(f"File not found: {file_path}")
-
-content = file_path.read_text()
-
-# Extract frontmatter if present
-frontmatter = {}
-if content.startswith("---"):
-    fm_match = re.match(r'^---\n(.*?)\n---\n', content, re.DOTALL)
-    if fm_match:
-        import yaml
-        frontmatter = yaml.safe_load(fm_match.group(1)) or {}
-```
-
-### Step 3: Analyze Content and Gather Context
-
-Before prompting the user, gather all the information needed to make smart suggestions:
-
-```python
-# 1. Infer category from frontmatter or content
-if frontmatter.get("category"):
-    inferred_category = frontmatter["category"]
-    category_source = "frontmatter"
-else:
-    content_lower = content.lower()
-    if "lexical" in content_lower or "editor" in content_lower:
-        inferred_category = "lexical_editor"
-        category_source = "content mentions 'lexical' or 'editor'"
-    elif "ai radar" in content_lower or "feedback" in content_lower:
-        inferred_category = "ai_radar"
-        category_source = "content mentions 'ai radar' or 'feedback'"
-    elif "word tool" in content_lower or "collection" in content_lower:
-        inferred_category = "word_tools"
-        category_source = "content mentions 'word tool' or 'collection'"
-    elif "test" in content_lower or "quality" in content_lower:
-        inferred_category = "code_quality"
-        category_source = "content mentions 'test' or 'quality'"
-    else:
-        inferred_category = "uncategorized"
-        category_source = "no category keywords found"
-
-# 2. Find next epic/scope number for this category
-existing_ids = [extract IDs from master_roadmap.md for this category]
-# e.g., for lexical_editor: lexical_epic_01, lexical_epic_06, lexical_epic_07
-next_number = max([extract numbers]) + 1  # e.g., 8
-
-# 3. Extract a short descriptor from the title or filename
-title = extract first # heading from content
-descriptor = derive 1-3 word descriptor  # e.g., "navigation", "save_bugs"
-
-# 4. Build suggested ID
-suggested_id = f"{category_prefix}_epic_{next_number:02d}_{descriptor}"
-# e.g., "lexical_epic_08_navigation"
-
-# 5. Get priority from frontmatter or content
-if frontmatter.get("priority"):
-    inferred_priority = frontmatter["priority"].upper()
-    priority_source = "frontmatter"
-else:
-    # Look for **Priority:** in content
-    priority_match = re.search(r'\*\*Priority[:\*]*\*?\s*(\w+)', content)
-    if priority_match:
-        inferred_priority = priority_match.group(1).upper()
-        priority_source = "parsed from content"
-    else:
-        inferred_priority = "MEDIUM"
-        priority_source = "default"
-```
-
-### Step 4: Confirm Category with User
-
-Use AskUserQuestion to confirm the category:
-
-**Question:** "What category should this requirement belong to?"
-
-**Header:** "Category"
-
-**Context to show:**
-```
-Naming convention: Requirements are organized by category (e.g., lexical_editor, ai_radar, word_tools).
-See: .agent_process/process/naming_conventions.md
-
-I detected: {inferred_category}
-Reason: {category_source}
-```
-
-**Options:**
-1. `{inferred_category}` (Recommended) - "{category_source}"
-2. Other standard categories as applicable (lexical_editor, ai_radar, word_tools, code_quality, song_settings, infrastructure)
-3. "Other" - user provides custom category
-
-### Step 5: Confirm Requirement ID with User
-
-Use AskUserQuestion to confirm the ID:
-
-**Question:** "What ID should this requirement use?"
-
-**Header:** "Requirement ID"
-
-**Context to show:**
-```
-Naming convention: {category}_{descriptor} or {category}_epic_{NN}_{descriptor}
-Existing {category} requirements: {list existing IDs in this category}
-Next available number: {next_number}
-
-I suggest: {suggested_id}
-Reason: Follows epic numbering pattern, next available is {next_number},
-        descriptor '{descriptor}' derived from title.
-```
-
-**Options:**
-1. `{suggested_id}` (Recommended) - "Follows project naming pattern"
-2. `{filename_based_id}` - "Based on current filename"
-3. If frontmatter had an id: `{frontmatter_id}` - "From existing frontmatter"
-4. "Other" - user provides custom ID
-
-### Step 6: Confirm Priority with User
-
-Use AskUserQuestion to confirm the priority:
-
-**Question:** "What priority level for this requirement?"
-
-**Header:** "Priority"
-
-**Context to show:**
-```
-Priority levels: CRITICAL (blocking), HIGH (important), MEDIUM (normal), LOW (nice-to-have)
-
-I detected: {inferred_priority}
-Reason: {priority_source}
-```
-
-**Options:**
-1. `{inferred_priority}` (Recommended) - "{priority_source}"
-2. Other priority levels (CRITICAL, HIGH, MEDIUM, LOW)
-
-### Step 7: Check for Conflicts
-
-After user confirms ID, check if it already exists:
-
-```python
-roadmap_path = Path(".agent_process/roadmap/master_roadmap.md")
-if roadmap_path.exists():
-    roadmap_content = roadmap_path.read_text()
-    if f"| {confirmed_id} |" in roadmap_content or f"id: {confirmed_id}" in roadmap_content:
-        # CONFLICT - go back to Step 5 with error message
-        # "ID '{confirmed_id}' already exists. Please choose a different ID."
-```
-
-**If conflict detected:** Loop back to Step 5 with the conflict noted.
-
-### Step 8: Handle --supersedes (if provided)
-
-If `--supersedes old_id` was specified:
-
-1. Verify old_id exists in roadmap
-2. Archive it using the archive flow:
-   - Move to archived_roadmap.md
-   - Add to .roadmap_config.json archived_requirements
-   - Log to .roadmap_audit.jsonl
-3. Add `supersedes: old_id` to new requirement's frontmatter
-
-### Step 9: Write Frontmatter
-
-Build complete frontmatter from confirmed values:
-
-```yaml
----
-id: {confirmed_id}
-type: requirement
-category: {confirmed_category}
-status: not_started
-priority: {confirmed_priority}
-supersedes: {old_id if --supersedes else omit}
----
-```
-
-**Note:** The `type: requirement` field is mandatory — discovery and sync will ignore files without it.
-
-### Step 10: Determine Target Location
-
-**ALWAYS place files in category subdirectory** (unless uncategorized):
-
-```python
-target_dir = Path(".agent_process/requirements_docs")
-if confirmed_category != "uncategorized":
-    target_dir = target_dir / confirmed_category
-target_dir.mkdir(parents=True, exist_ok=True)
-
-# Use confirmed_id for the filename
-target_file = target_dir / f"{confirmed_id}.md"
-
-# Check if source is already at target
-source_path = Path(file_path)
-if source_path.resolve() == target_file.resolve():
-    needs_move = False
-else:
-    needs_move = True
-    # Check target doesn't already exist (different file)
-    if target_file.exists():
-        raise FileExistsError(f"Target file already exists: {target_file}")
-```
-
-**Key behavior:** Even if the source file is already inside `requirements_docs/`, if it's not in the correct category subdirectory, it MUST be moved. The filename will also change to match the confirmed ID. For example:
-- `requirements_docs/lexical_save_state_navigation.md` with confirmed ID `lexical_epic_08_navigation`
-- → Move to `requirements_docs/lexical_editor/lexical_epic_08_navigation.md`
-
-### Step 11: Write File
-
-1. Write content with updated frontmatter to target location (using confirmed_id as filename)
-2. If `needs_move` is True, delete the original file after successful write
-3. If source was already at target, just update frontmatter in place
-
-### Step 12: Update Roadmap (Incremental)
-
-Add to master_roadmap.md without full re-discovery.
-
-**IMPORTANT: Do not modify table structure.** Match the existing column format exactly.
-
-1. Find the appropriate category section (e.g., `### Lexical Editor`)
-2. Look at the existing table format in that section
-3. Add a new row matching that exact format:
-   ```
-   | 📋 | {PRIORITY} | {display_name} | 0 |
-   ```
-4. Update the category completion percentage in the section header
-5. Update the Status Summary counts at the top (increment "Not Started" count)
-
-**Do NOT:**
-- Add new columns to tables
-- Change table structure
-- Modify `.roadmap_config.json` prefix mappings (frontmatter category is authoritative)
-
-### Step 13: Report Success
-
-Print a clean summary:
-
-```
-✓ Imported: {req_id}
-  File:     requirements_docs/{category}/{req_id}.md
-  Category: {category}
-  Priority: {priority}
-  Status:   not_started (added to roadmap)
-```
-
-If file was moved:
-```
-  Moved from: {original_path}
-```
-
-If --supersedes was used:
-```
-  Archived: {old_id} (superseded)
-```
-
-{% endif %}
+**Run instead:** `/ap_requirements import "{{ details }}"`
 
 {% elif action == "sync" %}
 
@@ -1919,7 +1767,7 @@ Show which requirements need planning with clear mapping:
    **Approval:** N/A (no work scope yet)
 
    Next steps:
-   1. Copy requirement to .agent_process/orchestration/01_plan_scope_prompt.md
+   1. Copy requirement to .agent_process/orchestration/plan-scope.md
    2. Run through orchestrator to create iteration plan
    3. Orchestrator creates work/{scope_name}/iteration_01/
    4. Then execute with /ap_exec {scope_name} iteration_01
@@ -1934,10 +1782,10 @@ Show which requirements need planning with clear mapping:
 
 **Offer to help:**
 ```
-Would you like me to populate the orchestration prompt for one of these? (yes/no)
+Would you like me to set up planning for one of these? (yes/no)
 
 If yes, I'll:
-1. Update .agent_process/orchestration/01_plan_scope_prompt.md with the requirement
+1. Update .agent_process/orchestration/plan-scope.md with the requirement
 2. You run it through your orchestrator (separate agent/process)
 3. Orchestrator creates the work scope and iteration_01/
 4. Then you can execute with /ap_exec {scope_name} iteration_01
@@ -3044,40 +2892,13 @@ When session expires, user stays on page with failing API calls instead of being
 
 ---
 
-### `/ap_project add-requirement`
-Create a new requirement from template.
-
-**Usage:** `/ap_project add-requirement "requirement_name"`
+### `/ap_project add-requirement` (deprecated)
+**Moved to `/ap_requirements add`.** See `/ap_requirements` for the unified requirements workflow with brainstorm support.
 
 ---
 
-### `/ap_project import-requirement`
-Import an existing markdown file as a formal requirement. Interactive flow confirms category, ID, and priority with the user before making changes.
-
-**Usage:** `/ap_project import-requirement "file_path [--supersedes old_id]"`
-
-**Examples:**
-```bash
-/ap_project import-requirement "drafts/new_feature.md"
-/ap_project import-requirement "requirements_docs/misplaced_file.md"
-/ap_project import-requirement "notes/auth_bugs.md --supersedes old_auth"
-```
-
-**Interactive Flow:**
-1. Analyzes file content to infer category, suggest ID, detect priority
-2. **Asks user to confirm category** - explains naming convention, shows why it chose what it chose
-3. **Asks user to confirm ID** - suggests next epic number, shows existing IDs in category
-4. **Asks user to confirm priority** - shows detected priority and source
-5. Moves file to `requirements_docs/{category}/{confirmed_id}.md`
-6. Updates roadmap (does not modify table structure)
-
-**Key behaviors:**
-- Suggests smart IDs following `{category}_epic_{NN}_{descriptor}` pattern
-- Finds next available epic/scope number automatically
-- **Always moves** file to category subdirectory with confirmed ID as filename
-- Does NOT modify `.roadmap_config.json` (frontmatter is authoritative)
-
-**See:** `.agent_process/process/naming_conventions.md`
+### `/ap_project import-requirement` (deprecated)
+**Moved to `/ap_requirements import`.** See `/ap_requirements` for the unified requirements workflow with optional design review.
 
 ---
 

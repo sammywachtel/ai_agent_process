@@ -22,6 +22,74 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Ensure ~/.config/beads/credentials exists with header template
+ensure_beads_credentials() {
+  local creds_file="${HOME}/.config/beads/credentials"
+  mkdir -p "${HOME}/.config/beads"
+  if [[ ! -f "$creds_file" ]]; then
+    cat > "$creds_file" << 'CREDS_TEMPLATE'
+# BEADS Dolt Server Credentials
+#
+# Each section is [host:port] matching the beads.server config in a project's
+# quality-config.json. Projects only read the section matching their configured host.
+#
+# In Docker containers, 127.0.0.1/localhost are rewritten to host.docker.internal
+# automatically — the script checks both the rewritten and original keys.
+#
+# To add a new server:
+#   [hostname:port]
+#   password = your_password_here
+#
+# Examples:
+#   [127.0.0.1:3307]          — local Dolt (personal projects)
+#   [beads.company.com:3307]  — shared team server (work projects)
+#   [10.0.1.50:3307]          — office network server
+#
+# This file is chmod 600. Do not commit it to any repo.
+CREDS_TEMPLATE
+    chmod 600 "$creds_file"
+  fi
+}
+
+# Save a password to credentials file (idempotent, preserves header + existing entries)
+save_beads_credential() {
+  local host="$1" port="$2" password="$3"
+  ensure_beads_credentials
+  python3 -c "
+import os, re
+
+path = os.path.expanduser('~/.config/beads/credentials')
+content = open(path).read() if os.path.exists(path) else ''
+
+# Preserve comment header (everything before first [section])
+header = ''
+body = content
+first_section = re.search(r'^\[', content, re.MULTILINE)
+if first_section:
+    header = content[:first_section.start()]
+    body = content[first_section.start():]
+elif content.startswith('#'):
+    header = content
+    body = ''
+
+# Parse sections from body
+import configparser, io
+cp = configparser.ConfigParser()
+cp.read_string(body)
+
+section = '${host}:${port}'
+if not cp.has_section(section):
+    cp.add_section(section)
+cp.set(section, 'password', '${password}')
+
+# Write header + sections
+with open(path, 'w') as f:
+    f.write(header)
+    cp.write(f)
+os.chmod(path, 0o600)
+" 2>/dev/null
+}
+
 # Determine source directory (where this script lives)
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -101,6 +169,380 @@ if [[ ! -d "$AGENT_PROCESS_DIR/work" ]]; then
 else
   echo -e "${YELLOW}  ⊙${NC} Preserving existing .agent_process/work/ directory"
 fi
+
+# Knowledge base directory — .beads/knowledge/ when BEADS enabled, .agent_process/knowledge/ as fallback
+# Both are created; the orchestrator/agents pick the right one at runtime
+KB_FILES="patterns gotchas decisions anti-patterns"
+KB_FILES_EXTENDED="codebase-facts api-behaviors"  # metaswarm-compatible extras
+
+# Always ensure .agent_process/knowledge/ exists (fallback when BEADS disabled)
+if [[ ! -d "$AGENT_PROCESS_DIR/knowledge" ]]; then
+  mkdir -p "$AGENT_PROCESS_DIR/knowledge"
+  for kb_file in $KB_FILES; do
+    if [[ ! -f "$AGENT_PROCESS_DIR/knowledge/${kb_file}.jsonl" ]]; then
+      echo "# Schema: ${kb_file}.jsonl — see process/knowledge-base.md for format" > "$AGENT_PROCESS_DIR/knowledge/${kb_file}.jsonl"
+    fi
+  done
+  echo -e "${GREEN}  ✓${NC} Created .agent_process/knowledge/ (fallback)"
+else
+  echo -e "${YELLOW}  ⊙${NC} Preserving existing .agent_process/knowledge/"
+fi
+
+# Create .beads/knowledge/ for BEADS-managed knowledge (metaswarm-compatible)
+if [[ ! -d "$TARGET_DIR/.beads/knowledge" ]]; then
+  mkdir -p "$TARGET_DIR/.beads/knowledge"
+  for kb_file in $KB_FILES $KB_FILES_EXTENDED; do
+    if [[ ! -f "$TARGET_DIR/.beads/knowledge/${kb_file}.jsonl" ]]; then
+      echo "# Schema: ${kb_file}.jsonl — metaswarm-compatible. See process/knowledge-base.md" > "$TARGET_DIR/.beads/knowledge/${kb_file}.jsonl"
+    fi
+  done
+  echo -e "${GREEN}  ✓${NC} Created .beads/knowledge/ (primary, metaswarm-compatible)"
+else
+  echo -e "${YELLOW}  ⊙${NC} Preserving existing .beads/knowledge/"
+fi
+
+# Migrate legacy .agent_process/knowledge/ entries → .beads/knowledge/ (idempotent)
+# Uses scripts/migrate-knowledge.py — same script users can run manually
+if [[ -d "$AGENT_PROCESS_DIR/knowledge" && -d "$TARGET_DIR/.beads/knowledge" ]]; then
+  MIGRATED=$(python3 "$SOURCE_DIR/scripts/migrate-knowledge.py" --src "$AGENT_PROCESS_DIR/knowledge" --dst "$TARGET_DIR/.beads/knowledge" -q 2>/dev/null || echo "0")
+  if [[ "$MIGRATED" -gt 0 ]]; then
+    echo -e "${GREEN}  ✓${NC} Migrated ${MIGRATED} knowledge entries from .agent_process/knowledge/ → .beads/knowledge/"
+  fi
+fi
+
+# Ensure quality-config.json exists (seed from template if missing)
+QUALITY_CONFIG_FRESH=false
+if [[ ! -f "$AGENT_PROCESS_DIR/quality-config.json" ]]; then
+  cp "$SOURCE_DIR/quality-config.json" "$AGENT_PROCESS_DIR/quality-config.json"
+  QUALITY_CONFIG_FRESH=true
+fi
+
+# ─── Feature Selection ───────────────────────────────────────────────
+# Always prompt — lets users review and change settings on every install.
+# Default is enabled (Enter = yes) for all features.
+echo ""
+echo -e "${BLUE}▸${NC} Feature configuration..."
+echo -e "  Configure which quality gates are active. Press Enter to accept the default."
+echo ""
+
+# Read current values from config (or use defaults)
+read_feature() {
+  local feature="$1" default="$2"
+  python3 -c "
+import json
+try:
+    cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
+    parts = '$feature'.split('.')
+    val = cfg
+    for p in parts:
+        val = val.get(p, {})
+    if isinstance(val, bool):
+        print('yes' if val else 'no')
+    else:
+        print('$default')
+except:
+    print('$default')
+" 2>/dev/null || echo "$default"
+}
+
+prompt_feature() {
+  local label="$1" desc="$2" feature="$3" default="$4"
+  local current
+  current=$(read_feature "$feature" "$default")
+  local hint="Y/n"
+  [[ "$current" == "no" ]] && hint="y/N"
+  read -p "  $label ($desc) [$hint]: " -n 1 -r
+  echo "" >&2
+  if [[ -z "$REPLY" ]]; then
+    # Enter pressed — keep current/default
+    echo "$current"
+  elif [[ "$REPLY" =~ ^[Yy]$ ]]; then
+    echo "yes"
+  else
+    echo "no"
+  fi
+}
+
+FEAT_PREFLIGHT=$(prompt_feature "Pre-flight checks" "session recovery, branch check, git context" "pre_flight.enabled" "yes")
+FEAT_KNOWLEDGE=$(prompt_feature "Knowledge base" "patterns, gotchas, decisions across iterations" "knowledge_base.enabled" "yes")
+FEAT_ADVERSARIAL=$(prompt_feature "Adversarial review" "fresh-agent criterion verification" "adversarial_review.enabled" "yes")
+FEAT_DECOMPOSITION=$(prompt_feature "Work unit decomposition" "DAG-based parallel execution for multi-domain scopes" "work_unit_decomposition.enabled" "yes")
+FEAT_DESIGN_REVIEW=$(prompt_feature "Design review gate" "multi-reviewer plan assessment for complex scopes" "design_review.enabled" "no")
+FEAT_BEADS=$(prompt_feature "BEADS" "git-native durable state tracking via Dolt" "beads.enabled" "yes")
+FEAT_PR_SHEPHERD=$(prompt_feature "PR shepherd" "post-PR agent monitoring CI and reviews" "pr_shepherd.enabled" "yes")
+FEAT_METASWARM=$(prompt_feature "Metaswarm integration" "brainstorming, design review, knowledge priming" "metaswarm.enabled" "no")
+
+# Write all selections to quality-config.json
+python3 -c "
+import json
+path = '$AGENT_PROCESS_DIR/quality-config.json'
+try:
+    cfg = json.load(open(path))
+except:
+    cfg = {}
+
+def to_bool(s): return s == 'yes'
+
+cfg.setdefault('pre_flight', {})['enabled'] = to_bool('$FEAT_PREFLIGHT')
+cfg.setdefault('knowledge_base', {})['enabled'] = to_bool('$FEAT_KNOWLEDGE')
+cfg.setdefault('adversarial_review', {})['enabled'] = to_bool('$FEAT_ADVERSARIAL')
+cfg.setdefault('work_unit_decomposition', {})['enabled'] = to_bool('$FEAT_DECOMPOSITION')
+cfg.setdefault('design_review', {})['enabled'] = to_bool('$FEAT_DESIGN_REVIEW')
+cfg.setdefault('beads', {})['enabled'] = to_bool('$FEAT_BEADS')
+cfg['beads']['_user_configured'] = True
+cfg.setdefault('pr_shepherd', {})['enabled'] = to_bool('$FEAT_PR_SHEPHERD')
+cfg.setdefault('metaswarm', {})['enabled'] = to_bool('$FEAT_METASWARM')
+cfg['metaswarm']['_user_configured'] = True
+
+json.dump(cfg, open(path, 'w'), indent=2)
+print('OK')
+" 2>/dev/null
+
+echo ""
+echo -e "${GREEN}  ✓${NC} Feature configuration saved to quality-config.json"
+
+# ─── BEADS Setup (if enabled) ────────────────────────────────────────
+if [[ "$FEAT_BEADS" == "yes" ]]; then
+  echo ""
+  echo -e "${BLUE}▸${NC} BEADS durable state tracking..."
+
+  # Check Dolt prerequisites — local binary or remote server
+  DOLT_AVAILABLE=false
+  if command -v dolt &>/dev/null; then
+    DOLT_AVAILABLE=true
+    echo -e "${GREEN}  ✓${NC} Dolt installed locally"
+  else
+    # Check if a remote server is configured and reachable
+    REMOTE_HOST=$(python3 -c "
+import json
+try:
+    cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
+    print(cfg.get('beads', {}).get('server', {}).get('host', ''))
+except:
+    print('')
+" 2>/dev/null)
+    REMOTE_PORT=$(python3 -c "
+import json
+try:
+    cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
+    print(cfg.get('beads', {}).get('server', {}).get('port', '3307'))
+except:
+    print('3307')
+" 2>/dev/null)
+    if [[ -n "$REMOTE_HOST" ]] && nc -z "$REMOTE_HOST" "$REMOTE_PORT" 2>/dev/null; then
+      DOLT_AVAILABLE=true
+      echo -e "${GREEN}  ✓${NC} Dolt server reachable at ${REMOTE_HOST}:${REMOTE_PORT}"
+    fi
+  fi
+
+  if [[ "$DOLT_AVAILABLE" == false ]]; then
+    echo -e "${YELLOW}  ⚠ Dolt is not reachable.${NC} BEADS needs Dolt as its database backend."
+    echo -e "  Options:"
+    echo -e "    1) Start Dolt via Docker now"
+    echo -e "    2) Enter remote server connection details"
+    echo -e "    3) I'll install Dolt manually and re-run"
+    echo -e "    4) Skip BEADS for now (use file-based state)"
+    read -p "  Choose [1/2/3/4]: " -n 1 -r
+    echo ""
+    if [[ "$REPLY" == "1" ]]; then
+      if ! command -v docker &>/dev/null; then
+        echo -e "${RED}  Docker not found.${NC} Continuing without BEADS."
+      else
+        DOLT_DATA_DIR="${HOME}/.dolt-server/data"
+        DOLT_CFG_DIR="${HOME}/.dolt-server/config"
+        mkdir -p "$DOLT_DATA_DIR" "$DOLT_CFG_DIR"
+        DOLT_PASS=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 16)
+        echo -e "  Starting Dolt SQL server via Docker..."
+        docker run -d \
+          --name beads-dolt-server \
+          --restart unless-stopped \
+          -e DOLT_ROOT_HOST='%' \
+          -e DOLT_ROOT_PASSWORD="$DOLT_PASS" \
+          -p 3307:3306 \
+          -v "$DOLT_DATA_DIR":/var/lib/dolt \
+          -v "$DOLT_CFG_DIR":/etc/dolt/servercfg.d \
+          dolthub/dolt-sql-server:latest \
+          2>/dev/null
+        if [[ $? -eq 0 ]]; then
+          echo -e "${GREEN}  ✓${NC} Dolt server running in Docker (port 3307)"
+          DOLT_AVAILABLE=true
+          python3 -c "
+import json
+path = '$AGENT_PROCESS_DIR/quality-config.json'
+try:
+    cfg = json.load(open(path))
+    cfg.setdefault('beads', {})['server'] = {'host': '127.0.0.1', 'port': 3307, 'user': 'root'}
+    json.dump(cfg, open(path, 'w'), indent=2)
+except:
+    pass
+" 2>/dev/null
+          save_beads_credential "127.0.0.1" "3307" "$DOLT_PASS"
+          echo -e "${GREEN}  ✓${NC} Credentials saved to ~/.config/beads/credentials"
+        else
+          echo -e "${YELLOW}  ⊙${NC} Docker failed. Continuing without BEADS."
+        fi
+      fi
+    elif [[ "$REPLY" == "2" ]]; then
+      read -p "  Dolt server host: " REMOTE_INPUT_HOST
+      read -p "  Dolt server port [3307]: " REMOTE_INPUT_PORT
+      REMOTE_INPUT_PORT="${REMOTE_INPUT_PORT:-3307}"
+      read -p "  Dolt user [root]: " REMOTE_INPUT_USER
+      REMOTE_INPUT_USER="${REMOTE_INPUT_USER:-root}"
+      if nc -z "$REMOTE_INPUT_HOST" "$REMOTE_INPUT_PORT" 2>/dev/null; then
+        echo -e "${GREEN}  ✓${NC} Connected to ${REMOTE_INPUT_HOST}:${REMOTE_INPUT_PORT}"
+        DOLT_AVAILABLE=true
+        python3 -c "
+import json
+path = '$AGENT_PROCESS_DIR/quality-config.json'
+try:
+    cfg = json.load(open(path))
+    cfg.setdefault('beads', {})['server'] = {
+        'host': '$REMOTE_INPUT_HOST',
+        'port': int('$REMOTE_INPUT_PORT'),
+        'user': '$REMOTE_INPUT_USER'
+    }
+    json.dump(cfg, open(path, 'w'), indent=2)
+except:
+    pass
+" 2>/dev/null
+      else
+        echo -e "${RED}  Cannot reach ${REMOTE_INPUT_HOST}:${REMOTE_INPUT_PORT}${NC}"
+      fi
+    elif [[ "$REPLY" == "3" ]]; then
+      echo -e "${YELLOW}  Installation paused.${NC} Install Dolt, then re-run:"
+      echo -e "    ${GREEN}brew install dolt && $0${NC}"
+      exit 0
+    fi
+    # Option 4 or failed options — continue without BEADS
+  fi
+
+  # Install BEADS CLI (bd) if Dolt is available but bd is not
+  if [[ "$DOLT_AVAILABLE" == true ]] && ! command -v bd &>/dev/null; then
+    echo -e "  Installing BEADS CLI (bd)..."
+    BEADS_INSTALLED=false
+    if command -v npm &>/dev/null && npm install -g @beads/bd 2>/dev/null; then
+      BEADS_INSTALLED=true
+      echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via npm"
+    elif command -v brew &>/dev/null && brew install beads 2>/dev/null; then
+      BEADS_INSTALLED=true
+      echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via Homebrew"
+    elif command -v curl &>/dev/null && curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash 2>/dev/null; then
+      BEADS_INSTALLED=true
+      echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via installer script"
+    fi
+    if [[ "$BEADS_INSTALLED" == false ]]; then
+      echo -e "${YELLOW}  ⊙${NC} BEADS CLI install failed — install bd manually"
+    fi
+  elif [[ "$DOLT_AVAILABLE" == true ]]; then
+    echo -e "${GREEN}  ✓${NC} BEADS ready (Dolt + bd available)"
+  fi
+fi
+
+
+# Initialize BEADS database if bd is available and enabled.
+# Check for metadata.json (not just .beads/) since knowledge migration creates .beads/knowledge/ early.
+# Works with both local Dolt (command -v dolt) and remote/Docker Dolt (beads.server in config).
+if command -v bd &>/dev/null && [[ ! -f "${TARGET_DIR}/.beads/metadata.json" ]]; then
+  # Read config to check enabled + get server connection
+  BEADS_INIT_INFO=$(python3 -c "
+import json
+try:
+    cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
+    b = cfg.get('beads', {})
+    if not b.get('enabled', False):
+        print('disabled')
+    else:
+        server = b.get('server', {})
+        host = server.get('host', '')
+        port = server.get('port', '')
+        user = server.get('user', '')
+        has_local_dolt = True  # will be checked in shell
+        print(f'enabled|{host}|{port}|{user}')
+except:
+    print('disabled')
+" 2>/dev/null)
+
+  if [[ "$BEADS_INIT_INFO" != "disabled" ]]; then
+    # Parse server config
+    IFS='|' read -r _ BHOST BPORT BUSER <<< "$BEADS_INIT_INFO"
+
+    # Export env vars so bd init can connect to the right server
+    [[ -n "$BHOST" ]] && export BEADS_DOLT_SERVER_HOST="$BHOST"
+    [[ -n "$BPORT" ]] && export BEADS_DOLT_SERVER_PORT="$BPORT"
+    [[ -n "$BUSER" ]] && export BEADS_DOLT_SERVER_USER="$BUSER"
+
+    # Load password from credentials file
+    CREDS_FILE="${HOME}/.config/beads/credentials"
+    if [[ -f "$CREDS_FILE" && -n "$BHOST" ]]; then
+      BPASS=$(python3 -c "
+import configparser, os
+cp = configparser.ConfigParser()
+cp.read(os.path.expanduser('~/.config/beads/credentials'))
+key = '${BHOST}:${BPORT:-3307}'
+if cp.has_section(key) and cp.has_option(key, 'password'):
+    print(cp.get(key, 'password'))
+" 2>/dev/null) || true
+      [[ -n "${BPASS:-}" ]] && export BEADS_DOLT_PASSWORD="$BPASS"
+    fi
+
+    # Check we can reach Dolt somehow (local binary OR remote server)
+    DOLT_REACHABLE=false
+    if [[ -n "$BHOST" ]]; then
+      # Remote server configured — check TCP connectivity
+      nc -z "$BHOST" "${BPORT:-3307}" 2>/dev/null && DOLT_REACHABLE=true
+    elif command -v dolt &>/dev/null; then
+      # Local Dolt binary
+      DOLT_REACHABLE=true
+    fi
+
+    if [[ "$DOLT_REACHABLE" == true ]]; then
+      if (cd "$TARGET_DIR" && bd init 2>/dev/null); then
+        echo -e "${GREEN}  ✓${NC} Initialized BEADS database (.beads/)"
+
+        # Write server config to bd's native storage so bd knows the connection
+        # without needing env vars or wrapper scripts at runtime.
+        if [[ -n "$BHOST" ]]; then
+          (cd "$TARGET_DIR" && bd dolt set host "$BHOST" 2>/dev/null) || true
+        fi
+        if [[ -n "${BPORT:-}" ]]; then
+          (cd "$TARGET_DIR" && bd dolt set port "$BPORT" 2>/dev/null) || true
+        fi
+        if [[ -n "${BUSER:-}" ]]; then
+          (cd "$TARGET_DIR" && bd dolt set user "$BUSER" 2>/dev/null) || true
+        fi
+      else
+        echo -e "${YELLOW}  ⊙${NC} BEADS database initialization failed (will retry at runtime)"
+      fi
+    fi
+  fi
+fi
+
+# ─── Metaswarm Setup (if enabled) ─────────────────────────────────────
+if [[ "$FEAT_METASWARM" == "yes" ]]; then
+  echo ""
+  echo -e "${BLUE}▸${NC} Metaswarm integration..."
+  if ls ~/.claude/commands/brainstorm.md &>/dev/null 2>&1 || ls .claude/commands/brainstorm.md &>/dev/null 2>&1; then
+    echo -e "${GREEN}  ✓${NC} Metaswarm commands detected"
+  else
+    echo -e "  Installing metaswarm..."
+    if command -v claude &>/dev/null; then
+      # Add marketplace source first, then install the plugin
+      claude plugin marketplace add dsifry/metaswarm-marketplace 2>/dev/null
+      if claude plugin install metaswarm 2>/dev/null; then
+        echo -e "${GREEN}  ✓${NC} Metaswarm installed"
+      else
+        echo -e "${YELLOW}  ⊙${NC} Auto-install failed. Install manually:"
+        echo -e "    ${GREEN}claude plugin marketplace add dsifry/metaswarm-marketplace${NC}"
+        echo -e "    ${GREEN}claude plugin install metaswarm${NC}"
+      fi
+    else
+      echo -e "${YELLOW}  ⊙${NC} Claude CLI not found. Install metaswarm manually:"
+      echo -e "    ${GREEN}claude plugin marketplace add dsifry/metaswarm-marketplace${NC}"
+      echo -e "    ${GREEN}claude plugin install metaswarm${NC}"
+    fi
+  fi
+fi
+
 
 # Install .claude/commands/ (Claude Code command scripts)
 echo ""
@@ -189,10 +631,20 @@ echo -e "${BLUE}▸${NC} Installing scripts..."
 cp -r "$SOURCE_DIR"/scripts/* "$AGENT_PROCESS_DIR/scripts/"
 echo -e "${GREEN}  ✓${NC} Installed $(find "$SOURCE_DIR/scripts" -type f | wc -l | tr -d ' ') script files"
 
+# Install contract validators (used by evaluate-scope.sh)
+if [[ -d "$SOURCE_DIR/test/contract" ]]; then
+  for validator in "$SOURCE_DIR"/test/contract/validate-*.sh; do
+    if [[ -f "$validator" ]]; then
+      cp "$validator" "$AGENT_PROCESS_DIR/scripts/"
+    fi
+  done
+  echo -e "${GREEN}  ✓${NC} Installed contract validators"
+fi
+
 # Make hook scripts executable
 chmod +x "$AGENT_PROCESS_DIR/scripts"/*.sh 2>/dev/null || true
 chmod +x "$AGENT_PROCESS_DIR/scripts/after_edit"/*.sh 2>/dev/null || true
-echo -e "${GREEN}  ✓${NC} Made hook scripts executable"
+echo -e "${GREEN}  ✓${NC} Made scripts executable"
 
 # Install templates
 echo ""
@@ -284,9 +736,10 @@ if [[ -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" ]]; then
     # New format with enabled config - update template
     echo -e "${YELLOW}  ⊙${NC} Updating template, preserving enabled config"
     cp "$SOURCE_DIR/process/ap_release_central_sync.md" "$AGENT_PROCESS_DIR/process/"
-    sed -i.bak "s|ENABLED:.*|ENABLED: true|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
-    sed -i.bak "s|CENTRAL_REPO_PATH:.*|CENTRAL_REPO_PATH: $EXISTING_CENTRAL_REPO_PATH|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
-    sed -i.bak "s|PROJECT_FOLDER:.*|PROJECT_FOLDER: $EXISTING_PROJECT_FOLDER|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    # Only replace the <PLACEHOLDER> tokens in the config block, not documentation examples
+    sed -i.bak "s|<ENABLED>|true|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<CENTRAL_REPO_PATH>|$EXISTING_CENTRAL_REPO_PATH|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<PROJECT_FOLDER>|$EXISTING_PROJECT_FOLDER|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
     rm -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md.bak"
     echo -e "${GREEN}  ✓${NC} Updated central sync config (enabled: $EXISTING_PROJECT_FOLDER)"
     EXISTING_ENABLED="true"  # Keep this set so we don't prompt below
@@ -294,9 +747,9 @@ if [[ -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md" ]]; then
     # Already has disabled config - update template but keep disabled
     echo -e "${YELLOW}  ⊙${NC} Updating template, keeping disabled state"
     cp "$SOURCE_DIR/process/ap_release_central_sync.md" "$AGENT_PROCESS_DIR/process/"
-    sed -i.bak "s|ENABLED:.*|ENABLED: false|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
-    sed -i.bak "s|CENTRAL_REPO_PATH:.*|CENTRAL_REPO_PATH: <not_configured>|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
-    sed -i.bak "s|PROJECT_FOLDER:.*|PROJECT_FOLDER: <not_configured>|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<ENABLED>|false|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<CENTRAL_REPO_PATH>|<not_configured>|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<PROJECT_FOLDER>|<not_configured>|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
     rm -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md.bak"
     echo -e "${GREEN}  ✓${NC} Updated central sync config (disabled)"
     EXISTING_ENABLED="false"  # Set so we don't prompt below
@@ -334,20 +787,20 @@ if [[ -z "$EXISTING_ENABLED" ]]; then
     # Expand tilde in path (store as-is with tilde for portability)
     # Note: We keep the tilde in the config for portability across machines
 
-    # Copy template and substitute values - ENABLED: true
+    # Copy template and substitute placeholders only - ENABLED: true
     cp "$SOURCE_DIR/process/ap_release_central_sync.md" "$AGENT_PROCESS_DIR/process/"
-    sed -i.bak "s|ENABLED:.*|ENABLED: true|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
-    sed -i.bak "s|CENTRAL_REPO_PATH:.*|CENTRAL_REPO_PATH: $CENTRAL_REPO_PATH|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
-    sed -i.bak "s|PROJECT_FOLDER:.*|PROJECT_FOLDER: $PROJECT_FOLDER|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<ENABLED>|true|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<CENTRAL_REPO_PATH>|$CENTRAL_REPO_PATH|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<PROJECT_FOLDER>|$PROJECT_FOLDER|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
     rm -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md.bak"
 
     echo -e "${GREEN}  ✓${NC} Created central sync config (enabled)"
   else
-    # Copy template and set ENABLED: false - no path configuration needed
+    # Copy template and substitute placeholders - ENABLED: false
     cp "$SOURCE_DIR/process/ap_release_central_sync.md" "$AGENT_PROCESS_DIR/process/"
-    sed -i.bak "s|ENABLED:.*|ENABLED: false|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
-    sed -i.bak "s|CENTRAL_REPO_PATH:.*|CENTRAL_REPO_PATH: <not_configured>|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
-    sed -i.bak "s|PROJECT_FOLDER:.*|PROJECT_FOLDER: <not_configured>|g" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<ENABLED>|false|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<CENTRAL_REPO_PATH>|<not_configured>|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
+    sed -i.bak "s|<PROJECT_FOLDER>|<not_configured>|" "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md"
     rm -f "$AGENT_PROCESS_DIR/process/ap_release_central_sync.md.bak"
 
     echo -e "${GREEN}  ✓${NC} Created central sync config (disabled)"
@@ -355,6 +808,38 @@ if [[ -z "$EXISTING_ENABLED" ]]; then
 fi
 
 # Installation complete
+# Ensure .gitignore excludes .run/ (ephemeral sub-agent scratch data)
+GITIGNORE_FILE="$AGENT_PROCESS_DIR/.gitignore"
+if [[ ! -f "$GITIGNORE_FILE" ]]; then
+  cat > "$GITIGNORE_FILE" << 'GITIGNORE'
+# Ephemeral sub-agent working data — recreated every run
+**/.run/
+
+# Session state — changes every ap_exec run
+work/current_iteration.conf
+work/current_work_unit.conf
+GITIGNORE
+  echo -e "${GREEN}  ✓${NC} Created .agent_process/.gitignore (.run/ excluded)"
+else
+  UPDATED=false
+  if ! grep -q '\.run' "$GITIGNORE_FILE"; then
+    echo "" >> "$GITIGNORE_FILE"
+    echo "# Ephemeral sub-agent working data — recreated every run" >> "$GITIGNORE_FILE"
+    echo "**/.run/" >> "$GITIGNORE_FILE"
+    UPDATED=true
+  fi
+  if ! grep -q 'current_iteration\.conf' "$GITIGNORE_FILE"; then
+    echo "" >> "$GITIGNORE_FILE"
+    echo "# Session state — changes every ap_exec run" >> "$GITIGNORE_FILE"
+    echo "work/current_iteration.conf" >> "$GITIGNORE_FILE"
+    echo "work/current_work_unit.conf" >> "$GITIGNORE_FILE"
+    UPDATED=true
+  fi
+  if [[ "$UPDATED" == true ]]; then
+    echo -e "${GREEN}  ✓${NC} Updated .agent_process/.gitignore"
+  fi
+fi
+
 echo ""
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}  ✓ Installation Complete${NC}"
@@ -377,7 +862,7 @@ echo -e "     ${BLUE}/ap_exec${NC}, ${BLUE}/ap_iteration_results${NC}, ${BLUE}/a
 echo ""
 echo "  4. Create your first scope:"
 echo -e "     • Create ${GREEN}requirements_docs/my_feature_requirements.md${NC}"
-echo -e "     • Plan with ${BLUE}orchestration/01_plan_scope_prompt.md${NC}"
+echo -e "     • Plan with ${BLUE}orchestration/plan-scope.md${NC}"
 echo -e "     • Execute with ${BLUE}/ap_exec my_feature iteration_01${NC}"
 echo ""
 echo "  5. Set up scope-specific validation:"
@@ -422,4 +907,6 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 echo -e "📖 Documentation: ${GREEN}$AGENT_PROCESS_DIR/claude/commands.md${NC}"
 echo -e "🔧 Hooks guide: ${GREEN}$AGENT_PROCESS_DIR/claude/hooks.md${NC}"
+echo ""
+echo -e "${YELLOW}Note:${NC} Scroll up to review feature configuration and check for any warnings or errors."
 echo ""

@@ -1,0 +1,1 @@
+{"_schema": "v1", "_description": "Approaches that failed or should be avoided. Each entry: {id, scope, summary, detail, source_iteration, date}"}

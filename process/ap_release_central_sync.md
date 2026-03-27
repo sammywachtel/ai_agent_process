@@ -2,7 +2,7 @@
 
 This file configures syncing `.agent_process` changes to a central repository after releases.
 
-The `/ap_release` command (Step 9.5) reads this file to determine sync behavior.
+The `/ap_release` workflow reads this file to determine sync behavior (see `orchestration/steps/release/07-09-commit-tag-push.md`).
 
 ---
 
@@ -24,7 +24,7 @@ PROJECT_FOLDER: <PROJECT_FOLDER>
 
 ### When ENABLED: true
 
-The `/ap_release` command (Step 9.5) will:
+The `/ap_release` workflow will:
 
 1. Navigate to `CENTRAL_REPO_PATH`
 2. Check for changes in `PROJECT_FOLDER/` (subdirectory of central repo)
@@ -45,7 +45,7 @@ The project's `.agent_process/` symlinks directly to `CENTRAL_REPO_PATH/PROJECT_
 
 ### When ENABLED: false
 
-The `/ap_release` command (Step 9.5) will skip all sync steps.
+The `/ap_release` workflow will skip all sync steps.
 
 This project manages `.agent_process/` locally within the project repository.
 
@@ -71,4 +71,4 @@ This file is created during installation:
 
 ---
 
-See `claude/commands/ap_release.md` Step 9.5 for full release integration details.
+See `orchestration/steps/release/07-09-commit-tag-push.md` for the implementation.

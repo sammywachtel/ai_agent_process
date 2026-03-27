@@ -311,8 +311,8 @@ grep -r "import.*ModuleName" docs/
 
 - **Checklist**: `process/documentation-checklist.md` - Dual-audience framework, search patterns
 - **Templates**: `process/doc-update-templates.md` - Copy-paste templates for common doc types
-- **Planning Guide**: `orchestration/01_plan_scope_instructions.md` Step 5.5 - Documentation impact analysis
-- **Review Guide**: `orchestration/02_review_iteration_instructions.md` Step 3.5 - Documentation gate
+- **Planning Guide**: `orchestration/coordinators/plan-scope.md (coordinator) + orchestration/steps/planning/ (step files)` Step 5.5 - Documentation impact analysis
+- **Review Guide**: `orchestration/coordinators/review-iteration.md + steps/review/` Step 3.5 - Documentation gate
 
 ### Integration with results.md
 
@@ -385,10 +385,10 @@ npx playwright test \
 
 ## Documentation References
 
-- **Scope planning:** `../orchestration/01_plan_scope_instructions.md` (orchestration phase)
-- **Iteration review:** `../orchestration/02_review_iteration_instructions.md` (orchestration phase)
+- **Scope planning:** `../orchestration/coordinators/plan-scope.md (coordinator) + orchestration/steps/planning/ (step files)` (orchestration phase)
+- **Iteration review:** `../orchestration/coordinators/review-iteration.md + steps/review/` (orchestration phase)
 - **Iteration execution:** `../claude/commands/ap_exec.md` (implementation phase)
-- **Base context:** `../orchestration/00_base_context.md`
+- **Base context:** `../orchestration/context/base-context.md`
 
 ---
 

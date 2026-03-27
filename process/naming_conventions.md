@@ -163,7 +163,7 @@ priority: low | medium | high | critical
 
 **Breakdown files** use `type: breakdown` — these are parent files that were split into multiple
 smaller requirements. They preserve the original content for reference but are excluded from
-roadmap discovery. See `orchestration/01_plan_scope_instructions.md` § "Large Requirements File Breakdown".
+roadmap discovery. See `orchestration/coordinators/plan-scope.md (coordinator) + orchestration/steps/planning/ (step files)` § "Large Requirements File Breakdown".
 
 ### Optional Fields
 
@@ -174,9 +174,16 @@ type: requirement
 category: lexical_editor
 status: not_started
 priority: high
+complexity: simple | moderate | complex  # Triggers design review gate when "complex"
 supersedes: lexical_epic_06_save  # If this replaces another requirement
 ---
 ```
+
+**`complexity` field:**
+- **Omitted** (default): treated as `moderate` — no design review gate
+- **`simple`**: Straightforward scope, skip design review
+- **`moderate`**: Standard scope, skip design review
+- **`complex`**: Multi-system or architecturally significant — triggers the design review gate (if enabled in `quality-config.json`). 2-4 specialist reviewers assess the iteration plan before execution begins
 
 ---
 

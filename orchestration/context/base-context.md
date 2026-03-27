@@ -27,6 +27,7 @@
 - Reviews results with 4-choice framework
 - Enforces iteration budget (cannot create iteration_01_d)
 - Escalates blockers immediately (no silent failures)
+- **Does NOT run `bd`, `bds`, or BEADS commands.** BEADS lifecycle is managed by the execution phase (`ap_exec` Step 0.5 via `beads-lifecycle.sh`). If project-level instructions say "use bd for task tracking," that applies to the implementation agent, not the orchestrator. Ignore those instructions during planning and review.
 
 ### Implementation Session
 - Implements changes via `/ap_exec <scope> <iteration>`
@@ -45,14 +46,16 @@
 
 ### 2. Execute (Implementation Session)
 - Implementation session runs `/ap_exec <scope> <iteration>`
-- Scoped validation runs (only files in scope)
+- For multi-domain scopes (3+ files across 2+ layers), `/ap_exec` may decompose into work units — a DAG of independently-executable units with per-unit agents and validation
+- Scoped validation runs (only files in scope, or per-unit if decomposed)
 - Time-boxed: 2-4 hours implementation max
-- Produces `results.md` and `test-output.txt`
+- Produces `results.md` (with Work Unit Summary if decomposed) and `test-output.txt`
 
 ### 3. Review (You)
-- Load `02_review_iteration_instructions.md`
-- Read original `iteration_plan.md` (frozen criteria)
-- Evaluate against ORIGINAL criteria (no new requirements)
+- Load `orchestration/coordinators/review-iteration.md`
+- Read `iteration_plan.md` (frozen criteria for this major iteration)
+- **Adversarial review (platform-adaptive):** Check for `adversarial-review.md` in the iteration folder — the implementation agent runs this via a fresh Task agent. If it exists, factor the verdict into your decision. If it doesn't exist and you have Task capability, run it yourself. If neither, perform a rubric-based self-review (see Step 3.7)
+- Evaluate against the frozen criteria **for this major iteration** (after PIVOT, use the revised criteria — not the original v1)
 - **Choose exactly one:** APPROVE / ITERATE / BLOCK / PIVOT
 
 ### 4. Converge (Forced)
@@ -60,6 +63,7 @@
 - **If external blocker:** Choose BLOCK, escalate immediately
 - **If wrong approach:** Choose PIVOT, get human approval
 - **No silent failures:** Every iteration must have explicit decision
+- **Knowledge deposits:** On APPROVE, deposit 0-3 code learnings. On BLOCK/PIVOT, deposit process observations if they meet qualification criteria
 
 ### 5. Plan Forward (You)
 - Update `iteration_plan.md` "Latest iteration" pointer
@@ -137,7 +141,9 @@ After iteration_01_c:
 - Prevents scope creep
 
 ### During Review
-- Evaluate against ORIGINAL criteria only
+- Evaluate against the frozen criteria **for this major iteration**
+- After a PIVOT, the acceptance criteria section was updated — use the current version, not v1
+- Check `## Criteria History` in iteration_plan.md to confirm which version applies
 - Ignore new issues for this iteration's approval
 - Document new issues for backlog
 
@@ -211,19 +217,20 @@ npm test -- --testPathPattern="ScopeTests"
 ## Next Steps
 
 ### For Planning New Scope
-1. Load `01_plan_scope_instructions.md`
+1. Load `orchestration/coordinators/plan-scope.md (coordinator) + orchestration/steps/planning/ (step files)`
 2. Clarify scope with human
 3. Create `iteration_plan.md` with LOCKED criteria
 4. Set up scoped validation script
 5. Hand off to implementation session for execution
 
 ### For Reviewing Iteration
-1. Load `02_review_iteration_instructions.md`
+1. Load `orchestration/coordinators/review-iteration.md`
 2. Read `iteration_plan.md` (original criteria)
-3. Review results against ORIGINAL criteria
+3. Review results against the frozen criteria for this major iteration (after PIVOT, use revised criteria; if decomposed, review all units together — not per-unit)
 4. Choose: APPROVE / ITERATE / BLOCK / PIVOT
-5. Enforce iteration budget (max 3 sub-iterations)
-6. Escalate if needed
+5. Deposit knowledge (Step 9.5 on APPROVE, Step 9.6 on BLOCK/PIVOT)
+6. Enforce iteration budget (max 3 sub-iterations)
+7. Escalate if needed
 
 ---
 
@@ -269,9 +276,12 @@ npm test -- --testPathPattern="ScopeTests"
 
 ## Documentation References
 
-- **Planning:** `01_plan_scope_instructions.md`
-- **Reviewing:** `02_review_iteration_instructions.md`
+- **Planning:** `orchestration/coordinators/plan-scope.md (coordinator) + orchestration/steps/planning/ (step files)`
+- **Reviewing:** `orchestration/coordinators/review-iteration.md`
 - **Validation:** `../process/validation-playbook.md`
+- **Knowledge Base:** `../process/knowledge-base.md`
+- **Work Unit Execution:** `../process/work-unit-execution.md`
+- **PR Shepherd:** `../process/pr-shepherd.md`
 - **Scope sizing:** `.local_docs/process/scope-sizing-quick-reference.md`
 - **Process evaluation:** `.local_docs/process/agent-process-evaluation.md`
 

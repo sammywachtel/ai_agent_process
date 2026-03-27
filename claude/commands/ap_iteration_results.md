@@ -38,6 +38,12 @@ Generate a structured results.md document summarizing the iteration's implementa
 .agent_process/work/{scope}/{iteration}/test-output.txt
 ```
 
+**Adversarial review verdict (if exists):**
+```
+.agent_process/work/{scope}/{iteration}/adversarial-review.md
+```
+This file is created by Step 4.5 of `ap_exec`. It may not exist for trivial scopes or documentation-only changes — that's fine, note it as "Skipped" in results.md.
+
 If test-output.txt does NOT exist:
 - Report error to user
 - Request that validation be run first
@@ -73,7 +79,14 @@ Use this template structure:
 # Iteration Results – {scope}/{iteration}
 
 **Date:** {current date}
-**Status:** {COMPLETE - Ready for Review | INCOMPLETE - Issues Found}
+**Status:** {✅ COMPLETE | ⚠️ NEEDS REVISION | 🚫 BLOCKED}
+
+> **Status rules — use EXACTLY one of these three:**
+> - **✅ COMPLETE** — All acceptance criteria met, validation passed, ready for orchestrator review
+> - **⚠️ NEEDS REVISION** — Some criteria met, fixable issues remain, no external blockers
+> - **🚫 BLOCKED** — An external factor prevents progress (missing access, dependency unavailable, API down). You MUST attempt to resolve the blocker before using this status — e.g., install missing tools, authenticate, check environment variables. Only use BLOCKED after you've tried and failed.
+>
+> Do NOT invent other statuses (no "INCOMPLETE", "PARTIAL", "IN PROGRESS", etc.). If criteria aren't fully met but you can keep working, that's NEEDS REVISION, not a made-up status.
 
 ---
 
@@ -114,6 +127,19 @@ Use this template structure:
 **Detailed logs:** See `test-output.txt` for complete validation output
 
 > ⚠️ Do NOT report E2E tests as "skipped because servers weren't running" - Playwright auto-starts servers via the `webServer` config. If E2E tests failed, report the actual error.
+
+---
+
+## Adversarial Review
+
+{If adversarial-review.md exists, summarize the verdict here}
+
+**Method:** {Fresh Task agent | Rubric-based self-review | Skipped — [reason]}
+**Result:** {X/Y criteria PASS}
+
+{Per-criterion verdicts with evidence, copied from adversarial-review.md}
+
+{If file doesn't exist: "Adversarial review not performed — [trivial scope / documentation-only / not available]"}
 
 ---
 
@@ -217,6 +243,7 @@ Before saving results.md, verify:
 
 - [ ] Loaded iteration_plan.md for original criteria
 - [ ] Verified test-output.txt exists and is complete
+- [ ] Checked for adversarial-review.md and included verdict (or noted skip reason)
 - [ ] Documented all changed files with rationale
 - [ ] Accurately reported validation status (no exaggeration)
 - [ ] Listed all known issues and incomplete items

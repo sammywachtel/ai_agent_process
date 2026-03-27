@@ -2,6 +2,10 @@
 
 **Date:** {{date}}
 **Status:** ✅ COMPLETE | ⚠️ NEEDS REVISION | 🚫 BLOCKED
+<!-- Pick EXACTLY one. No other statuses allowed (no "INCOMPLETE", "PARTIAL", etc.).
+     COMPLETE = all criteria met, ready for review.
+     NEEDS REVISION = fixable issues remain, no external blockers.
+     BLOCKED = external factor prevents progress, AND you tried to resolve it first. -->
 
 ---
 
@@ -74,6 +78,39 @@ Based on original criteria from iteration_plan.md:
 - [ ] Criterion 3: [Status summary]
 
 **Criteria met:** {{count}}/{{total}}
+
+---
+
+## Work Unit Summary
+
+*Only populated when work unit decomposition was used (multi-domain scopes). Omit this section for single-pass executions.*
+
+| Unit | Description | Status | Files Changed | Validation |
+|------|-------------|--------|---------------|------------|
+| WU-001 | [description] | ✅ Complete | `file1.ts`, `file2.ts` | PASS |
+| WU-002 | [description] | ✅ Complete | `component.tsx` | PASS |
+| WU-003 | [description] | ✅ Complete | `test.test.ts` | PASS |
+
+**Decomposition trigger:** [3+ files across 2+ layers — list the layers]
+**Parallel groups executed:** [N]
+**Session recovery:** [Not needed | Resumed from WU-NNN]
+
+---
+
+## Adversarial Review
+
+*Populated by the implementation agent (Step 4.5 of ap_exec) using a fresh Task agent with zero implementation context. Full verdict saved to `adversarial-review.md` in this iteration folder.*
+
+**Method:** Fresh Task agent | Rubric-based self-review | Skipped — [reason]
+**Overall verdict:** X/Y criteria PASS
+**Per-criterion results:**
+- [ ] Criterion 1: PASS/FAIL — [file:line evidence]
+- [ ] Criterion 2: PASS/FAIL — [file:line evidence]
+- [ ] Criterion 3: PASS/FAIL — [file:line evidence]
+
+**Blocking issues:** [List any FAIL verdicts, or "None"]
+
+*See `templates/adversarial-review-prompt.md` for the review process and verdict format.*
 
 ---
 
