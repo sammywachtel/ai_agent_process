@@ -21,6 +21,17 @@ BEADS lifecycle is handled by a direct bash call below (Step 0.5), not by sub-ag
 
 ---
 
+## Local Environment Instructions
+
+Read `.agent_process/process/local_environment_instructions.md` before starting steps. If any section is not `<none>`:
+- **Pre-Execution Setup:** Run those commands before Step 0.5
+- **Multi-Repository Configuration:** Pass to Step 0.7a (branch check) — run multi-repo checks in addition to the default single-repo check
+- **Validation Extensions:** Pass to the main execution prompt for Step 4
+
+These instructions are ADDITIVE — they augment but never skip default steps.
+
+---
+
 ## Step Sequence
 
 ### Step 0.5: BEADS State Tracking (direct bash — not a sub-agent)

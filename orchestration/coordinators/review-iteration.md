@@ -22,6 +22,12 @@ You are the orchestrator reviewing a completed iteration. Execute each step by s
 
 ---
 
+## Local Environment Instructions
+
+Read `.agent_process/process/local_environment_instructions.md` before starting steps. If any section is not `<none>`, pass relevant content to sub-agents that need it. These instructions are ADDITIVE — they augment but never skip default steps.
+
+---
+
 ## Step Sequence
 
 ### Step 01: Load Context (sequential)

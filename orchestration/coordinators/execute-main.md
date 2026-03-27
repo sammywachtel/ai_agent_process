@@ -10,6 +10,15 @@ bash .agent_process/scripts/beads-lifecycle.sh task-update {scope} WU-NNN in-pro
 bash .agent_process/scripts/beads-lifecycle.sh task-update {scope} WU-NNN complete
 ```
 
+## Local Environment Instructions
+
+If the preflight coordinator passed local environment context (from `.agent_process/process/local_environment_instructions.md`), apply it:
+- **Validation Extensions:** Run additional validation commands in Step 4 alongside the standard scoped validation
+
+These instructions are ADDITIVE — they augment but never skip default steps.
+
+---
+
 ## Read Preflight Outputs
 
 Before implementing, read these files from `.agent_process/work/{scope}/.run/execution/`:

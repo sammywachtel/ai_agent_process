@@ -750,11 +750,25 @@ For projects with unique requirements, customize workflows in:
 
 **File:** `.agent_process/process/local_environment_instructions.md`
 
-This file is read by `/ap_exec` and `/ap_release` to apply:
-- Multi-repository coordination (polyrepo architectures)
-- Custom validation or deployment steps
-- Environment-specific configuration
-- Extended arguments and workflow modifications
+Every coordinator reads this file before starting its workflow. Instructions are **additive** — they augment default steps, never skip them.
+
+**Keep it short.** Agents read this on every workflow run. Only include what's different about your project — don't repeat standard AP steps. Use `<none>` for sections that don't apply.
+
+**Sections:**
+
+| Section | What goes here | Example |
+|---------|---------------|---------|
+| **Pre-Execution Setup** | Commands to run before implementation | `source .env && verify-auth` |
+| **Multi-Repository Configuration** | Polyrepo branch checking, repo mapping | Branch verification across 6 sub-repos |
+| **Release Modifications** | Custom args, multi-project ordering | Topological sort, dependency-ordered releases |
+| **Validation Extensions** | Extra validation beyond scoped hooks | Cross-repo integration tests |
+| **Notes** | Other project-specific context | Architecture notes affecting agent work |
+
+**What NOT to put here:**
+- Standard AP workflow steps (they're in the coordinators already)
+- General coding guidelines (put those in CLAUDE.md)
+- Requirement details (put those in requirements_docs/)
+- Architecture documentation (put those in docs/)
 
 **Installation behavior:**
 - Template installed on first setup

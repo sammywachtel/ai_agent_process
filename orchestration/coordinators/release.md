@@ -40,6 +40,16 @@ All step outputs go to `.agent_process/work/_noscope/.run/release/`.
 
 ---
 
+## Local Environment Instructions
+
+Read `.agent_process/process/local_environment_instructions.md` before starting steps. If any section is not `<none>`:
+- **Release Modifications:** Apply custom arguments, multi-project ordering, or additional steps. Pass to the sub-agents that handle context gathering (Step 01) and commit/push (Steps 07-09)
+- **Multi-Repository Configuration:** Pass to Step 01 for context gathering across repos, and Steps 07-09 for per-repo commit/tag/push
+
+These instructions are ADDITIVE — they augment but never skip default steps.
+
+---
+
 ## Step Sequence
 
 ### Parallel: Context Gathering (steps 01 + 02)

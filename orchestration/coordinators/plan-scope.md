@@ -34,6 +34,12 @@ Each step reads its inputs from prior steps' output files. After each step compl
 
 ---
 
+## Local Environment Instructions
+
+Read `.agent_process/process/local_environment_instructions.md` before starting steps. If any section is not `<none>`, pass the relevant content to sub-agents that need it. These instructions are ADDITIVE — they augment but never skip default steps.
+
+---
+
 ## Step Sequence
 
 ### Step 01: Scope Check (HARD GATE)
