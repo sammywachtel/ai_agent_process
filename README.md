@@ -9,34 +9,66 @@ A structured workflow framework for AI-powered development with Claude Code. Pro
 ## Quick Start
 
 ```bash
-# Install the framework into your project
-./install.sh /path/to/your/project
+# 1. Install the framework into your project
+/path/to/ai_agent_process/install.sh /path/to/your/project
 
-# Or from within your project
-/path/to/ai_agent_process/install.sh
+# 2. Open Claude Code in your project and initialize
+/ap_project init
+
+# 3. Create your first requirement
+/ap_brainstorm "improve the login experience"
+# or: /ap_requirements add "user_authentication"
+
+# 4. Execute the work
+/ap_exec user_auth iteration_01
+
+# 5. Ship it
+/ap_release pr
 ```
 
-After installation, you'll have access to slash commands:
-- `/ap_brainstorm` – Multi-agent brainstorm → formal requirement
-- `/ap_requirements` – Create, import, and list requirements
-- `/ap_project` – Manage roadmap, backlog, and project status
-- `/ap_exec` – Execute implementation iterations
-- `/ap_release` – Update changelog, create PRs, and release
+That's it. The framework handles planning, validation, adversarial review, and knowledge accumulation automatically. Read on for the full picture.
+
+---
+
+## Dependencies
+
+### Required
+
+| Dependency | Purpose | Install |
+|------------|---------|---------|
+| **Claude Code** | AI orchestration engine (slash commands, agents, hooks) | [claude.ai/code](https://claude.ai/code) |
+| **Git** | Version control, branching, history tracking | Pre-installed on most systems |
+| **Bash 4+** | Install script, validation hooks, utility scripts | Pre-installed on Linux/macOS |
+| **GitHub CLI (`gh`)** | PR creation, issue management, CI status checks | `brew install gh` / [cli.github.com](https://cli.github.com) |
+
+### Optional
+
+| Dependency | Purpose | When You Need It | Install |
+|------------|---------|------------------|---------|
+| **BEADS CLI** | Durable state tracking across sessions (epic/task model) | Multi-session work, session recovery | Auto-installed at runtime if `beads.enabled: true` in `quality-config.json` |
+| **Dolt SQL Server** | Centralized BEADS state for teams | Multi-developer coordination | See `deploy/beads-server/README.md` |
+| **Metaswarm** (Claude Code plugin) | Multi-agent brainstorming, design review gates, PR shepherd, self-reflection | Enhanced ideation and review quality | [marketplace plugin](https://github.com/dsifry/metaswarm) — enable via `quality-config.json` |
+| **Docker** | Containerized dev environment with bypass permissions | Safe experimentation, CI parity | See `.docker-dev/README.md` |
+| **Python 3** | Knowledge migration script, BEADS credential management | Only during `install.sh` for BEADS credential setup | Pre-installed on most systems |
+| **`gcloud` CLI** | Deploying a BEADS Dolt server on GCE | Only if self-hosting BEADS server | [cloud.google.com/sdk](https://cloud.google.com/sdk) |
 
 ---
 
 ## Table of Contents
 
-1. [Overview](#overview)
-2. [The Workflow](#the-workflow)
-3. [Roles & Responsibilities](#roles--responsibilities)
-4. [Key Concepts](#key-concepts)
-5. [Slash Commands Reference](#slash-commands-reference)
-6. [Directory Structure](#directory-structure)
-7. [Getting Started Guide](#getting-started-guide)
-8. [Success Metrics](#success-metrics)
-9. [Customization](#customization)
-10. [Documentation Reference](#documentation-reference)
+1. [Quick Start](#quick-start)
+2. [Dependencies](#dependencies)
+3. [Overview](#overview)
+4. [The Workflow](#the-workflow)
+5. [Roles & Responsibilities](#roles--responsibilities)
+6. [Key Concepts](#key-concepts)
+7. [Slash Commands Reference](#slash-commands-reference)
+8. [Quality Configuration](#quality-configuration)
+9. [Directory Structure](#directory-structure)
+10. [Getting Started Guide](#getting-started-guide)
+11. [Success Metrics](#success-metrics)
+12. [Customization](#customization)
+13. [Documentation Reference](#documentation-reference)
 
 ---
 
@@ -44,31 +76,31 @@ After installation, you'll have access to slash commands:
 
 The AI Agent Process solves a common problem: AI-assisted development often becomes a chaotic loop of "try something, see if it works, try again." This framework introduces structure through:
 
-- **Role separation** – Human defines scope, orchestrator plans/reviews, implementation executes
-- **Frozen criteria** – No moving goalposts during implementation
-- **Iteration budgets** – Maximum 3 attempts before escalation prevents infinite loops
-- **Decision framework** – Every review ends with a clear decision (APPROVE/ITERATE/BLOCK/PIVOT)
-- **Scoped validation** – Only test what you changed, not the entire codebase
-- **Knowledge base** – Patterns, gotchas, and decisions compound across iterations
-- **Adversarial review** – Fresh agent verifies criteria without implementation bias
+- **Role separation** — Human defines scope, orchestrator plans/reviews, implementation executes
+- **Frozen criteria** — No moving goalposts during implementation
+- **Iteration budgets** — Maximum 3 attempts before escalation prevents infinite loops
+- **Decision framework** — Every review ends with a clear decision (APPROVE/ITERATE/BLOCK/PIVOT)
+- **Scoped validation** — Only test what you changed, not the entire codebase
+- **Knowledge base** — Patterns, gotchas, and decisions compound across iterations
+- **Adversarial review** — Fresh agent verifies criteria without implementation bias
 
 ### What This Provides
 
 | Component | Purpose |
 |-----------|---------|
-| **Slash Commands** | Executable workflows for common tasks |
-| **Orchestration Prompts** | Planning and review templates |
+| **Slash Commands** | Executable workflows for planning, execution, review, and release |
+| **Orchestration Prompts** | Decomposed coordinator + step file architecture for planning and review |
 | **Iteration Templates** | Standardized artifacts for tracking work |
-| **Validation Tools** | Scoped testing scripts |
-| **Project Management** | Roadmap, backlog, and requirements tracking |
-| **Knowledge Base** | Accumulated patterns, gotchas, decisions across iterations |
+| **Validation Tools** | Scoped testing scripts with automatic hook-based execution |
+| **Project Management** | Roadmap, backlog, and requirements tracking via `/ap_project` |
+| **Knowledge Base** | JSONL-based patterns, gotchas, decisions accumulated across iterations |
 | **Adversarial Review** | Fresh-instance code review for unbiased criterion verification |
 | **Work Unit Decomposition** | DAG-based parallel execution for multi-domain scopes |
 | **PR Shepherd** | Post-PR agent monitoring CI, reviews, and merge-readiness |
 | **Design Review Gate** | Multi-reviewer plan assessment for complex scopes (opt-in) |
 | **Quality Configuration** | Centralized feature control via `quality-config.json` |
-| **BEADS Integration** | Optional git-native durable state tracking for work units |
-| **Metaswarm Integration** | Optional brainstorming, design review, and PR automation (opt-in) |
+| **BEADS Integration** | Optional durable state tracking for work units across sessions |
+| **Metaswarm Integration** | Optional multi-agent brainstorming, design review, PR automation (opt-in) |
 
 ---
 
@@ -86,17 +118,17 @@ The AI Agent Process solves a common problem: AI-assisted development often beco
 │   Human defines   /ap_exec          Orchestrator    /ap_release │
 │   scope + criteria implements        reviews         creates PR │
 │                                                                 │
-│   ┌─────────┐     ┌─────────┐       ┌─────────┐     ┌────────┐  │
-│   │ Define  │────▶│ Execute │──────▶│ Review  │────▶│ Ship    │ │
-│   │ Scope   │     │ Work    │       │ Results │     │ It!     │ │
-│   └─────────┘     └─────────┘       └────┬────┘     └────────┘  │
+│   ┌─────────┐     ┌─────────┐       ┌─────────┐     ┌────────┐ │
+│   │ Define  │────▶│ Execute │──────▶│ Review  │────▶│ Ship   │ │
+│   │ Scope   │     │ Work    │       │ Results │     │ It!    │ │
+│   └─────────┘     └─────────┘       └────┬────┘     └────────┘ │
 │                                          │                      │
 │                        ┌─────────────────┼─────────────────┐    │
 │                        ▼                 ▼                 ▼    │
-│                   ┌────────┐       ┌──────────┐      ┌───────┐  │
-│                   │ITERATE │       │  PIVOT   │      │ BLOCK  │ │
-│                   │(a/b/c) │       │(new iter)│      │(human) │ │
-│                   └────────┘       └──────────┘      └───────┘  │
+│                   ┌────────┐       ┌──────────┐      ┌───────┐ │
+│                   │ITERATE │       │  PIVOT   │      │ BLOCK │ │
+│                   │(a/b/c) │       │(new iter)│      │(human)│ │
+│                   └────────┘       └──────────┘      └───────┘ │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -210,25 +242,10 @@ The complete lifecycle from idea to acceptance, with all optional features enabl
 │  │  Step 3.7: Read adversarial review verdict                       │ │
 │  │  Step 4:   CHOOSE ONE DECISION:                                  │ │
 │  │                                                                  │ │
-│  │    ✅ APPROVE                                                     │ │
-│  │    │  Close BEADS epic, update requirement → approved,           │ │
-│  │    │  deposit knowledge (0-3 learnings),                         │ │
-│  │    │  suggest /ap_release and evaluate-scope.sh                  │ │
-│  │    │                                                             │ │
-│  │    🔄 ITERATE                                                     │ │
-│  │    │  1-3 specific fixes with file:line evidence,                │ │
-│  │    │  create sub-iteration (a/b/c), max 3 attempts               │ │
-│  │    │  ◄── loops back to EXECUTION                                │ │
-│  │    │                                                             │ │
-│  │    🚫 BLOCK                                                       │ │
-│  │    │  Close BEADS epic, escalate to human immediately,           │ │
-│  │    │  deposit process knowledge (0-2 observations)               │ │
-│  │    │                                                             │ │
-│  │    🔀 PIVOT                                                       │ │
-│  │       Requires human approval, update criteria → new major       │ │
-│  │       iteration, BEADS epic stays open,                          │ │
-│  │       deposit process knowledge (0-2 observations)               │ │
-│  │       ◄── loops back to EXECUTION with v2 criteria               │ │
+│  │    APPROVE  → Close epic, deposit knowledge, suggest release     │ │
+│  │    ITERATE  → 1-3 specific fixes, create sub-iteration (a/b/c)  │ │
+│  │    BLOCK    → Close epic, escalate to human immediately          │ │
+│  │    PIVOT    → Requires human approval, revised criteria          │ │
 │  │                                                                  │ │
 │  │  Step 10: Suggest artifact evaluation                            │ │
 │  └───────────────────────────────────────────────────────────────────┘│
@@ -240,23 +257,10 @@ The complete lifecycle from idea to acceptance, with all optional features enabl
 │  │  1. Gather scope context and changes                             │ │
 │  │  2. Update CHANGELOG.md (Added/Changed/Fixed/Removed/Security)   │ │
 │  │  3. Create build tag (build/N)                                   │ │
-│  │  4. Commit, push, create PR                                      │ │
+│  │  4. Commit, push, create PR via gh                               │ │
 │  │  5. Optional: PR shepherd monitors CI + reviews                  │ │
 │  │                                                                  │ │
 │  │  Modes: pr | beta | release patch|minor|major                    │ │
-│  └───────────────────────────────────────────────────────────────────┘│
-│                                  │                                    │
-│                                  ▼                                    │
-│  ┌─── ARTIFACT VALIDATION (optional) ────────────────────────────────┐│
-│  │                                                                  │ │
-│  │  bash .agent_process/scripts/evaluate-scope.sh work/{scope}      │ │
-│  │                                                                  │ │
-│  │  Checks scope artifacts conform to expected schema:              │ │
-│  │  iteration_plan.md, results.md, adversarial-review.md,           │ │
-│  │  .beads-state, knowledge/*.jsonl                                 │ │
-│  │                                                                  │ │
-│  │  Not the test suite — this validates AP's own artifacts,         │ │
-│  │  not your project's code. See process/artifact-evaluation.md     │ │
 │  └───────────────────────────────────────────────────────────────────┘│
 │                                                                       │
 └───────────────────────────────────────────────────────────────────────┘
@@ -360,6 +364,7 @@ knowledge/
 - **BLOCK/PIVOT decisions** deposit 0-2 process observations (agent behavior, scope structure issues)
 - Starts empty, grows organically — no manual population needed
 - Entries are JSONL (one JSON object per line) for easy grep/search
+- When BEADS is enabled, knowledge lives in `.beads/knowledge/` as the primary store
 
 See `process/knowledge-base.md` for full documentation.
 
@@ -372,9 +377,7 @@ A **fresh reviewer agent** with zero implementation context independently verifi
 - Cannot be influenced by watching the implementation (no anchoring bias)
 - Is **advisory input** to the orchestrator's 4-choice decision, not a replacement
 
-**Platform-adaptive execution:** The primary review runs during implementation (Step 4.5 of `/ap_exec`) using a fresh Task agent — this always works because `/ap_exec` runs in Claude Code. The orchestrator (which may run in Codex, where Task isn't available) reads the pre-existing verdict. If no verdict exists, the orchestrator falls back to a rubric-based self-review using the same structured criteria.
-
-Inspired by [metaswarm's](https://github.com/dsifry/metaswarm) adversarial review pattern. See `templates/adversarial-review-prompt.md` for the reviewer prompt template.
+**Platform-adaptive execution:** The primary review runs during implementation (Step 4.5 of `/ap_exec`) using a fresh Task agent. The orchestrator reads the pre-existing verdict. If no verdict exists, the orchestrator falls back to a rubric-based self-review using the same structured criteria.
 
 ### Work Unit Decomposition
 
@@ -386,7 +389,7 @@ WU-001: Schema + ORM model  ──┐
 WU-002: Frontend component  ──┘
 ```
 
-Each unit has its own files, agent selection, and validation. Independent units run in parallel; dependent units wait for prerequisites. The decomposition stays within frozen criteria — it's a tactical breakdown, not scope expansion.
+Each unit has its own files, agent selection, and validation. Independent units run in parallel; dependent units wait for prerequisites.
 
 - **Trigger:** 3+ files AND 2+ system layers AND first iteration (not sub-iteration)
 - **Soft cap:** 3-6 units per scope
@@ -419,26 +422,9 @@ All reviewers must APPROVE. REQUEST_CHANGES triggers plan revision (max 2 cycles
 
 See `process/design-review-gate.md` for the full how-to guide.
 
-### Quality Configuration
-
-`quality-config.json` provides centralized control over all quality gates. Every metaswarm-integrated feature checks its section before activating:
-
-```json
-{
-  "adversarial_review": { "enabled": true, "skip_for_trivial": true },
-  "work_unit_decomposition": { "enabled": true, "trigger_threshold_files": 3 },
-  "design_review": { "enabled": false },
-  "beads": { "enabled": true, "auto_install": true },
-  "knowledge_base": { "enabled": true },
-  "pr_shepherd": { "enabled": true }
-}
-```
-
-If the file doesn't exist, all features use built-in defaults. See `process/quality-configuration.md` for the full schema reference.
-
 ### BEADS Durable State
 
-Optional git-native state tracking using the [BEADS CLI](https://github.com/steveyegge/beads). When available, work unit state persists across session interruptions:
+Optional state tracking using the [BEADS CLI](https://github.com/steveyegge/beads). When available, work unit state persists across session interruptions:
 
 - **Epic per scope** — Created on first `/ap_exec`, closed on APPROVE
 - **Task per work unit** — Labels track `in-progress`, `complete`, `blocked`
@@ -453,11 +439,11 @@ See `process/beads-integration.md` for the full how-to guide.
 Only validate files you changed:
 
 ```bash
-# ✅ Good: Scoped validation
+# Good: Scoped validation
 npx eslint "path/to/changed-file.tsx"
 npm test -- --testPathPattern="ScopeTests"
 
-# ❌ Bad: Full codebase validation
+# Bad: Full codebase validation
 npm run typecheck  # Fails on 89 unrelated errors
 npm test           # Fails on 10 unrelated tests
 ```
@@ -468,16 +454,16 @@ Pre-existing issues are documented once in the iteration plan, not re-litigated 
 
 ## Slash Commands Reference
 
-### `/ap_brainstorm` – Ideation → Requirement
+### `/ap_brainstorm` — Ideation → Requirement
 
 ```bash
 /ap_brainstorm "Improve the login experience"     # Multi-agent brainstorm → formal requirement
 /ap_brainstorm "We need better error handling"     # Works with or without metaswarm
 ```
 
-Spawns 3 parallel agents (Product, Architecture, Critical) to explore the idea from different angles, synthesizes their output, optionally runs design review, and creates a formal AP requirement. See `process/metaswarm-integration.md` for details.
+Spawns 3 parallel agents (Product, Architecture, Critical) to explore the idea from different angles, synthesizes their output, optionally runs design review, and creates a formal AP requirement.
 
-### `/ap_requirements` – Requirements Management
+### `/ap_requirements` — Requirements Management
 
 ```bash
 /ap_requirements add "feature name"          # Create requirement (offers brainstorm option)
@@ -486,9 +472,7 @@ Spawns 3 parallel agents (Product, Architecture, Critical) to explore the idea f
 /ap_requirements list "infrastructure"       # Filter by category
 ```
 
-**Metaswarm-enhanced:** When metaswarm is enabled, `add` offers to route through `/ap_brainstorm` and `import` offers design review. Without metaswarm, all commands work normally.
-
-### `/ap_project` – Project Management
+### `/ap_project` — Project Management
 
 ```bash
 /ap_project init                    # Initialize roadmap infrastructure
@@ -496,7 +480,6 @@ Spawns 3 parallel agents (Product, Architecture, Critical) to explore the idea f
 /ap_project status                  # Check current project status
 
 /ap_project add-todo "description"  # Add item to backlog
-
 /ap_project set-status "req_id complete reason"  # Set requirement status
 /ap_project archive "req_id type reason"         # Archive requirement
 /ap_project archive-completed       # Bulk archive approved work
@@ -506,7 +489,7 @@ Spawns 3 parallel agents (Product, Architecture, Critical) to explore the idea f
 /ap_project help                    # Show all commands
 ```
 
-### `/ap_exec` – Execute Iterations
+### `/ap_exec` — Execute Iterations
 
 ```bash
 /ap_exec <scope> <iteration>
@@ -515,14 +498,15 @@ Spawns 3 parallel agents (Product, Architecture, Critical) to explore the idea f
 ```
 
 **What it does:**
-1. Reads iteration plan and frozen criteria
-2. Selects appropriate specialized agent
-3. Implements changes within scope
-4. Runs scoped validation (automatic via hook)
-5. Creates results artifacts
-6. Reports completion status
+1. Pre-flight checks (session recovery, working tree, branch, git context)
+2. Reads iteration plan and frozen criteria
+3. Decomposes into work units if multi-domain scope
+4. Implements changes within scope
+5. Runs scoped validation (automatic via hook)
+6. Adversarial review (fresh agent, zero context)
+7. Creates results artifacts
 
-### `/ap_release` – Release Workflow
+### `/ap_release` — Release Workflow
 
 ```bash
 /ap_release pr                     # PR only (no version tag)
@@ -531,16 +515,15 @@ Spawns 3 parallel agents (Product, Architecture, Critical) to explore the idea f
 /ap_release release patch          # Patch release (1.0.0 → 1.0.1)
 /ap_release release minor          # Minor release (1.0.0 → 1.1.0)
 /ap_release release major          # Major release (1.0.0 → 2.0.0)
-/ap_release release minor --shepherd  # Release + shepherd monitoring
 
 # No-scope mode (analyze git diff instead of work/)
 /ap_release noscope pr
 /ap_release noscope release patch
 ```
 
-**`--shepherd` flag:** After PR creation, launches a shepherd agent that monitors CI status, responds to review comments, auto-fixes lint/type issues, and reports merge-readiness. The shepherd only modifies files already in the PR — it never merges (human clicks merge). See `process/pr-shepherd.md` for details.
+**`--shepherd` flag:** After PR creation, launches a shepherd agent that monitors CI status, responds to review comments, auto-fixes lint/type issues, and reports merge-readiness. The shepherd never merges — the human always clicks merge.
 
-### `/ap_iteration_results` – Document Results
+### `/ap_iteration_results` — Document Results
 
 ```bash
 /ap_iteration_results <scope> <iteration>
@@ -548,13 +531,34 @@ Spawns 3 parallel agents (Product, Architecture, Critical) to explore the idea f
 
 Creates structured `results.md` from validation output.
 
-### `/ap_changelog_init` – Initialize Changelog
+### `/ap_changelog_init` — Initialize Changelog
 
 ```bash
 /ap_changelog_init
 ```
 
 Initializes CHANGELOG.md from git history for projects not yet tracking releases.
+
+---
+
+## Quality Configuration
+
+`quality-config.json` provides centralized control over all quality gates. Every feature checks its section before activating:
+
+```json
+{
+  "pre_flight":              { "enabled": true, "session_recovery": true, "working_tree_check": true, "branch_check": true, "git_context": true },
+  "knowledge_base":          { "enabled": true, "query_during_planning": true, "deposit_on_approve": true },
+  "adversarial_review":      { "enabled": true, "skip_for_trivial": true, "trivial_threshold_files": 2 },
+  "work_unit_decomposition": { "enabled": true, "trigger_threshold_files": 3, "trigger_threshold_layers": 2 },
+  "design_review":           { "enabled": false, "trigger": "complexity:complex", "max_revision_cycles": 2 },
+  "beads":                   { "enabled": true, "auto_install": true },
+  "pr_shepherd":             { "enabled": true },
+  "metaswarm":               { "enabled": false, "features": { "brainstorm": true, "design_review": true, "prime": true, "pr_shepherd": true, "self_reflect": true } }
+}
+```
+
+If the file doesn't exist, all features use built-in defaults. See `process/quality-configuration.md` for the full schema reference.
 
 ---
 
@@ -571,7 +575,10 @@ your-project/
 │       ├── ap_exec.md
 │       ├── ap_project.md
 │       ├── ap_release.md
-│       └── ...
+│       ├── ap_iteration_results.md
+│       └── ap_changelog_init.md
+│
+├── quality-config.json     # Feature control for all quality gates
 │
 └── .agent_process/
     ├── orchestration/      # Planning and review prompts
@@ -580,19 +587,19 @@ your-project/
     │   ├── scope-sizing-rules.md          # Configurable scope thresholds
     │   ├── context/
     │   │   └── base-context.md            # Orchestrator onboarding
-    │   ├── coordinators/
-    │   │   ├── plan-scope.md              # Decomposed planning coordinator
-    │   │   ├── execute-preflight.md       # Execution preflight coordinator
-    │   │   ├── execute-main.md            # Execution main prompt (~200 lines)
-    │   │   ├── review-iteration.md        # Decomposed review coordinator
-    │   │   ├── release.md                 # Decomposed release coordinator
-    │   │   └── brainstorm.md              # Decomposed brainstorm coordinator
-    │   └── steps/
-    │       ├── planning/                  # 12 focused planning step files
-    │       ├── execution/                 # 7 focused execution step files
-    │       ├── review/                    # 9 focused review step files
-    │       ├── release/                   # 9 focused release step files
-    │       └── brainstorm/                # 6 focused brainstorm step files
+    │   ├── coordinators/                  # Decomposed prompt entry points
+    │   │   ├── plan-scope.md
+    │   │   ├── execute-preflight.md
+    │   │   ├── execute-main.md
+    │   │   ├── review-iteration.md
+    │   │   ├── release.md
+    │   │   └── brainstorm.md
+    │   └── steps/                         # Modular step files (43 total)
+    │       ├── planning/                  # 12 focused planning steps
+    │       ├── execution/                 # 7 focused execution steps
+    │       ├── review/                    # 9 focused review steps
+    │       ├── release/                   # 9 focused release steps
+    │       └── brainstorm/                # 6 focused brainstorm steps
     │
     ├── knowledge/          # Accumulated project wisdom (JSONL)
     │   ├── patterns.jsonl
@@ -600,19 +607,18 @@ your-project/
     │   ├── decisions.jsonl
     │   └── anti-patterns.jsonl
     │
-    ├── quality-config.json  # Feature control for all quality gates
-    │
     ├── process/            # Process documentation
     │   ├── validation-playbook.md
     │   ├── naming_conventions.md
-    │   ├── roadmap_schema.md
     │   ├── knowledge-base.md
     │   ├── work-unit-execution.md
     │   ├── pr-shepherd.md
     │   ├── design-review-gate.md
     │   ├── quality-configuration.md
     │   ├── beads-integration.md
-    │   └── local_environment_instructions.md
+    │   ├── metaswarm-integration.md
+    │   ├── local_environment_instructions.md
+    │   └── ...
     │
     ├── requirements_docs/  # Project requirements
     │   └── _TEMPLATE_requirements.md
@@ -623,13 +629,18 @@ your-project/
     │   └── .roadmap_config.json
     │
     ├── scripts/
-    │   └── after_edit/     # Scoped validation scripts
+    │   ├── after_edit/     # Scoped validation scripts (auto-generated)
+    │   ├── beads-lifecycle.sh
+    │   ├── evaluate-scope.sh
+    │   └── hook_after_edit.sh
     │
     ├── templates/          # Iteration templates
     │   ├── iteration-plan.md
     │   ├── iteration-feedback.md
     │   ├── results.md
-    │   └── work-unit-decomposition.md
+    │   ├── adversarial-review-prompt.md
+    │   ├── work-unit-decomposition.md
+    │   └── design-review-prompt.md
     │
     └── work/               # Active iteration work
         └── <scope_name>/
@@ -646,8 +657,14 @@ your-project/
 ### 1. Install the Framework
 
 ```bash
+# From within your project directory
+/path/to/ai_agent_process/install.sh
+
+# Or specify target directory
 ./install.sh /path/to/your/project
 ```
+
+The installer copies slash commands to `.claude/commands/` and sets up the `.agent_process/` directory. It prompts about optional BEADS installation.
 
 ### 2. Initialize Project Management
 
@@ -658,37 +675,15 @@ your-project/
 
 ### 3. Define Your First Requirement
 
-Create a requirements document:
-
 ```bash
-/ap_requirements add "user_authentication"
-# Or brainstorm first:
+# Brainstorm first (recommended for vague ideas)
 /ap_brainstorm "improve user authentication"
-```
 
-Or manually create `.agent_process/requirements_docs/user_auth/requirements.md`:
+# Or create directly
+/ap_requirements add "user_authentication"
 
-```markdown
----
-id: user_auth_01
-category: authentication
-priority: HIGH
----
-# User Authentication
-
-## Objective
-Implement basic user login/logout functionality.
-
-## Acceptance Criteria
-- [ ] Login form with email/password
-- [ ] Session management
-- [ ] Logout clears session
-- [ ] Tests for auth flow
-
-## Files Expected to Change
-- `src/auth/login.tsx`
-- `src/auth/session.ts`
-- `tests/auth.test.ts`
+# Or import an existing spec
+/ap_requirements import "path/to/spec.md"
 ```
 
 ### 4. Plan the First Iteration
@@ -715,7 +710,8 @@ Load `orchestration/review-iteration.md` and:
 ### 7. Ship It
 
 ```bash
-/ap_release pr  # Creates PR with changelog updates
+/ap_release pr              # Creates PR with changelog updates
+/ap_release pr --shepherd   # Creates PR + monitors CI and reviews
 ```
 
 ---
@@ -752,31 +748,21 @@ For projects with unique requirements, customize workflows in:
 
 Every coordinator reads this file before starting its workflow. Instructions are **additive** — they augment default steps, never skip them.
 
-**Keep it short.** Agents read this on every workflow run. Only include what's different about your project — don't repeat standard AP steps. Use `<none>` for sections that don't apply.
-
-**Sections:**
+**Keep it short.** Agents read this on every workflow run. Only include what's different about your project.
 
 | Section | What goes here | Example |
 |---------|---------------|---------|
 | **Pre-Execution Setup** | Commands to run before implementation | `source .env && verify-auth` |
-| **Multi-Repository Configuration** | Polyrepo branch checking, repo mapping | Branch verification across 6 sub-repos |
+| **Multi-Repository Configuration** | Polyrepo branch checking, repo mapping | Branch verification across sub-repos |
 | **Release Modifications** | Custom args, multi-project ordering | Topological sort, dependency-ordered releases |
 | **Validation Extensions** | Extra validation beyond scoped hooks | Cross-repo integration tests |
 | **Notes** | Other project-specific context | Architecture notes affecting agent work |
 
-**What NOT to put here:**
-- Standard AP workflow steps (they're in the coordinators already)
-- General coding guidelines (put those in CLAUDE.md)
-- Requirement details (put those in requirements_docs/)
-- Architecture documentation (put those in docs/)
-
-**Installation behavior:**
-- Template installed on first setup
-- **Preserved on re-installation** (never overwritten)
+**Installation behavior:** Template installed on first setup, **preserved on re-installation** (never overwritten).
 
 ### Central Sync (Multi-Project)
 
-For teams using this framework across multiple projects, you can configure central sync to keep all projects updated from a single source. See install.sh for configuration options.
+For teams using this framework across multiple projects, you can configure central sync to keep all projects updated from a single source. See `install.sh` for configuration options.
 
 ---
 
@@ -788,7 +774,7 @@ For teams using this framework across multiple projects, you can configure centr
 |----------|----------|---------|
 | Base Context | `orchestration/context/base-context.md` | Quick onboarding for orchestration |
 | Plan Scope | `orchestration/coordinators/plan-scope.md` + `steps/planning/` | How to plan new scopes |
-| Execute Iteration | `orchestration/coordinators/execute-preflight.md` + `execute-main.md` + `steps/execution/` | How to execute iterations |
+| Execute Iteration | `orchestration/coordinators/execute-*.md` + `steps/execution/` | How to execute iterations |
 | Review Iteration | `orchestration/coordinators/review-iteration.md` + `steps/review/` | How to review and decide |
 | Validation Playbook | `process/validation-playbook.md` | Testing patterns |
 | Naming Conventions | `process/naming_conventions.md` | IDs, files, categories |
@@ -803,9 +789,9 @@ For teams using this framework across multiple projects, you can configure centr
 | Design Review Gate | `process/design-review-gate.md` | Multi-reviewer plan assessment for complex scopes |
 | Quality Configuration | `process/quality-configuration.md` | `quality-config.json` schema reference |
 | BEADS Integration | `process/beads-integration.md` | Optional durable state tracking setup and usage |
+| Metaswarm Integration | `process/metaswarm-integration.md` | Multi-agent brainstorming and review gates |
+| Local Environment | `process/local_environment_instructions.md` | Project-specific customization |
 | Roadmap Schema | `process/roadmap_schema.md` | Roadmap file format |
-| Roadmap Discovery | `process/roadmap_discovery.md` | How discovery works |
-| Roadmap Update | `process/roadmap_update.md` | How updates work |
 
 ### Templates
 
@@ -837,6 +823,18 @@ For teams using this framework across multiple projects, you can configure centr
 - Your local environment instructions
 - Your central sync configuration
 - Your existing requirements documents
+
+---
+
+## Testing
+
+The framework includes its own test suite:
+
+```bash
+bash test/run-tests.sh
+```
+
+This runs contract tests and unit tests validating AP's own artifacts and scripts — it's not your project's test suite.
 
 ---
 

@@ -8,28 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- **Comprehensive README rewrite** - Complete documentation overhaul with improved structure
-  - Added table of contents for easier navigation
-  - New "Overview" section explaining the problem this framework solves
-  - Added ASCII workflow diagram showing the high-level process
-  - New "Roles & Responsibilities" section clarifying Human/Orchestrator/Implementation separation
-  - Expanded "Key Concepts" with tables explaining iteration model, budgets, and decisions
-  - Added "Slash Commands Reference" with all commands and examples
-  - New "Directory Structure" diagram showing installed file layout
-  - Step-by-step "Getting Started Guide" for new users
-  - Added "Success Metrics" tables with targets and warning signs
-  - Reorganized documentation references into categorized tables
+- **README overhaul** - Restructured with quick start on top, dependency tables, and updated tooling
+  - Added "Quick Start" section as the first thing users see (5-step install-to-ship)
+  - New "Dependencies" section with required vs optional tables and install links
+  - Added "Quality Configuration" section with inline JSON example
+  - Added "Testing" section documenting the framework's own test suite
+  - Updated directory structure to include all current files (coordinators, steps, templates)
+  - Expanded slash command reference with pre-flight checks and `--shepherd` flag details
+  - Streamlined process flow diagrams with cleaner box alignment
+  - Updated knowledge base docs to mention BEADS primary store
 
-- **Updated `claude/commands.md`** - Comprehensive command documentation
-  - Added `/ap_project` command documentation (was missing)
-  - Added workflow overview ASCII diagram
-  - Improved command examples and context modes documentation
-  - Added "See Also" section linking to related docs
-
-- **Updated `claude/commands/README.md`** - Quick reference improvements
-  - Converted to table format for available commands
-  - Added quick reference section with common commands
-  - Improved documentation cross-references
+- **Updated `claude/commands/README.md`** - Expanded command reference
+  - Added quick start section for immediate productivity
+  - Expanded command reference with all subcommands and flags
+  - Added dependencies note (Claude Code, GitHub CLI, quality-config.json)
+  - Organized commands into logical groups (project, requirements, iteration, release, utilities)
 
 ---
 
