@@ -7,22 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- **README overhaul** - Restructured with quick start on top, dependency tables, and updated tooling
-  - Added "Quick Start" section as the first thing users see (5-step install-to-ship)
-  - New "Dependencies" section with required vs optional tables and install links
-  - Added "Quality Configuration" section with inline JSON example
-  - Added "Testing" section documenting the framework's own test suite
-  - Updated directory structure to include all current files (coordinators, steps, templates)
-  - Expanded slash command reference with pre-flight checks and `--shepherd` flag details
-  - Streamlined process flow diagrams with cleaner box alignment
-  - Updated knowledge base docs to mention BEADS primary store
+## [3.3.0-beta.1] - 2026-03-27
 
-- **Updated `claude/commands/README.md`** - Expanded command reference
-  - Added quick start section for immediate productivity
-  - Expanded command reference with all subcommands and flags
-  - Added dependencies note (Claude Code, GitHub CLI, quality-config.json)
-  - Organized commands into logical groups (project, requirements, iteration, release, utilities)
+### Added
+- **Coordinator + step file architecture** — Decomposed monolithic orchestration prompts into 6 coordinators and 43 focused step files across planning (12), execution (7), review (9), release (9), and brainstorm (6) workflows
+- **`/ap_brainstorm` command** — Multi-agent ideation spawning Product, Architecture, and Critical agents in parallel, with optional design review gate, producing formal AP requirements
+- **`/ap_requirements` command** — Create, import, and list requirements with optional brainstorm routing and design review for imports
+- **Knowledge base system** — JSONL-based accumulation of patterns, gotchas, decisions, and anti-patterns across iterations; queried during planning, deposited on APPROVE/BLOCK/PIVOT decisions
+- **Adversarial review** — Fresh reviewer agent with zero implementation context independently verifies frozen criteria with PASS/FAIL per criterion and file:line evidence; platform-adaptive for Codex orchestrators
+- **Work unit decomposition** — DAG-based parallel execution for multi-domain scopes (3+ files, 2+ layers) with per-unit agents, validation, and session recovery via `current_work_unit.conf`
+- **PR shepherd** — Post-PR agent monitoring CI status, responding to review comments, auto-fixing lint/type failures, and reporting merge-readiness; activated with `--shepherd` flag
+- **Design review gate** — Opt-in multi-reviewer plan assessment (2-4 specialist agents: Architect, Security, Product/UX) for complex scopes; max 2 revision cycles before human escalation
+- **`quality-config.json`** — Centralized feature control for all quality gates: pre-flight, knowledge base, adversarial review, work unit decomposition, design review, BEADS, PR shepherd, and metaswarm
+- **BEADS integration** — Durable state tracking with epic-per-scope and task-per-work-unit model; session recovery across interruptions; auto-install at runtime when enabled
+  - Centralized credentials via `~/.config/beads/credentials` with per-server sections
+  - `beads-lifecycle.sh` script replacing verbose inline BEADS steps
+  - BEADS breadcrumb verification in orchestrator review
+  - Docker auto-detection rewriting Dolt host to `host.docker.internal`
+  - Per-project BEADS server routing via `quality-config.json`
+- **BEADS Dolt server deployment** — GCE e2-micro deployment scripts (~$7/month) with setup, teardown, and Docker local option in `deploy/beads-server/`
+- **Metaswarm integration** — Optional multi-agent brainstorming, design review gates, PR shepherd, knowledge priming, and self-reflection; controlled via `quality-config.json`
+  - Auto-install metaswarm plugin during `install.sh` when enabled
+  - Requirements and brainstorm commands route through metaswarm when available
+- **Pre-flight checks** — Session recovery, working tree check (polyrepo-aware), branch auto-checkout (`scope/{scope}`), and git context for files in scope
+- **Local environment instructions** — Every coordinator reads `.agent_process/process/local_environment_instructions.md` before each workflow for project-specific customization
+- **Knowledge migration** — Auto-migrate legacy knowledge entries to `.beads/knowledge/` on install; standalone `migrate-knowledge.py` script
+- **Test suite** — Contract tests (adversarial review, results, iteration plan, knowledge entry, BEADS state validation) and unit tests (beads-lifecycle, install) with `run-tests.sh` runner
+- **Artifact evaluation** — `evaluate-scope.sh` validates AP's own artifacts (plans, results, reviews) against expected schema
+- **Presentation materials** — Agent process flow deck, before-and-after comparison deck, and new system usage guide in `.local_docs/`
+
+### Changed
+- **README overhaul** — Restructured with quick start on top, required/optional dependency tables, quality configuration reference, testing section, and updated directory structure reflecting all current tooling
+- **`claude/commands/README.md`** — Expanded with quick start, all subcommands and flags, dependency notes, and logical command groupings
+- **Orchestration prompts** — Replaced monolithic `01_plan_scope_*.md` and `02_review_iteration_*.md` with decomposed coordinators and step files for maintainability
+- **Install script** — Major expansion: BEADS credential management, Dolt server detection (local/remote/Docker), metaswarm plugin auto-install, knowledge migration, polyrepo support, scroll-up reminder
+- **`/ap_exec`** — Streamlined to coordinator-based dispatch; pre-flight checks, work unit decomposition, adversarial review all integrated as numbered steps
+- **`/ap_release`** — Streamlined to coordinator-based dispatch with step files
+- **`/ap_project`** — Enhanced discover/init with knowledge base, dependency detection, and BEADS integration
+- **Knowledge storage** — Primary store moved to `.beads/knowledge/` when BEADS enabled; `.agent_process/knowledge/` serves as fallback
+
+### Fixed
+- Preflight coordinator handles polyrepo for working tree and git context checks
+- PR shepherd runs automatically when enabled in `quality-config.json` (was requiring manual activation)
+- Orchestrator uses correct criteria version after PIVOT (replaced "ORIGINAL criteria" with version-aware language)
+- PIVOT no longer closes BEADS epic prematurely
+- Adversarial review loophole for qualified passes closed (no "passes with caveats")
+- BEADS lifecycle script no longer silently fails when enabled
+- `bd init` skipped when `.beads/knowledge/` already exists
+- Credential lookup scoped to project's configured host only
+- Installer checks remote Dolt server reachability, not just local binary
+- BEADS prompt no longer skipped on first install
+- Various ASCII diagram alignment fixes across all documentation
 
 ---
 
