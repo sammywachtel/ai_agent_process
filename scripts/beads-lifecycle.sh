@@ -11,6 +11,8 @@
 #
 # Usage:
 #   bash .agent_process/scripts/beads-lifecycle.sh start <scope>
+#   bash .agent_process/scripts/beads-lifecycle.sh set-iteration <scope> <iteration>
+#   bash .agent_process/scripts/beads-lifecycle.sh get-iteration <scope>
 #   bash .agent_process/scripts/beads-lifecycle.sh task-create <scope> <wu-id> <description>
 #   bash .agent_process/scripts/beads-lifecycle.sh task-update <scope> <wu-id> <label>
 #   bash .agent_process/scripts/beads-lifecycle.sh close <scope> <label>
@@ -198,6 +200,62 @@ case "$ACTION" in
         # Don't exit — breadcrumbs still track state
       fi
     fi
+
+    # Set iteration state in BEADS (single source of truth when enabled)
+    if [[ -n "$EPIC_ID" && -n "$ITERATION" ]]; then
+      bd set-state "$EPIC_ID" "iteration=$ITERATION" --reason "ap_exec start" 2>/dev/null && \
+        echo "[beads] Iteration state: $ITERATION" || true
+      # Also write fallback file for BEADS-disabled compatibility
+      cat > .agent_process/work/current_iteration.conf <<EOF
+SCOPE=$SCOPE
+ITERATION=$ITERATION
+EOF
+    fi
+    ;;
+
+  set-iteration)
+    # Update the iteration pointer in BEADS and the fallback conf file
+    NEW_ITERATION="${3:-}"
+    if [[ -z "$NEW_ITERATION" ]]; then
+      echo "[beads] Usage: set-iteration <scope> <iteration>" >&2
+      exit 1
+    fi
+
+    EPIC_ID=$(bd query "type=epic AND title=${SCOPE}" --json 2>/dev/null \
+      | python3 -c "import json,sys; issues=json.load(sys.stdin); print(issues[0]['id'] if issues else '')" 2>/dev/null) || true
+
+    if [[ -n "$EPIC_ID" ]]; then
+      bd set-state "$EPIC_ID" "iteration=$NEW_ITERATION" --reason "iteration update" 2>/dev/null && \
+        echo "[beads] Iteration state: $NEW_ITERATION" || \
+        echo "[beads] WARNING: Failed to set iteration state in BEADS" >&2
+    fi
+
+    # Always write fallback file
+    cat > .agent_process/work/current_iteration.conf <<EOF
+SCOPE=$SCOPE
+ITERATION=$NEW_ITERATION
+EOF
+    ;;
+
+  get-iteration)
+    # Read current iteration — BEADS first, conf file fallback
+    EPIC_ID=$(bd query "type=epic AND title=${SCOPE}" --json 2>/dev/null \
+      | python3 -c "import json,sys; issues=json.load(sys.stdin); print(issues[0]['id'] if issues else '')" 2>/dev/null) || true
+
+    if [[ -n "$EPIC_ID" ]]; then
+      BEADS_ITER=$(bd state "$EPIC_ID" iteration 2>/dev/null | grep -o 'iteration[^ ]*' || true)
+      if [[ -n "$BEADS_ITER" ]]; then
+        echo "$BEADS_ITER"
+        exit 0
+      fi
+    fi
+
+    # Fallback to conf file
+    if [[ -f ".agent_process/work/current_iteration.conf" ]]; then
+      grep "^ITERATION=" .agent_process/work/current_iteration.conf | cut -d= -f2
+    else
+      echo ""
+    fi
     ;;
 
   task-create)
@@ -242,6 +300,10 @@ case "$ACTION" in
       | python3 -c "import json,sys; issues=json.load(sys.stdin); print(issues[0]['id'] if issues else '')" 2>/dev/null) || true
 
     if [[ -n "$EPIC_ID" ]]; then
+      # Record final iteration state before closing
+      if [[ -n "$ITERATION" ]]; then
+        bd set-state "$EPIC_ID" "iteration=$ITERATION" --reason "final iteration at $LABEL" 2>/dev/null || true
+      fi
       bd close "$EPIC_ID" --reason "AP decision: $LABEL" 2>/dev/null && \
         echo "[beads] Closed epic: $SCOPE ($EPIC_ID) — $LABEL" || \
         echo "[beads] WARNING: Failed to close epic $EPIC_ID" >&2

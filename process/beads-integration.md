@@ -123,13 +123,17 @@ bd epic close my_feature --label approved
 
 ### State Tracking
 
-| Event | BEADS Command | File-Based Equivalent |
-|-------|--------------|----------------------|
+| Event | BEADS Command | File-Based Fallback |
+|-------|--------------|---------------------|
 | Scope started | `bd epic create {scope}` | `current_iteration.conf` |
+| Iteration set | `bd set-state {epic} iteration={iter}` | `current_iteration.conf` |
+| Iteration read | `bd state {epic} iteration` | `grep ITERATION current_iteration.conf` |
 | Work unit started | `bd task update ... --label in-progress` | `current_work_unit.conf` |
 | Work unit complete | `bd task update ... --label complete` | Updated in results.md |
 | Work unit blocked | `bd task update ... --label blocked` | Updated in results.md |
 | Scope approved | `bd epic close ... --label approved` | iteration_plan.md updated |
+
+**When BEADS is enabled, it is the authoritative source for iteration state.** The file-based equivalents are always written as fallback but BEADS takes precedence during reads. Use `beads-lifecycle.sh get-iteration {scope}` to read from the correct source automatically.
 
 ### Session Recovery
 

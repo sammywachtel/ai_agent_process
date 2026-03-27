@@ -37,7 +37,11 @@ Read the decision first, then follow the matching section below.
 2. **Write placeholder results.md** with 1-3 required fixes from the decision
 3. **Update iteration_plan.md:** Latest iteration pointer, decision = ITERATE
 4. **Update validation script** if fixes touch new files not in original scope
-5. **Update `current_iteration.conf`** to point to next iteration
+5. **Update iteration state** (BEADS + fallback conf file):
+   ```bash
+   bash .agent_process/scripts/beads-lifecycle.sh set-iteration {scope} {next_iteration}
+   ```
+   This sets the iteration pointer in BEADS (via `bd set-state`) and writes `current_iteration.conf` as fallback. If BEADS is disabled, only the conf file is written.
 6. Hand back to implementation session: `/ap_exec {scope} {next_iteration}`
 
 ## If BLOCK

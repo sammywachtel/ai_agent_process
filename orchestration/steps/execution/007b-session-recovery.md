@@ -13,8 +13,14 @@ Check if a previous execution of this scope/iteration was interrupted or already
 
 ## Checks
 
+**Check BEADS for iteration state (if enabled):**
 ```bash
-# Check for existing results.md
+bash .agent_process/scripts/beads-lifecycle.sh get-iteration {scope} 2>/dev/null
+```
+If BEADS returns an iteration value, it's the authoritative source. Compare it to the requested iteration — if they differ, the scope may have moved on.
+
+**Check for existing results.md:**
+```bash
 ls .agent_process/work/{scope}/{iteration}/results.md 2>/dev/null
 ```
 
@@ -23,7 +29,7 @@ ls .agent_process/work/{scope}/{iteration}/results.md 2>/dev/null
 head -10 .agent_process/work/{scope}/{iteration}/results.md
 ```
 
-**Also check BEADS state for work unit progress:**
+**Also check BEADS breadcrumbs for work unit progress:**
 ```bash
 cat .agent_process/work/{scope}/{iteration}/.beads-state 2>/dev/null
 ```
