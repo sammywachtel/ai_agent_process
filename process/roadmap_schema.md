@@ -43,6 +43,7 @@ This is the single source of truth for project status. It contains all informati
 | ✅ Approved | [N] | [%] |
 | 🔍 Completed (Review Pending) | [N] | [%] |
 | 🚧 In Progress | [N] | [%] |
+| 🔧 Scoped | [N] | [%] |
 | ❌ Blocked | [N] | [%] |
 | 📋 Not Started | [N] | [%] |
 
@@ -86,7 +87,7 @@ This is the single source of truth for project status. It contains all informati
 ```
 
 **Field Definitions:**
-- **Status icons**: ✅ Approved | 🔍 Completed (Review Pending) | 🚧 In Progress | ❌ Blocked | 📋 Not Started
+- **Status icons**: ✅ Approved | 🔍 Completed (Review Pending) | 🚧 In Progress | 🔧 Scoped | ❌ Blocked | 📋 Not Started
 - **Priority**: CRITICAL | HIGH | MEDIUM | LOW
 - **Work Scopes**: Count of work directories matched to this requirement
 - **Matching Statistics**: Shows how work directories were matched (direct = frontmatter ID match, project_mapping = manual override, fuzzy = algorithmic fallback)
@@ -146,7 +147,7 @@ Discovery and sync **only process** files with `type: requirement` in YAML front
 id: lexical_epic_06_save       # Unique requirement identifier (matches work directory names)
 type: requirement              # MANDATORY — discriminator for discovery/sync filtering
 category: lexical_editor       # Category for grouping in roadmap
-status: not_started            # not_started | in_progress | blocked | completed | approved
+status: not_started            # not_started | scoped | in_progress | blocked | completed | approved
 priority: HIGH                 # CRITICAL | HIGH | MEDIUM | LOW
 ---
 ```
@@ -167,7 +168,7 @@ archived: true                   # Marks requirement as archived (excluded from 
 | `id` | Yes | `{category}_{descriptor}` | Unique ID, must match filename |
 | `type` | Yes | `requirement`, `breakdown` | Discriminator — only `requirement` is processed; `breakdown` marks split parent files |
 | `category` | Yes | `lowercase_underscores` | Grouping in roadmap tables |
-| `status` | Yes | `not_started`, `in_progress`, `blocked`, `completed`, `approved` | Current state |
+| `status` | Yes | `not_started`, `scoped`, `in_progress`, `blocked`, `completed`, `approved` | Current state |
 | `priority` | Yes | `CRITICAL`, `HIGH`, `MEDIUM`, `LOW` | Importance ranking |
 | `supersedes` | No | Another requirement ID | Links to replaced requirement |
 | `archived` | No | `true` | Excludes from active discovery |

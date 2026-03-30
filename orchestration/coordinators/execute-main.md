@@ -19,6 +19,51 @@ These instructions are ADDITIVE — they augment but never skip default steps.
 
 ---
 
+## Update Requirement Status to In Progress
+
+Before implementing, update the requirement file's frontmatter `status:` from `scoped` (or `not_started`) to `in_progress` and add the in-progress banner:
+
+```python
+python3 << 'PYEOF'
+import re, yaml
+from pathlib import Path
+
+# Read iteration_plan.md to find the requirement file
+plan = Path(".agent_process/work/{scope}/iteration_plan.md").read_text()
+req_match = re.search(r'Requirements Source[:\s]*[`]?([^\n`]+)[`]?', plan)
+
+if req_match:
+    req_path = Path(req_match.group(1).strip())
+    if req_path.exists():
+        content = req_path.read_text()
+        if content.startswith("---"):
+            end = content.index("---", 3)
+            fm = yaml.safe_load(content[3:end])
+            body = content[end+3:]
+            fm["status"] = "in_progress"
+            new_content = "---\n" + yaml.dump(fm, default_flow_style=False, sort_keys=False) + "---" + body
+
+            banner = '''
+> [!NOTE]
+> **🚧 IN PROGRESS** — *Active development*
+>
+> This requirement is currently being implemented.
+> See: `.agent_process/roadmap/master_roadmap.md` for current status.
+'''
+            # Remove existing banner if present
+            new_content = re.sub(r'\n> \[!(NOTE|TIP|WARNING|CAUTION)\]\n> \*\*[^\n]+\n(> [^\n]*\n)*', '', new_content, count=1)
+            # Insert banner after frontmatter
+            parts = new_content.split("---\n", 2)
+            if len(parts) >= 3:
+                new_content = "---\n" + parts[1] + "---\n" + banner + parts[2]
+
+            req_path.write_text(new_content)
+            print(f"✅ Updated {req_path} status to in_progress")
+PYEOF
+```
+
+---
+
 ## Read Preflight Outputs
 
 Before implementing, read these files from `.agent_process/work/{scope}/.run/execution/`:
@@ -190,7 +235,57 @@ Call the results command:
 
 This creates `results.md` with structured summary. Do NOT create it manually.
 
-After results.md is created, update requirement status to `completed` if ready for review (all criteria addressed), or leave as `in_progress` if not.
+**Update requirement status based on results:**
+
+After results.md is created, promote the requirement to `completed` if ready for review, or leave as `in_progress`:
+
+```python
+python3 << 'PYEOF'
+import re, yaml
+from pathlib import Path
+
+results_path = Path(".agent_process/work/{scope}/{iteration}/results.md")
+if not results_path.exists():
+    print("⚠️  No results.md found — skipping status update")
+    exit(0)
+
+results = results_path.read_text()
+ready = bool(re.search(r'Ready for Review[:\s]*YES', results, re.IGNORECASE))
+
+if not ready:
+    print("ℹ️  Not ready for review — leaving status as in_progress")
+    exit(0)
+
+plan = Path(".agent_process/work/{scope}/iteration_plan.md").read_text()
+req_match = re.search(r'Requirements Source[:\s]*[`]?([^\n`]+)[`]?', plan)
+
+if req_match:
+    req_path = Path(req_match.group(1).strip())
+    if req_path.exists():
+        content = req_path.read_text()
+        if content.startswith("---"):
+            end = content.index("---", 3)
+            fm = yaml.safe_load(content[3:end])
+            body = content[end+3:]
+            fm["status"] = "completed"
+            new_content = "---\n" + yaml.dump(fm, default_flow_style=False, sort_keys=False) + "---" + body
+
+            banner = '''
+> [!NOTE]
+> **🔍 COMPLETED** — *Implementation done, awaiting review*
+>
+> All acceptance criteria addressed. Ready for orchestrator review.
+> See: `.agent_process/work/{scope}/{iteration}/results.md` for details.
+'''
+            new_content = re.sub(r'\n> \[!(NOTE|TIP|WARNING|CAUTION)\]\n> \*\*[^\n]+\n(> [^\n]*\n)*', '', new_content, count=1)
+            parts = new_content.split("---\n", 2)
+            if len(parts) >= 3:
+                new_content = "---\n" + parts[1] + "---\n" + banner + parts[2]
+
+            req_path.write_text(new_content)
+            print(f"✅ Updated {req_path} status to completed (ready for review)")
+PYEOF
+```
 
 ---
 
