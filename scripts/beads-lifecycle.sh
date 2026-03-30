@@ -141,13 +141,30 @@ except:
     [[ -n "$BPASS" ]] && export BEADS_DOLT_PASSWORD="$BPASS"
   fi
 
+  # Create .beads/.env with password for init-time auth.
+  # bd loads this via gotenv.Load() before connecting.
+  if [[ -n "${BEADS_DOLT_PASSWORD:-}" ]]; then
+    mkdir -p .beads
+    echo "BEADS_DOLT_PASSWORD=${BEADS_DOLT_PASSWORD}" > .beads/.env
+    chmod 600 .beads/.env
+  fi
+
   if bd init 2>/dev/null; then
     echo "[beads] bd init completed" >&2
     # Write server config to bd's native storage so future bd calls
     # work without env vars. Mirrors what install.sh does.
-    [[ -n "${BEADS_DOLT_SERVER_HOST:-}" ]] && bd dolt set host "$BEADS_DOLT_SERVER_HOST" 2>/dev/null || true
-    [[ -n "${BEADS_DOLT_SERVER_PORT:-}" ]] && bd dolt set port "$BEADS_DOLT_SERVER_PORT" 2>/dev/null || true
+    # Write port to the port file (gitignored, per-machine) — this is the
+    # primary port source for bd, not metadata.json.
+    if [[ -n "${BEADS_DOLT_SERVER_PORT:-}" ]]; then
+      echo -n "$BEADS_DOLT_SERVER_PORT" > .beads/dolt-server.port
+    fi
+    # User goes to metadata.json (git-tracked, shared across team).
     [[ -n "${BEADS_DOLT_SERVER_USER:-}" ]] && bd dolt set user "$BEADS_DOLT_SERVER_USER" 2>/dev/null || true
+    # Disable auto-backup and auto-push for remote server mode.
+    if [[ -n "${BEADS_DOLT_SERVER_HOST:-}" ]]; then
+      bd config set backup.enabled false 2>/dev/null || true
+      bd config set autopush.enabled false 2>/dev/null || true
+    fi
   else
     echo "[beads] WARNING: bd init failed — BEADS tracking may not work" >&2
     # Don't exit — breadcrumb tracking still works even if bd init fails
