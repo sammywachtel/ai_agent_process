@@ -182,37 +182,81 @@ Requires Dolt installed locally (`brew install dolt`). `bd` connects to `127.0.0
     "enabled": true,
     "auto_install": true,
     "server": {
-      "host": "34.x.x.x",
-      "port": 3307,
-      "user": "beads"
+      "host": "127.0.0.1",
+      "port": 3308,
+      "user": "sam"
     }
   }
 }
 ```
 
-Local Dolt installation is NOT required — `bd` connects directly to the remote server.
+**Port convention:** Remote Dolt uses port `3308` for the IAP tunnel local endpoint. Port `3307` is reserved for local Dolt (personal development). This prevents collisions when developers run both.
+
+Local Dolt installation is NOT required — `bd` connects through the IAP tunnel to the remote server.
 
 ### Credentials
 
-Passwords are stored in `~/.config/beads/credentials` (INI-style, keyed by host:port):
+Two credential sources, for different stages:
+
+**Init-time:** `.beads/.env` — loaded by `bd` on every command via `gotenv.Load()`. Used when bootstrapping a project with `bd init --server`. Per-project, gitignored.
+
+```bash
+# .beads/.env
+BEADS_DOLT_PASSWORD=yourpassword
+```
+
+**Runtime:** `~/.config/beads/credentials` — INI-style file keyed by `[host:port]`. Used after init for normal operations. Per-machine, shared across all projects.
 
 ```ini
 # ~/.config/beads/credentials
 [127.0.0.1:3307]
 password=localDevPassword
 
-[beads.company.com:3307]
-password=companyPassword
+[127.0.0.1:3308]
+password=tunnelPassword
 ```
 
-This file is:
-- **Created automatically** when Docker install generates a password during `install.sh`
+**Password resolution order:**
+1. `BEADS_DOLT_PASSWORD` env var (highest priority)
+2. `.beads/.env` (per-project, loaded automatically)
+3. `~/.config/beads/credentials` by `[host:port]` (per-machine)
+4. Empty string (no password)
+
+The credentials file is:
+- **Created by `make get-my-creds`** or `make setup` in the dolt infrastructure project
 - **Shared across all projects** — one file, all servers
 - **Read natively by `bd`** — no wrapper scripts needed
 - **Overridable** via `BEADS_CREDENTIALS_FILE` env var (for non-default locations)
-- **Permissions:** `chmod 600` (set automatically by installer, `bd` warns if too open)
+- **Permissions:** `chmod 600` (set automatically, `bd` warns if too open)
 
 In Docker containers, mount `~/.config/beads` read-only and set `BEADS_DOLT_SERVER_HOST=host.docker.internal` in the container environment.
+
+### Port File
+
+The tunnel port is stored in `.beads/dolt-server.port` (gitignored, per-machine). This is the primary source `bd` uses for port resolution — **not** `metadata.json`.
+
+```bash
+# Written by make setup or manually:
+echo -n 3308 > .beads/dolt-server.port
+```
+
+Port resolution priority:
+1. `BEADS_DOLT_SERVER_PORT` env var
+2. `.beads/dolt-server.port` file (primary persistent source)
+3. `.beads/config.yaml` `dolt.port`
+4. `.beads/metadata.json` `dolt_server_port` (deprecated)
+5. Default: `3307`
+
+### Remote Server Configuration
+
+For projects connecting to a remote Dolt server, disable auto-backup and auto-push (they try to use local filesystem paths that the remote server can't access):
+
+```bash
+bd config set backup.enabled false
+bd config set autopush.enabled false
+```
+
+These are per-project settings stored in `.beads/config.yaml`. The `make setup` target in the dolt infrastructure project handles this automatically.
 
 ### Command-Line Usage
 
@@ -222,10 +266,11 @@ In Docker containers, mount `~/.config/beads` read-only and set `BEADS_DOLT_SERV
 bd list
 bd prime
 bd dolt test
+bd dolt show    # verify connection config
 bd doctor
 ```
 
-Server config (host/port/user) is stored per-project in `.beads/` via `bd dolt set`. Credentials are resolved by matching the configured `[host:port]` against the credentials file.
+Server config (user) is stored per-project in `.beads/metadata.json` via `bd dolt set user`. Port is stored in `.beads/dolt-server.port`. Credentials are resolved by matching the resolved `[host:port]` against the credentials file.
 
 ### Disabled (no BEADS)
 
@@ -244,12 +289,17 @@ Server config (host/port/user) is stored per-project in `.beads/` via `bd dolt s
 | `enabled` | `true` | Master switch. `false` = BEADS fully ignored even if `bd` is on PATH |
 | `auto_install` | `true` | Whether to attempt installing `bd` CLI if not found |
 | `server.host` | — | Remote Dolt hostname/IP. Omit for local Dolt |
-| `server.port` | `3307` | Remote Dolt port |
-| `server.user` | `"root"` | Remote Dolt user |
+| `server.port` | `3308` | Tunnel port. Written to `.beads/dolt-server.port` by `install.sh` |
+| `server.user` | `"root"` | MySQL user. Written to `.beads/metadata.json` by `install.sh` |
 
 ### Deploying a Shared Server
 
-See `deploy/beads-server/` for scripts that create a GCE e2-micro VM (~$7/month) running Dolt. The setup script outputs the exact `quality-config.json` snippet for your projects.
+The [dolt infrastructure project](https://github.com/New-Amsterdam-Pharmaceuticals/dolt) manages the GCP Dolt service:
+- `make deploy` — provisions GCE Spot VM (~$5-8/month) with IAP access
+- `make add-user` — adds developers (Cloud Identity group + Secret Manager + MySQL)
+- `make setup` — interactive onboarding for each developer (credentials, port, bd config)
+
+See that project's README for the full admin and developer setup flow.
 
 ---
 

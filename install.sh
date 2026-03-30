@@ -540,20 +540,36 @@ if cp.has_section(key) and cp.has_option(key, 'password'):
       DOLT_REACHABLE=true
     fi
 
+    # Create .beads/.env with password for init-time authentication.
+    # bd loads this file automatically via gotenv.Load() before connecting.
+    if [[ -n "$BHOST" && -n "${BPASS:-}" ]]; then
+      mkdir -p "$TARGET_DIR/.beads"
+      echo "BEADS_DOLT_PASSWORD=${BPASS}" > "$TARGET_DIR/.beads/.env"
+      chmod 600 "$TARGET_DIR/.beads/.env"
+    fi
+
     if [[ "$DOLT_REACHABLE" == true ]]; then
       if (cd "$TARGET_DIR" && bd init 2>/dev/null); then
         echo -e "${GREEN}  ✓${NC} Initialized BEADS database (.beads/)"
 
-        # Write server config to bd's native storage so bd knows the connection
-        # without needing env vars or wrapper scripts at runtime.
-        if [[ -n "$BHOST" ]]; then
-          (cd "$TARGET_DIR" && bd dolt set host "$BHOST" 2>/dev/null) || true
-        fi
+        # Write port to the port file (gitignored, per-machine).
+        # This is the primary port source for bd — NOT metadata.json.
         if [[ -n "${BPORT:-}" ]]; then
-          (cd "$TARGET_DIR" && bd dolt set port "$BPORT" 2>/dev/null) || true
+          echo -n "$BPORT" > "$TARGET_DIR/.beads/dolt-server.port"
+          echo -e "${GREEN}  ✓${NC} Port file written: .beads/dolt-server.port ($BPORT)"
         fi
+
+        # Write user to metadata.json (git-tracked, shared across team).
         if [[ -n "${BUSER:-}" ]]; then
           (cd "$TARGET_DIR" && bd dolt set user "$BUSER" 2>/dev/null) || true
+        fi
+
+        # Disable auto-backup and auto-push for remote server mode.
+        # These try to use local filesystem paths the remote server can't access.
+        if [[ -n "$BHOST" ]]; then
+          (cd "$TARGET_DIR" && bd config set backup.enabled false 2>/dev/null) || true
+          (cd "$TARGET_DIR" && bd config set autopush.enabled false 2>/dev/null) || true
+          echo -e "${GREEN}  ✓${NC} Auto-backup and auto-push disabled (remote server mode)"
         fi
       else
         echo -e "${YELLOW}  ⊙${NC} BEADS database initialization failed (will retry at runtime)"

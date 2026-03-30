@@ -78,26 +78,37 @@ Controls BEADS durable state integration (Phase 3).
 | `enabled` | boolean | `true` | Master switch. When `false`, BEADS is fully ignored even if `bd` is on the PATH. |
 | `auto_install` | boolean | `true` | Whether to attempt installing `bd` CLI if not found. Set `false` for air-gapped environments. |
 | `server` | object | `null` | Remote Dolt server connection. When present, `bd` connects here instead of requiring local Dolt. |
-| `server.host` | string | — | Dolt server hostname or IP. Examples: `"127.0.0.1"` (local), `"beads.company.com"` (shared). |
-| `server.port` | number | `3307` | Dolt server port. |
-| `server.user` | string | `"root"` | Dolt database user. |
+| `server.host` | string | — | Dolt server hostname or IP. For IAP tunnel setups, use `"127.0.0.1"`. |
+| `server.port` | number | `3308` | Tunnel port. Written to `.beads/dolt-server.port` by `install.sh`. Use `3308` for remote (reserves `3307` for local Dolt). |
+| `server.user` | string | `"root"` | MySQL user. Written to `.beads/metadata.json` by `install.sh`. |
 
-**Password** is set via the `BEADS_DOLT_PASSWORD` environment variable — never in config files. Use `direnv` (`.envrc`) or shell profile for per-project passwords.
+**Password sources** (checked in order):
+1. `BEADS_DOLT_PASSWORD` env var
+2. `.beads/.env` file (per-project, loaded automatically by `bd`)
+3. `~/.config/beads/credentials` keyed by `[host:port]` (per-machine)
+
+For remote server setups, passwords are managed via GCP Secret Manager and fetched by `make get-my-creds` or `make setup` in the dolt infrastructure project.
 
 **Per-project routing:** Each project's `quality-config.json` can point at a different server. Personal projects use local Dolt; company projects use a shared instance.
 
 ```json
-// Personal project — local Dolt on your laptop
+// Personal project — local Dolt on your laptop (port 3307)
 { "beads": { "enabled": true } }
 
-// Company project — shared GCE server
-{ "beads": { "enabled": true, "server": { "host": "34.x.x.x", "port": 3307, "user": "beads" } } }
+// Company project — remote Dolt via IAP tunnel (port 3308)
+{ "beads": { "enabled": true, "server": { "host": "127.0.0.1", "port": 3308, "user": "sam" } } }
 
 // No BEADS — file-based state only
 { "beads": { "enabled": false } }
 ```
 
-When `server` is present, local Dolt installation is not required — `bd` connects to the remote instance directly. Server config is written to `bd`'s native storage during `install.sh` (via `bd dolt set host/port/user`), and `bd` reads credentials from `~/.config/beads/credentials`. The `beads-lifecycle.sh` script handles BEADS lifecycle during execution (Step 0.5).
+When `server` is present, local Dolt installation is not required — `bd` connects through the IAP tunnel. During `install.sh`:
+- `server.port` is written to `.beads/dolt-server.port` (gitignored, per-machine — this is the primary port source for `bd`)
+- `server.user` is written to `.beads/metadata.json` via `bd dolt set user`
+- Auto-backup and auto-push are disabled (incompatible with remote server mode)
+- Credentials are read from `~/.config/beads/credentials` by matching `[host:port]`
+
+The `beads-lifecycle.sh` script handles BEADS lifecycle during execution (Step 0.5).
 
 ### `pr_shepherd`
 
