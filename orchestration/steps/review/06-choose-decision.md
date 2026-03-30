@@ -78,5 +78,8 @@ Write to `.run/review/06-decision.md`:
 {For PIVOT: Reason, proposed scope change, needs human approval}
 
 ## Next Step
-{What happens next based on this decision}
+{APPROVE: `/ap_release pr` or `/ap_release beta` to create PR}
+{ITERATE: `/ap_exec {scope} {next_iteration}` for implementation}
+{BLOCK: Escalate to human — no further automated action}
+{PIVOT: Human approves revised criteria, then re-plan}
 ```

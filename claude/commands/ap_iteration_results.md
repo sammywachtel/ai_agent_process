@@ -175,7 +175,8 @@ Use this template structure:
 {YES - All criteria met and validation passed}
 {NO - Reason why not ready}
 
-**Next step:** {Orchestrator review | Another iteration needed | Escalate blocker}
+**Next step:** {Open a fresh orchestrator session with `orchestration/review-iteration.md` | Another iteration needed | Escalate blocker}
+Note: There is no `/ap_review` command. Review is a separate orchestrator session.
 ```
 
 **Save results.md:**

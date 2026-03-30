@@ -306,10 +306,15 @@ if [[ "$FEAT_BEADS" == "yes" ]]; then
   echo ""
   echo -e "${BLUE}▸${NC} BEADS durable state tracking..."
 
-  # Check Dolt prerequisites — local binary or remote server
+  # Check Dolt prerequisites — local binary, configured remote, or default port
   DOLT_AVAILABLE=false
+  DOLT_HOST=""
+  DOLT_PORT="3307"
+  DOLT_USER="root"
+
   if command -v dolt &>/dev/null; then
     DOLT_AVAILABLE=true
+    DOLT_HOST="127.0.0.1"
     echo -e "${GREEN}  ✓${NC} Dolt installed locally"
   else
     # Check if a remote server is configured and reachable
@@ -329,10 +334,44 @@ try:
 except:
     print('3307')
 " 2>/dev/null)
+    REMOTE_USER=$(python3 -c "
+import json
+try:
+    cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
+    print(cfg.get('beads', {}).get('server', {}).get('user', 'root'))
+except:
+    print('root')
+" 2>/dev/null)
+
     if [[ -n "$REMOTE_HOST" ]] && nc -z "$REMOTE_HOST" "$REMOTE_PORT" 2>/dev/null; then
       DOLT_AVAILABLE=true
-      echo -e "${GREEN}  ✓${NC} Dolt server reachable at ${REMOTE_HOST}:${REMOTE_PORT}"
+      DOLT_HOST="$REMOTE_HOST"
+      DOLT_PORT="$REMOTE_PORT"
+      DOLT_USER="$REMOTE_USER"
+      echo -e "${GREEN}  ✓${NC} Dolt server reachable at ${DOLT_HOST}:${DOLT_PORT}"
+    elif nc -z 127.0.0.1 3307 2>/dev/null; then
+      # No dolt binary, no config, but something is listening on the default port
+      DOLT_AVAILABLE=true
+      DOLT_HOST="127.0.0.1"
+      echo -e "${GREEN}  ✓${NC} Dolt server detected on default port (127.0.0.1:3307)"
     fi
+  fi
+
+  # Always write server config to quality-config.json when Dolt is available
+  # so the bd init section below can find it via env vars
+  if [[ "$DOLT_AVAILABLE" == true && -n "$DOLT_HOST" ]]; then
+    python3 -c "
+import json
+path = '$AGENT_PROCESS_DIR/quality-config.json'
+try:
+    cfg = json.load(open(path))
+    existing = cfg.get('beads', {}).get('server', {})
+    if not existing.get('host'):
+        cfg.setdefault('beads', {})['server'] = {'host': '$DOLT_HOST', 'port': int('$DOLT_PORT'), 'user': '$DOLT_USER'}
+        json.dump(cfg, open(path, 'w'), indent=2)
+except:
+    pass
+" 2>/dev/null
   fi
 
   if [[ "$DOLT_AVAILABLE" == false ]]; then
@@ -366,6 +405,9 @@ except:
         if [[ $? -eq 0 ]]; then
           echo -e "${GREEN}  ✓${NC} Dolt server running in Docker (port 3307)"
           DOLT_AVAILABLE=true
+          DOLT_HOST="127.0.0.1"
+          DOLT_PORT="3307"
+          DOLT_USER="root"
           python3 -c "
 import json
 path = '$AGENT_PROCESS_DIR/quality-config.json'
@@ -391,6 +433,9 @@ except:
       if nc -z "$REMOTE_INPUT_HOST" "$REMOTE_INPUT_PORT" 2>/dev/null; then
         echo -e "${GREEN}  ✓${NC} Connected to ${REMOTE_INPUT_HOST}:${REMOTE_INPUT_PORT}"
         DOLT_AVAILABLE=true
+        DOLT_HOST="$REMOTE_INPUT_HOST"
+        DOLT_PORT="$REMOTE_INPUT_PORT"
+        DOLT_USER="$REMOTE_INPUT_USER"
         python3 -c "
 import json
 path = '$AGENT_PROCESS_DIR/quality-config.json'

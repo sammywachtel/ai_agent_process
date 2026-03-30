@@ -187,6 +187,7 @@ When a requirement's status changes in the roadmap, update banners in all relate
 3. Any related sub-requirements or breakdown files
 
 **Banner rules:**
+- Status changed to 🔧 SCOPED → Add/update with `[!NOTE]` scoped banner
 - Status changed to 🚧 IN PROGRESS → Add/update with `[!NOTE]` in-progress banner
 - Status changed to 🔍 COMPLETED → Add/update with `[!NOTE]` completed (review pending) banner
 - Status changed to ✅ APPROVED → Add/update with `[!TIP]` approved banner
@@ -219,7 +220,7 @@ This ensures developers can see at a glance whether a requirement file is active
 ### When to Add/Update Banners
 
 Add or update status banners when:
-- A requirement changes status (📋 → 🚧 → ✅ or ❌)
+- A requirement changes status (📋 → 🔧 → 🚧 → ✅ or ❌)
 - An iteration completes and updates the requirement's aggregate status
 - A requirement is archived via `/ap_project archive`
 - A requirement is unblocked and returns to active work
@@ -241,6 +242,7 @@ Add the banner immediately after the frontmatter (or at the very top if no front
 
 | Status | Alert Type | Icon | When to Use |
 |--------|-----------|------|-------------|
+| Scoped | `NOTE` | 🔧 | Work scope created, awaiting execution |
 | In Progress | `NOTE` | 🚧 | Active work on this requirement |
 | Completed | `NOTE` | 🔍 | Implementation done, awaiting orchestrator review |
 | Approved | `TIP` | ✅ | Reviewed and accepted by orchestrator |
@@ -248,6 +250,16 @@ Add the banner immediately after the frontmatter (or at the very top if no front
 | Archived | `CAUTION` | 🗄️ | Superseded, abandoned, or out of scope |
 
 ### Banner Examples
+
+#### Scoped Banner
+
+```markdown
+> [!NOTE]
+> **🔧 SCOPED** — *Work scope created, awaiting execution*
+>
+> Planning complete. Iteration plan ready at `.agent_process/work/{scope}/iteration_plan.md`.
+> Run `/ap_exec {scope} iteration_01` to begin implementation.
+```
 
 #### In Progress Banner
 

@@ -92,7 +92,7 @@ Spawn a **synthesis** sub-agent with `orchestration/steps/review/06-choose-decis
 Spawn a **capable** sub-agent with `orchestration/steps/review/07-10-post-decision.md`.
 - Pass: scope, iteration, decision output (`.run/review/06-decision.md`)
 - **Output:** `.run/review/07-10-post-decision.md`
-- Handles: iteration_plan update, requirement doc update, knowledge deposit, BEADS close, artifact validation suggestion, handoff
+- Handles: iteration_plan update, requirement doc update, **BEADS iteration state update** (via `beads-lifecycle.sh set-iteration`), knowledge deposit, BEADS close, artifact validation suggestion, handoff
 
 ---
 

@@ -154,7 +154,7 @@ For these cases, use `project_mappings` in `.roadmap_config.json`:
 id: requirement_id_here
 type: requirement
 category: category_name
-status: not_started | in_progress | blocked | complete | approved
+status: not_started | scoped | in_progress | blocked | complete | approved
 priority: low | medium | high | critical
 ---
 ```
