@@ -38,6 +38,7 @@ ensure_beads_credentials() {
 #
 # To add a new server:
 #   [hostname:port]
+#   user = your_username
 #   password = your_password_here
 #
 # Examples:
@@ -51,9 +52,9 @@ CREDS_TEMPLATE
   fi
 }
 
-# Save a password to credentials file (idempotent, preserves header + existing entries)
+# Save user/password to credentials file (idempotent, preserves header + existing entries)
 save_beads_credential() {
-  local host="$1" port="$2" password="$3"
+  local host="$1" port="$2" password="$3" user="${4:-}"
   ensure_beads_credentials
   python3 -c "
 import os, re
@@ -80,7 +81,10 @@ cp.read_string(body)
 section = '${host}:${port}'
 if not cp.has_section(section):
     cp.add_section(section)
-cp.set(section, 'password', '${password}')
+if '${password}':
+    cp.set(section, 'password', '${password}')
+if '${user}':
+    cp.set(section, 'user', '${user}')
 
 # Write header + sections
 with open(path, 'w') as f:
@@ -306,30 +310,44 @@ if [[ "$FEAT_BEADS" == "yes" ]]; then
   echo ""
   echo -e "${BLUE}▸${NC} BEADS durable state tracking..."
 
-  # --- Phase 1: Discover all available Dolt endpoints ---
-  # Scan for local binary, tunnel credentials, listening ports, and configured remotes.
-  # Build a menu of options so the user picks which Dolt to connect to.
+  # --- Phase 1: Discover Dolt endpoints ---
+  # Check for local binary, Docker container, and tunnel credentials.
+  # Always present a menu — local binary and Docker are always shown,
+  # tunnel appears when credentials exist.
   DOLT_AVAILABLE=false
   DOLT_HOST=""
   DOLT_PORT="3307"
   DOLT_USER="root"
 
-  HAS_LOCAL_DOLT=false
-  HAS_TUNNEL=false
-  HAS_CONFIGURED_REMOTE=false
-  TUNNEL_PORT=""
-  TUNNEL_USER=""
-  CONFIGURED_HOST=""
-  CONFIGURED_PORT=""
-  CONFIGURED_USER=""
-
   # Check 1: local dolt binary
+  HAS_LOCAL_DOLT=false
+  LOCAL_DOLT_RUNNING=false
   if command -v dolt &>/dev/null; then
     HAS_LOCAL_DOLT=true
+    nc -z 127.0.0.1 3307 2>/dev/null && LOCAL_DOLT_RUNNING=true
   fi
 
-  # Check 2: tunnel credentials in ~/.config/beads/credentials (written by setup-developer.sh)
-  # Look for [127.0.0.1:3308] or any non-3307 localhost entry
+  # Check 2: Docker container (beads-dolt-server)
+  HAS_DOCKER=false
+  DOCKER_DOLT_RUNNING=false
+  DOCKER_DOLT_EXISTS=false
+  if command -v docker &>/dev/null; then
+    HAS_DOCKER=true
+    # Check if our named container is running
+    if docker ps --filter "name=beads-dolt-server" --format '{{.Names}}' 2>/dev/null | grep -q beads-dolt-server; then
+      DOCKER_DOLT_RUNNING=true
+      DOCKER_DOLT_EXISTS=true
+    # Check if container exists but is stopped
+    elif docker ps -a --filter "name=beads-dolt-server" --format '{{.Names}}' 2>/dev/null | grep -q beads-dolt-server; then
+      DOCKER_DOLT_EXISTS=true
+    fi
+  fi
+
+  # Check 3: tunnel credentials in ~/.config/beads/credentials (written by setup-developer.sh)
+  HAS_TUNNEL=false
+  TUNNEL_PORT=""
+  TUNNEL_USER=""
+  TUNNEL_CONNECTED=false
   CREDS_FILE="${HOME}/.config/beads/credentials"
   if [[ -f "$CREDS_FILE" ]]; then
     TUNNEL_PORT=$(python3 -c "
@@ -343,6 +361,7 @@ for s in cp.sections():
         break
 " 2>/dev/null) || true
     if [[ -n "$TUNNEL_PORT" ]]; then
+      HAS_TUNNEL=true
       # Derive username from credentials or gcloud identity
       TUNNEL_USER=$(python3 -c "
 import configparser, os
@@ -352,7 +371,6 @@ key = '127.0.0.1:${TUNNEL_PORT}'
 if cp.has_section(key) and cp.has_option(key, 'user'):
     print(cp.get(key, 'user'))
 " 2>/dev/null) || true
-      # Fall back to gcloud identity for username
       if [[ -z "$TUNNEL_USER" ]]; then
         GCLOUD_EMAIL=$(gcloud config get-value account 2>/dev/null || true)
         if [[ -n "$GCLOUD_EMAIL" ]]; then
@@ -360,281 +378,268 @@ if cp.has_section(key) and cp.has_option(key, 'user'):
           TUNNEL_USER="${TUNNEL_USER%%.*}"
         fi
       fi
-      # Only mark as available if something is actually listening
-      if nc -z 127.0.0.1 "$TUNNEL_PORT" 2>/dev/null; then
-        HAS_TUNNEL=true
-      fi
+      nc -z 127.0.0.1 "$TUNNEL_PORT" 2>/dev/null && TUNNEL_CONNECTED=true
     fi
   fi
 
-  # Check 3: previously configured remote in quality-config.json
-  CONFIGURED_HOST=$(python3 -c "
-import json
-try:
-    cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
-    print(cfg.get('beads', {}).get('server', {}).get('host', ''))
-except:
-    print('')
-" 2>/dev/null)
-  if [[ -n "$CONFIGURED_HOST" ]]; then
-    CONFIGURED_PORT=$(python3 -c "
-import json
-try:
-    cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
-    print(cfg.get('beads', {}).get('server', {}).get('port', '3307'))
-except:
-    print('3307')
-" 2>/dev/null)
-    CONFIGURED_USER=$(python3 -c "
-import json
-try:
-    cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
-    print(cfg.get('beads', {}).get('server', {}).get('user', 'root'))
-except:
-    print('root')
-" 2>/dev/null)
-    if nc -z "$CONFIGURED_HOST" "$CONFIGURED_PORT" 2>/dev/null; then
-      HAS_CONFIGURED_REMOTE=true
+  # --- Phase 2: Always show a menu ---
+  echo ""
+  echo -e "  Dolt server — which would you like to use?"
+  MENU_IDX=0
+  MENU_MAP=()
+
+  # Option: local Dolt binary (always shown)
+  MENU_IDX=$((MENU_IDX + 1))
+  if [[ "$HAS_LOCAL_DOLT" == true ]]; then
+    if [[ "$LOCAL_DOLT_RUNNING" == true ]]; then
+      echo -e "    ${MENU_IDX}) Local Dolt binary ${GREEN}(installed, running on :3307)${NC}"
+    else
+      echo -e "    ${MENU_IDX}) Local Dolt binary ${YELLOW}(installed, not running)${NC}"
     fi
+  else
+    echo -e "    ${MENU_IDX}) Local Dolt binary ${RED}(not installed)${NC}"
   fi
+  MENU_MAP+=("local")
 
-  # --- Phase 2: Present choices ---
-  # Count how many options we found
-  OPTION_COUNT=0
-  [[ "$HAS_LOCAL_DOLT" == true ]] && OPTION_COUNT=$((OPTION_COUNT + 1))
-  [[ "$HAS_TUNNEL" == true ]] && OPTION_COUNT=$((OPTION_COUNT + 1))
-  [[ "$HAS_CONFIGURED_REMOTE" == true ]] && OPTION_COUNT=$((OPTION_COUNT + 1))
+  # Option: Docker Dolt (always shown)
+  MENU_IDX=$((MENU_IDX + 1))
+  if [[ "$DOCKER_DOLT_RUNNING" == true ]]; then
+    echo -e "    ${MENU_IDX}) Local Dolt via Docker ${GREEN}(running on :3307)${NC}"
+  elif [[ "$DOCKER_DOLT_EXISTS" == true ]]; then
+    echo -e "    ${MENU_IDX}) Local Dolt via Docker ${YELLOW}(container stopped)${NC}"
+  elif [[ "$HAS_DOCKER" == true ]]; then
+    echo -e "    ${MENU_IDX}) Local Dolt via Docker ${YELLOW}(not yet installed)${NC}"
+  else
+    echo -e "    ${MENU_IDX}) Local Dolt via Docker ${RED}(Docker not found)${NC}"
+  fi
+  MENU_MAP+=("docker")
 
-  if [[ "$OPTION_COUNT" -gt 1 ]] || [[ "$OPTION_COUNT" -eq 1 && "$HAS_TUNNEL" == true ]]; then
-    # Multiple options or tunnel detected — ask the user
-    echo ""
-    echo -e "  Dolt server configuration:"
-    MENU_IDX=0
-    MENU_MAP=()
-
-    if [[ "$HAS_LOCAL_DOLT" == true ]]; then
-      MENU_IDX=$((MENU_IDX + 1))
-      LOCAL_STATUS=""
-      nc -z 127.0.0.1 3307 2>/dev/null && LOCAL_STATUS=" (listening)" || LOCAL_STATUS=" (not running)"
-      echo -e "    ${MENU_IDX}) Local Dolt (localhost:3307)${LOCAL_STATUS}"
-      MENU_MAP+=("local")
-    fi
-
-    if [[ "$HAS_TUNNEL" == true ]]; then
-      MENU_IDX=$((MENU_IDX + 1))
-      echo -e "    ${MENU_IDX}) Remote Dolt via IAP tunnel (localhost:${TUNNEL_PORT}) — credentials found"
-      MENU_MAP+=("tunnel")
-    fi
-
-    if [[ "$HAS_CONFIGURED_REMOTE" == true ]]; then
-      # Skip if it's the same as the tunnel entry
-      if [[ "$CONFIGURED_HOST" != "127.0.0.1" || "$CONFIGURED_PORT" != "${TUNNEL_PORT:-}" ]]; then
-        MENU_IDX=$((MENU_IDX + 1))
-        echo -e "    ${MENU_IDX}) Configured remote (${CONFIGURED_HOST}:${CONFIGURED_PORT})"
-        MENU_MAP+=("configured")
-      fi
-    fi
-
+  # Option: IAP tunnel (only when credentials exist)
+  if [[ "$HAS_TUNNEL" == true ]]; then
     MENU_IDX=$((MENU_IDX + 1))
-    echo -e "    ${MENU_IDX}) Enter different host:port"
-    MENU_MAP+=("custom")
+    if [[ "$TUNNEL_CONNECTED" == true ]]; then
+      echo -e "    ${MENU_IDX}) Remote Dolt via IAP tunnel ${GREEN}(connected, :${TUNNEL_PORT})${NC}"
+    else
+      echo -e "    ${MENU_IDX}) Remote Dolt via IAP tunnel ${YELLOW}(credentials found, not connected)${NC}"
+    fi
+    MENU_MAP+=("tunnel")
+  fi
 
-    echo ""
-    read -p "  Select [1-${MENU_IDX}]: " -n 1 -r DOLT_CHOICE
-    echo ""
+  # Option: custom host:port (always shown)
+  MENU_IDX=$((MENU_IDX + 1))
+  echo -e "    ${MENU_IDX}) Enter different host:port"
+  MENU_MAP+=("custom")
 
-    # Default to first option on empty input
-    DOLT_CHOICE="${DOLT_CHOICE:-1}"
-    CHOICE_IDX=$((DOLT_CHOICE - 1))
+  echo ""
+  read -p "  Select [1-${MENU_IDX}]: " -n 1 -r DOLT_CHOICE
+  echo ""
 
-    if [[ "$CHOICE_IDX" -ge 0 && "$CHOICE_IDX" -lt "${#MENU_MAP[@]}" ]]; then
-      case "${MENU_MAP[$CHOICE_IDX]}" in
-        local)
+  DOLT_CHOICE="${DOLT_CHOICE:-1}"
+  CHOICE_IDX=$((DOLT_CHOICE - 1))
+
+  if [[ "$CHOICE_IDX" -ge 0 && "$CHOICE_IDX" -lt "${#MENU_MAP[@]}" ]]; then
+    case "${MENU_MAP[$CHOICE_IDX]}" in
+
+      local)
+        if [[ "$HAS_LOCAL_DOLT" != true ]]; then
+          echo ""
+          echo -e "${YELLOW}  Dolt binary is not installed.${NC}"
+          echo -e "  Dolt is included with BEADS. Install BEADS first, then re-run:"
+          echo -e "    ${GREEN}go install github.com/sammywachtel/beads/cmd/bd@latest${NC}"
+          echo -e "    ${GREEN}brew install dolt${NC}  (or see https://docs.dolthub.com/introduction/installation)"
+          echo -e "    Then re-run: ${GREEN}$0${NC}"
+          # Don't exit — fall through to DOLT_AVAILABLE=false handling
+        else
           DOLT_AVAILABLE=true
           DOLT_HOST="127.0.0.1"
           DOLT_PORT="3307"
           DOLT_USER="root"
-          echo -e "${GREEN}  ✓${NC} Using local Dolt (localhost:3307)"
-          ;;
-        tunnel)
+          if [[ "$LOCAL_DOLT_RUNNING" == true ]]; then
+            echo -e "${GREEN}  ✓${NC} Using local Dolt (localhost:3307)"
+          else
+            echo -e "${GREEN}  ✓${NC} Using local Dolt (localhost:3307) — start it with: ${YELLOW}dolt sql-server${NC}"
+          fi
+        fi
+        ;;
+
+      docker)
+        if [[ "$HAS_DOCKER" != true ]]; then
+          echo ""
+          echo -e "${RED}  Docker is not installed.${NC}"
+          echo -e "  Install Docker first: ${GREEN}https://docs.docker.com/get-docker/${NC}"
+          echo -e "  Then re-run: ${GREEN}$0${NC}"
+        elif [[ "$DOCKER_DOLT_RUNNING" == true ]]; then
+          # Already running — just use it
           DOLT_AVAILABLE=true
           DOLT_HOST="127.0.0.1"
-          DOLT_PORT="$TUNNEL_PORT"
-          DOLT_USER="${TUNNEL_USER:-root}"
-          echo -e "${GREEN}  ✓${NC} Using IAP tunnel (localhost:${TUNNEL_PORT})"
-          ;;
-        configured)
-          DOLT_AVAILABLE=true
-          DOLT_HOST="$CONFIGURED_HOST"
-          DOLT_PORT="$CONFIGURED_PORT"
-          DOLT_USER="$CONFIGURED_USER"
-          echo -e "${GREEN}  ✓${NC} Using configured remote (${CONFIGURED_HOST}:${CONFIGURED_PORT})"
-          ;;
-        custom)
-          read -p "  Dolt server host: " CUSTOM_HOST
-          read -p "  Dolt server port [3307]: " CUSTOM_PORT
-          CUSTOM_PORT="${CUSTOM_PORT:-3307}"
-          read -p "  Dolt user [root]: " CUSTOM_USER
-          CUSTOM_USER="${CUSTOM_USER:-root}"
-          if nc -z "$CUSTOM_HOST" "$CUSTOM_PORT" 2>/dev/null; then
-            echo -e "${GREEN}  ✓${NC} Connected to ${CUSTOM_HOST}:${CUSTOM_PORT}"
+          DOLT_PORT="3307"
+          DOLT_USER="root"
+          echo -e "${GREEN}  ✓${NC} Using Docker Dolt (localhost:3307)"
+        elif [[ "$DOCKER_DOLT_EXISTS" == true ]]; then
+          # Container exists but stopped — start it
+          echo -e "  Starting stopped beads-dolt-server container..."
+          if docker start beads-dolt-server 2>/dev/null; then
             DOLT_AVAILABLE=true
-            DOLT_HOST="$CUSTOM_HOST"
-            DOLT_PORT="$CUSTOM_PORT"
-            DOLT_USER="$CUSTOM_USER"
+            DOLT_HOST="127.0.0.1"
+            DOLT_PORT="3307"
+            DOLT_USER="root"
+            echo -e "${GREEN}  ✓${NC} Docker Dolt restarted (localhost:3307)"
           else
-            echo -e "${RED}  Cannot reach ${CUSTOM_HOST}:${CUSTOM_PORT}${NC}"
+            echo -e "${RED}  Failed to start container.${NC} Try: docker start beads-dolt-server"
           fi
-          ;;
-      esac
-    fi
-  elif [[ "$HAS_LOCAL_DOLT" == true ]]; then
-    # Only local Dolt available, no tunnel credentials — use it
-    if nc -z 127.0.0.1 3307 2>/dev/null; then
-      DOLT_AVAILABLE=true
-      DOLT_HOST="127.0.0.1"
-      DOLT_PORT="3307"
-      echo -e "${GREEN}  ✓${NC} Dolt installed locally (localhost:3307)"
-    else
-      echo -e "${GREEN}  ✓${NC} Dolt installed locally (not currently running)"
-      DOLT_AVAILABLE=true
-      DOLT_HOST="127.0.0.1"
-      DOLT_PORT="3307"
-    fi
-  elif [[ "$HAS_CONFIGURED_REMOTE" == true ]]; then
-    # Only configured remote — use it
-    DOLT_AVAILABLE=true
-    DOLT_HOST="$CONFIGURED_HOST"
-    DOLT_PORT="$CONFIGURED_PORT"
-    DOLT_USER="$CONFIGURED_USER"
-    echo -e "${GREEN}  ✓${NC} Dolt server reachable at ${DOLT_HOST}:${DOLT_PORT}"
-  elif nc -z 127.0.0.1 3307 2>/dev/null; then
-    # Nothing configured but something is listening on the default port
-    DOLT_AVAILABLE=true
-    DOLT_HOST="127.0.0.1"
-    echo -e "${GREEN}  ✓${NC} Dolt server detected on default port (127.0.0.1:3307)"
+        else
+          # No container yet — create one
+          DOLT_DATA_DIR="${HOME}/.dolt-server/data"
+          DOLT_CFG_DIR="${HOME}/.dolt-server/config"
+          mkdir -p "$DOLT_DATA_DIR" "$DOLT_CFG_DIR"
+
+          # If the volume already has a privileges.db, DOLT_ROOT_PASSWORD is ignored —
+          # Dolt only seeds that file on first-ever init. We must use whatever password
+          # the volume was originally created with, or we'll get access denied.
+          HAS_EXISTING_DATA=false
+          [[ -f "$DOLT_DATA_DIR/.doltcfg/privileges.db" ]] && HAS_EXISTING_DATA=true
+
+          if [[ "$HAS_EXISTING_DATA" == true ]]; then
+            # Try to find a working password — check all localhost/docker entries
+            EXISTING_PASS=$(python3 -c "
+import configparser, os
+cp = configparser.ConfigParser()
+cp.read(os.path.expanduser('~/.config/beads/credentials'))
+# Check both keys — the password may have been saved under either
+for key in ['127.0.0.1:3307', 'host.docker.internal:3307']:
+    if cp.has_section(key) and cp.has_option(key, 'password'):
+        print(cp.get(key, 'password'))
+        break
+" 2>/dev/null) || true
+            if [[ -n "$EXISTING_PASS" ]]; then
+              DOLT_PASS="$EXISTING_PASS"
+              echo -e "  Existing Dolt data found — reusing saved credentials"
+            else
+              echo -e "${YELLOW}  ⚠ Existing Dolt data found but no saved password.${NC}"
+              echo -e "  If you know the root password, update ~/.config/beads/credentials"
+              echo -e "  Or remove ${DOLT_DATA_DIR} to start fresh."
+              DOLT_PASS=""
+            fi
+          else
+            DOLT_PASS=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 16)
+          fi
+
+          if [[ -z "$DOLT_PASS" ]]; then
+            # No password available — can't start the container usefully
+            echo -e "${RED}  Cannot start Docker Dolt without a password.${NC}"
+          else
+
+          echo -e "  Starting Dolt SQL server via Docker..."
+          docker run -d \
+            --name beads-dolt-server \
+            --restart unless-stopped \
+            -e DOLT_ROOT_HOST='%' \
+            -e DOLT_ROOT_PASSWORD="$DOLT_PASS" \
+            -p 3307:3306 \
+            -v "$DOLT_DATA_DIR":/var/lib/dolt \
+            -v "$DOLT_CFG_DIR":/etc/dolt/servercfg.d \
+            dolthub/dolt-sql-server:latest \
+            2>/dev/null
+          if [[ $? -eq 0 ]]; then
+            echo -e "${GREEN}  ✓${NC} Dolt server running in Docker (port 3307)"
+            echo -e "  Data persisted at: ${YELLOW}${DOLT_DATA_DIR}${NC}"
+            DOLT_AVAILABLE=true
+            DOLT_HOST="127.0.0.1"
+            DOLT_PORT="3307"
+            DOLT_USER="root"
+            # Save under both keys — bd connects via 127.0.0.1, but containers
+            # rewrite to host.docker.internal. Keep them in sync.
+            save_beads_credential "127.0.0.1" "3307" "$DOLT_PASS"
+            save_beads_credential "host.docker.internal" "3307" "$DOLT_PASS"
+            echo -e "${GREEN}  ✓${NC} Credentials saved to ~/.config/beads/credentials"
+          else
+            echo -e "${YELLOW}  ⊙${NC} Docker failed to start Dolt."
+            echo -e "  Try manually: ${GREEN}docker run -d --name beads-dolt-server -p 3307:3306 dolthub/dolt-sql-server:latest${NC}"
+          fi
+
+          fi  # end password-available guard
+        fi
+        ;;
+
+      tunnel)
+        DOLT_HOST="127.0.0.1"
+        DOLT_PORT="$TUNNEL_PORT"
+        DOLT_USER="${TUNNEL_USER:-root}"
+        if [[ "$TUNNEL_CONNECTED" == true ]]; then
+          DOLT_AVAILABLE=true
+          echo -e "${GREEN}  ✓${NC} Using IAP tunnel (localhost:${TUNNEL_PORT})"
+        else
+          echo -e "${YELLOW}  ⚠${NC} Tunnel credentials found but port ${TUNNEL_PORT} is not connected."
+          echo -e "  Start the tunnel, then re-run: ${GREEN}$0${NC}"
+          DOLT_AVAILABLE=true
+          echo -e "${GREEN}  ✓${NC} Configured for IAP tunnel (localhost:${TUNNEL_PORT}) — will connect when tunnel is active"
+        fi
+        # Ensure user is saved to credentials (may have been derived from gcloud)
+        if [[ -n "$DOLT_USER" && "$DOLT_USER" != "root" ]]; then
+          save_beads_credential "$DOLT_HOST" "$DOLT_PORT" "" "$DOLT_USER"
+        fi
+        ;;
+
+      custom)
+        read -p "  Dolt server host: " CUSTOM_HOST
+        read -p "  Dolt server port [3307]: " CUSTOM_PORT
+        CUSTOM_PORT="${CUSTOM_PORT:-3307}"
+        read -p "  Dolt user [root]: " CUSTOM_USER
+        CUSTOM_USER="${CUSTOM_USER:-root}"
+        if nc -z "$CUSTOM_HOST" "$CUSTOM_PORT" 2>/dev/null; then
+          echo -e "${GREEN}  ✓${NC} Connected to ${CUSTOM_HOST}:${CUSTOM_PORT}"
+          DOLT_AVAILABLE=true
+          DOLT_HOST="$CUSTOM_HOST"
+          DOLT_PORT="$CUSTOM_PORT"
+          DOLT_USER="$CUSTOM_USER"
+        else
+          echo -e "${RED}  Cannot reach ${CUSTOM_HOST}:${CUSTOM_PORT}${NC}"
+        fi
+        ;;
+    esac
   fi
 
-  # Write server config to quality-config.json so bd init can find it
+  # Write server config to quality-config.json (host + port only — shared across team).
+  # User is per-developer and stored in ~/.config/beads/credentials instead.
   if [[ "$DOLT_AVAILABLE" == true && -n "$DOLT_HOST" ]]; then
     python3 -c "
 import json
 path = '$AGENT_PROCESS_DIR/quality-config.json'
 try:
     cfg = json.load(open(path))
-    cfg.setdefault('beads', {})['server'] = {'host': '$DOLT_HOST', 'port': int('$DOLT_PORT'), 'user': '$DOLT_USER'}
+    server = cfg.setdefault('beads', {}).setdefault('server', {})
+    server['host'] = '$DOLT_HOST'
+    server['port'] = int('$DOLT_PORT')
+    server.pop('user', None)  # user lives in ~/.config/beads/credentials now
     json.dump(cfg, open(path, 'w'), indent=2)
 except:
     pass
 " 2>/dev/null
-  fi
-
-  if [[ "$DOLT_AVAILABLE" == false ]]; then
-    echo -e "${YELLOW}  ⚠ Dolt is not reachable.${NC} BEADS needs Dolt as its database backend."
-    echo -e "  Options:"
-    echo -e "    1) Start Dolt via Docker now"
-    echo -e "    2) Enter remote server connection details"
-    echo -e "    3) I'll install Dolt manually and re-run"
-    echo -e "    4) Skip BEADS for now (use file-based state)"
-    read -p "  Choose [1/2/3/4]: " -n 1 -r
-    echo ""
-    if [[ "$REPLY" == "1" ]]; then
-      if ! command -v docker &>/dev/null; then
-        echo -e "${RED}  Docker not found.${NC} Continuing without BEADS."
-      else
-        DOLT_DATA_DIR="${HOME}/.dolt-server/data"
-        DOLT_CFG_DIR="${HOME}/.dolt-server/config"
-        mkdir -p "$DOLT_DATA_DIR" "$DOLT_CFG_DIR"
-        DOLT_PASS=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 16)
-        echo -e "  Starting Dolt SQL server via Docker..."
-        docker run -d \
-          --name beads-dolt-server \
-          --restart unless-stopped \
-          -e DOLT_ROOT_HOST='%' \
-          -e DOLT_ROOT_PASSWORD="$DOLT_PASS" \
-          -p 3307:3306 \
-          -v "$DOLT_DATA_DIR":/var/lib/dolt \
-          -v "$DOLT_CFG_DIR":/etc/dolt/servercfg.d \
-          dolthub/dolt-sql-server:latest \
-          2>/dev/null
-        if [[ $? -eq 0 ]]; then
-          echo -e "${GREEN}  ✓${NC} Dolt server running in Docker (port 3307)"
-          DOLT_AVAILABLE=true
-          DOLT_HOST="127.0.0.1"
-          DOLT_PORT="3307"
-          DOLT_USER="root"
-          python3 -c "
-import json
-path = '$AGENT_PROCESS_DIR/quality-config.json'
-try:
-    cfg = json.load(open(path))
-    cfg.setdefault('beads', {})['server'] = {'host': '127.0.0.1', 'port': 3307, 'user': 'root'}
-    json.dump(cfg, open(path, 'w'), indent=2)
-except:
-    pass
-" 2>/dev/null
-          save_beads_credential "127.0.0.1" "3307" "$DOLT_PASS"
-          echo -e "${GREEN}  ✓${NC} Credentials saved to ~/.config/beads/credentials"
-        else
-          echo -e "${YELLOW}  ⊙${NC} Docker failed. Continuing without BEADS."
-        fi
-      fi
-    elif [[ "$REPLY" == "2" ]]; then
-      read -p "  Dolt server host: " REMOTE_INPUT_HOST
-      read -p "  Dolt server port [3307]: " REMOTE_INPUT_PORT
-      REMOTE_INPUT_PORT="${REMOTE_INPUT_PORT:-3307}"
-      read -p "  Dolt user [root]: " REMOTE_INPUT_USER
-      REMOTE_INPUT_USER="${REMOTE_INPUT_USER:-root}"
-      if nc -z "$REMOTE_INPUT_HOST" "$REMOTE_INPUT_PORT" 2>/dev/null; then
-        echo -e "${GREEN}  ✓${NC} Connected to ${REMOTE_INPUT_HOST}:${REMOTE_INPUT_PORT}"
-        DOLT_AVAILABLE=true
-        DOLT_HOST="$REMOTE_INPUT_HOST"
-        DOLT_PORT="$REMOTE_INPUT_PORT"
-        DOLT_USER="$REMOTE_INPUT_USER"
-        python3 -c "
-import json
-path = '$AGENT_PROCESS_DIR/quality-config.json'
-try:
-    cfg = json.load(open(path))
-    cfg.setdefault('beads', {})['server'] = {
-        'host': '$REMOTE_INPUT_HOST',
-        'port': int('$REMOTE_INPUT_PORT'),
-        'user': '$REMOTE_INPUT_USER'
-    }
-    json.dump(cfg, open(path, 'w'), indent=2)
-except:
-    pass
-" 2>/dev/null
-      else
-        echo -e "${RED}  Cannot reach ${REMOTE_INPUT_HOST}:${REMOTE_INPUT_PORT}${NC}"
-      fi
-    elif [[ "$REPLY" == "3" ]]; then
-      echo -e "${YELLOW}  Installation paused.${NC} Install Dolt, then re-run:"
-      echo -e "    ${GREEN}brew install dolt && $0${NC}"
-      exit 0
+    # Save user to credentials file (per-developer, not committed)
+    if [[ -n "$DOLT_USER" && "$DOLT_USER" != "root" ]]; then
+      save_beads_credential "$DOLT_HOST" "$DOLT_PORT" "" "$DOLT_USER"
     fi
-    # Option 4 or failed options — continue without BEADS
   fi
 
-  # Install BEADS CLI (bd) if Dolt is available but bd is not
+  # Install BEADS CLI (bd) if Dolt is available but bd is not.
+  # Our fork's go.mod declares module as steveyegge/beads (upstream path),
+  # so `go install github.com/sammywachtel/...` won't resolve. Clone and build.
   if [[ "$DOLT_AVAILABLE" == true ]] && ! command -v bd &>/dev/null; then
     echo -e "  Installing BEADS CLI (bd)..."
     BEADS_INSTALLED=false
-    if command -v go &>/dev/null && go install github.com/sammywachtel/beads/cmd/bd@latest 2>/dev/null; then
-      BEADS_INSTALLED=true
-      echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via go install"
-    elif command -v npm &>/dev/null && npm install -g @beads/bd 2>/dev/null; then
-      BEADS_INSTALLED=true
-      echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via npm"
-    elif command -v brew &>/dev/null && brew install beads 2>/dev/null; then
-      BEADS_INSTALLED=true
-      echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via Homebrew"
-    elif command -v curl &>/dev/null && curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash 2>/dev/null; then
-      BEADS_INSTALLED=true
-      echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via installer script"
+    if command -v go &>/dev/null && command -v git &>/dev/null; then
+      BD_CLONE_DIR="${TMPDIR:-/tmp}/beads-install-$$"
+      if git clone --depth 1 --quiet https://github.com/sammywachtel/beads.git "$BD_CLONE_DIR" 2>/dev/null; then
+        if (cd "$BD_CLONE_DIR" && go install ./cmd/bd 2>/dev/null); then
+          BEADS_INSTALLED=true
+          echo -e "${GREEN}  ✓${NC} Installed BEADS CLI from fork (go build)"
+        fi
+        rm -rf "$BD_CLONE_DIR"
+      fi
     fi
     if [[ "$BEADS_INSTALLED" == false ]]; then
-      echo -e "${YELLOW}  ⊙${NC} BEADS CLI install failed — install bd manually"
+      echo -e "${YELLOW}  ⊙${NC} BEADS CLI install failed."
+      echo -e "    Install manually: git clone https://github.com/sammywachtel/beads.git && cd beads && go install ./cmd/bd"
     fi
   elif [[ "$DOLT_AVAILABLE" == true ]]; then
     echo -e "${GREEN}  ✓${NC} BEADS ready (Dolt + bd available)"
@@ -646,7 +651,7 @@ fi
 # Check for metadata.json (not just .beads/) since knowledge migration creates .beads/knowledge/ early.
 # Works with both local Dolt (command -v dolt) and remote/Docker Dolt (beads.server in config).
 if command -v bd &>/dev/null && [[ ! -f "${TARGET_DIR}/.beads/metadata.json" ]]; then
-  # Read config to check enabled + get server connection
+  # Read config to check enabled + get server connection (host/port from config, user from credentials)
   BEADS_INIT_INFO=$(python3 -c "
 import json
 try:
@@ -658,33 +663,36 @@ try:
         server = b.get('server', {})
         host = server.get('host', '')
         port = server.get('port', '')
-        user = server.get('user', '')
-        has_local_dolt = True  # will be checked in shell
-        print(f'enabled|{host}|{port}|{user}')
+        print(f'enabled|{host}|{port}')
 except:
     print('disabled')
 " 2>/dev/null)
 
   if [[ "$BEADS_INIT_INFO" != "disabled" ]]; then
-    # Parse server config
-    IFS='|' read -r _ BHOST BPORT BUSER <<< "$BEADS_INIT_INFO"
+    # Parse server config (host + port from quality-config.json)
+    IFS='|' read -r _ BHOST BPORT <<< "$BEADS_INIT_INFO"
 
     # Export env vars so bd init can connect to the right server
     [[ -n "$BHOST" ]] && export BEADS_DOLT_SERVER_HOST="$BHOST"
     [[ -n "$BPORT" ]] && export BEADS_DOLT_SERVER_PORT="$BPORT"
-    [[ -n "$BUSER" ]] && export BEADS_DOLT_SERVER_USER="$BUSER"
 
-    # Load password from credentials file
+    # Load user + password from credentials file (per-developer, not committed)
     CREDS_FILE="${HOME}/.config/beads/credentials"
+    BUSER=""
     if [[ -f "$CREDS_FILE" && -n "$BHOST" ]]; then
-      BPASS=$(python3 -c "
+      read -r BUSER BPASS <<< "$(python3 -c "
 import configparser, os
 cp = configparser.ConfigParser()
 cp.read(os.path.expanduser('~/.config/beads/credentials'))
 key = '${BHOST}:${BPORT:-3307}'
-if cp.has_section(key) and cp.has_option(key, 'password'):
-    print(cp.get(key, 'password'))
-" 2>/dev/null) || true
+user = ''
+password = ''
+if cp.has_section(key):
+    user = cp.get(key, 'user', fallback='')
+    password = cp.get(key, 'password', fallback='')
+print(f'{user} {password}')
+" 2>/dev/null)" || true
+      [[ -n "${BUSER:-}" ]] && export BEADS_DOLT_SERVER_USER="$BUSER"
       [[ -n "${BPASS:-}" ]] && export BEADS_DOLT_PASSWORD="$BPASS"
     fi
 
@@ -717,10 +725,40 @@ if pw:
     fi
 
     if [[ "$DOLT_REACHABLE" == true ]]; then
+      # Check if the database already exists on the server before init.
+      # The default database name is the directory name (bd's --prefix default).
+      BD_DB_NAME=$(basename "$TARGET_DIR")
+      DB_EXISTS=false
+      if [[ -n "$BHOST" && -n "${BPASS:-}" ]]; then
+        # Query the server for existing databases matching our project name
+        DB_EXISTS=$(python3 -c "
+import subprocess, sys
+try:
+    result = subprocess.run(
+        ['mysql', '-h', '${BHOST}', '-P', '${BPORT:-3307}', '-u', '${BUSER:-root}',
+         '-p${BPASS}', '-N', '-e', 'SHOW DATABASES'],
+        capture_output=True, text=True, timeout=5
+    )
+    # bd uses the directory name as db prefix, look for it
+    for db in result.stdout.strip().split('\n'):
+        if db.strip() == '${BD_DB_NAME}':
+            print('true')
+            sys.exit(0)
+    print('false')
+except:
+    print('false')
+" 2>/dev/null) || DB_EXISTS=false
+      fi
+
       # Remote server needs --server flag with explicit connection args; embedded mode requires CGO
       BD_INIT_CMD="bd init"
       if [[ -n "$BHOST" ]]; then
         BD_INIT_CMD="bd init --server --server-host ${BHOST} --server-port ${BPORT:-3307} --server-user ${BUSER:-root}"
+        # If DB already exists on server, tell bd to attach to it rather than create fresh
+        if [[ "$DB_EXISTS" == "true" ]]; then
+          BD_INIT_CMD="${BD_INIT_CMD} --database ${BD_DB_NAME}"
+          echo -e "  Existing database '${BD_DB_NAME}' found on server — reconnecting"
+        fi
       fi
       if (cd "$TARGET_DIR" && $BD_INIT_CMD 2>/dev/null); then
         echo -e "${GREEN}  ✓${NC} Initialized BEADS database (.beads/)"

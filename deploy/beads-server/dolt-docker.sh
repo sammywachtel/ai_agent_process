@@ -125,7 +125,7 @@ echo ""
 echo -e "  ${BLUE}For quality-config.json:${NC}"
 echo -e '  "beads": {'
 echo -e '    "enabled": true,'
-echo -e '    "server": { "host": "127.0.0.1", "port": '"${DOLT_PORT}"', "user": "root" }'
+echo -e '    "server": { "host": "127.0.0.1", "port": '"${DOLT_PORT}"' }'
 echo -e '  }'
 echo ""
 echo -e "  ${BLUE}Set password:${NC}"

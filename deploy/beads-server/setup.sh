@@ -269,10 +269,13 @@ echo -e '  "beads": {'
 echo -e '    "enabled": true,'
 echo -e '    "server": {'
 echo -e "      \"host\": \"${STATIC_IP}\","
-echo -e "      \"port\": ${DOLT_PORT},"
-echo -e "      \"user\": \"${DOLT_USER}\""
+echo -e "      \"port\": ${DOLT_PORT}"
 echo -e '    }'
 echo -e '  }'
+echo ""
+echo -e "  ${BLUE}Then add your user to ~/.config/beads/credentials:${NC}"
+echo -e "  [${STATIC_IP}:${DOLT_PORT}]"
+echo -e "  user = ${DOLT_USER}"
 echo ""
 echo -e "  ${BLUE}Set the password as an environment variable:${NC}"
 echo -e "  export BEADS_DOLT_PASSWORD=${DOLT_PASSWORD}"

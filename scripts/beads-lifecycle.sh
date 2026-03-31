@@ -101,7 +101,7 @@ fi
 if [[ ! -f ".beads/metadata.json" ]]; then
   echo "[beads] No .beads/metadata.json — running bd init..." >&2
 
-  # Load server config from quality-config.json (only needed for init)
+  # Load server config from quality-config.json (host + port only — shared across team)
   eval "$(python3 -c "
 import json, os
 try:
@@ -113,16 +113,16 @@ try:
         host = 'host.docker.internal'
     if host: print(f'export BEADS_DOLT_SERVER_HOST={host}')
     if server.get('port'): print(f'export BEADS_DOLT_SERVER_PORT={server[\"port\"]}')
-    if server.get('user'): print(f'export BEADS_DOLT_SERVER_USER={server[\"user\"]}')
 except:
     pass
 " 2>/dev/null)" || true
 
-  # Load password from credentials file (pure bash INI parsing)
+  # Load user + password from credentials file (per-developer, not committed)
   CREDS_FILE="${BEADS_CREDENTIALS_FILE:-${HOME}/.config/beads/credentials}"
   if [[ -f "$CREDS_FILE" && -n "${BEADS_DOLT_SERVER_HOST:-}" ]]; then
     SERVER_KEY="${BEADS_DOLT_SERVER_HOST}:${BEADS_DOLT_SERVER_PORT:-3307}"
     BPASS=""
+    BUSER=""
     in_section=false
     while IFS= read -r line; do
       line="${line%%#*}"
@@ -133,11 +133,15 @@ except:
         [[ "${BASH_REMATCH[1]}" == "$SERVER_KEY" ]] && in_section=true || { $in_section && break; in_section=false; }
         continue
       fi
-      if $in_section && [[ "$line" =~ ^password[[:space:]]*=[[:space:]]*(.*) ]]; then
-        BPASS="${BASH_REMATCH[1]}"
-        break
+      if $in_section; then
+        if [[ "$line" =~ ^password[[:space:]]*=[[:space:]]*(.*) ]]; then
+          BPASS="${BASH_REMATCH[1]}"
+        elif [[ "$line" =~ ^user[[:space:]]*=[[:space:]]*(.*) ]]; then
+          BUSER="${BASH_REMATCH[1]}"
+        fi
       fi
     done < "$CREDS_FILE"
+    [[ -n "$BUSER" ]] && export BEADS_DOLT_SERVER_USER="$BUSER"
     [[ -n "$BPASS" ]] && export BEADS_DOLT_PASSWORD="$BPASS"
   fi
 
