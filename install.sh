@@ -306,19 +306,69 @@ if [[ "$FEAT_BEADS" == "yes" ]]; then
   echo ""
   echo -e "${BLUE}▸${NC} BEADS durable state tracking..."
 
-  # Check Dolt prerequisites — local binary, configured remote, or default port
+  # --- Phase 1: Discover all available Dolt endpoints ---
+  # Scan for local binary, tunnel credentials, listening ports, and configured remotes.
+  # Build a menu of options so the user picks which Dolt to connect to.
   DOLT_AVAILABLE=false
   DOLT_HOST=""
   DOLT_PORT="3307"
   DOLT_USER="root"
 
+  HAS_LOCAL_DOLT=false
+  HAS_TUNNEL=false
+  HAS_CONFIGURED_REMOTE=false
+  TUNNEL_PORT=""
+  TUNNEL_USER=""
+  CONFIGURED_HOST=""
+  CONFIGURED_PORT=""
+  CONFIGURED_USER=""
+
+  # Check 1: local dolt binary
   if command -v dolt &>/dev/null; then
-    DOLT_AVAILABLE=true
-    DOLT_HOST="127.0.0.1"
-    echo -e "${GREEN}  ✓${NC} Dolt installed locally"
-  else
-    # Check if a remote server is configured and reachable
-    REMOTE_HOST=$(python3 -c "
+    HAS_LOCAL_DOLT=true
+  fi
+
+  # Check 2: tunnel credentials in ~/.config/beads/credentials (written by setup-developer.sh)
+  # Look for [127.0.0.1:3308] or any non-3307 localhost entry
+  CREDS_FILE="${HOME}/.config/beads/credentials"
+  if [[ -f "$CREDS_FILE" ]]; then
+    TUNNEL_PORT=$(python3 -c "
+import configparser, os
+cp = configparser.ConfigParser()
+cp.read(os.path.expanduser('~/.config/beads/credentials'))
+# Find localhost entries that aren't the default 3307 (those are tunnel endpoints)
+for s in cp.sections():
+    if s.startswith('127.0.0.1:') and not s.endswith(':3307'):
+        print(s.split(':')[1])
+        break
+" 2>/dev/null) || true
+    if [[ -n "$TUNNEL_PORT" ]]; then
+      # Derive username from credentials or gcloud identity
+      TUNNEL_USER=$(python3 -c "
+import configparser, os
+cp = configparser.ConfigParser()
+cp.read(os.path.expanduser('~/.config/beads/credentials'))
+key = '127.0.0.1:${TUNNEL_PORT}'
+if cp.has_section(key) and cp.has_option(key, 'user'):
+    print(cp.get(key, 'user'))
+" 2>/dev/null) || true
+      # Fall back to gcloud identity for username
+      if [[ -z "$TUNNEL_USER" ]]; then
+        GCLOUD_EMAIL=$(gcloud config get-value account 2>/dev/null || true)
+        if [[ -n "$GCLOUD_EMAIL" ]]; then
+          TUNNEL_USER="${GCLOUD_EMAIL%%@*}"
+          TUNNEL_USER="${TUNNEL_USER%%.*}"
+        fi
+      fi
+      # Only mark as available if something is actually listening
+      if nc -z 127.0.0.1 "$TUNNEL_PORT" 2>/dev/null; then
+        HAS_TUNNEL=true
+      fi
+    fi
+  fi
+
+  # Check 3: previously configured remote in quality-config.json
+  CONFIGURED_HOST=$(python3 -c "
 import json
 try:
     cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
@@ -326,7 +376,8 @@ try:
 except:
     print('')
 " 2>/dev/null)
-    REMOTE_PORT=$(python3 -c "
+  if [[ -n "$CONFIGURED_HOST" ]]; then
+    CONFIGURED_PORT=$(python3 -c "
 import json
 try:
     cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
@@ -334,7 +385,7 @@ try:
 except:
     print('3307')
 " 2>/dev/null)
-    REMOTE_USER=$(python3 -c "
+    CONFIGURED_USER=$(python3 -c "
 import json
 try:
     cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
@@ -342,33 +393,137 @@ try:
 except:
     print('root')
 " 2>/dev/null)
-
-    if [[ -n "$REMOTE_HOST" ]] && nc -z "$REMOTE_HOST" "$REMOTE_PORT" 2>/dev/null; then
-      DOLT_AVAILABLE=true
-      DOLT_HOST="$REMOTE_HOST"
-      DOLT_PORT="$REMOTE_PORT"
-      DOLT_USER="$REMOTE_USER"
-      echo -e "${GREEN}  ✓${NC} Dolt server reachable at ${DOLT_HOST}:${DOLT_PORT}"
-    elif nc -z 127.0.0.1 3307 2>/dev/null; then
-      # No dolt binary, no config, but something is listening on the default port
-      DOLT_AVAILABLE=true
-      DOLT_HOST="127.0.0.1"
-      echo -e "${GREEN}  ✓${NC} Dolt server detected on default port (127.0.0.1:3307)"
+    if nc -z "$CONFIGURED_HOST" "$CONFIGURED_PORT" 2>/dev/null; then
+      HAS_CONFIGURED_REMOTE=true
     fi
   fi
 
-  # Always write server config to quality-config.json when Dolt is available
-  # so the bd init section below can find it via env vars
+  # --- Phase 2: Present choices ---
+  # Count how many options we found
+  OPTION_COUNT=0
+  [[ "$HAS_LOCAL_DOLT" == true ]] && OPTION_COUNT=$((OPTION_COUNT + 1))
+  [[ "$HAS_TUNNEL" == true ]] && OPTION_COUNT=$((OPTION_COUNT + 1))
+  [[ "$HAS_CONFIGURED_REMOTE" == true ]] && OPTION_COUNT=$((OPTION_COUNT + 1))
+
+  if [[ "$OPTION_COUNT" -gt 1 ]] || [[ "$OPTION_COUNT" -eq 1 && "$HAS_TUNNEL" == true ]]; then
+    # Multiple options or tunnel detected — ask the user
+    echo ""
+    echo -e "  Dolt server configuration:"
+    MENU_IDX=0
+    MENU_MAP=()
+
+    if [[ "$HAS_LOCAL_DOLT" == true ]]; then
+      MENU_IDX=$((MENU_IDX + 1))
+      LOCAL_STATUS=""
+      nc -z 127.0.0.1 3307 2>/dev/null && LOCAL_STATUS=" (listening)" || LOCAL_STATUS=" (not running)"
+      echo -e "    ${MENU_IDX}) Local Dolt (localhost:3307)${LOCAL_STATUS}"
+      MENU_MAP+=("local")
+    fi
+
+    if [[ "$HAS_TUNNEL" == true ]]; then
+      MENU_IDX=$((MENU_IDX + 1))
+      echo -e "    ${MENU_IDX}) Remote Dolt via IAP tunnel (localhost:${TUNNEL_PORT}) — credentials found"
+      MENU_MAP+=("tunnel")
+    fi
+
+    if [[ "$HAS_CONFIGURED_REMOTE" == true ]]; then
+      # Skip if it's the same as the tunnel entry
+      if [[ "$CONFIGURED_HOST" != "127.0.0.1" || "$CONFIGURED_PORT" != "${TUNNEL_PORT:-}" ]]; then
+        MENU_IDX=$((MENU_IDX + 1))
+        echo -e "    ${MENU_IDX}) Configured remote (${CONFIGURED_HOST}:${CONFIGURED_PORT})"
+        MENU_MAP+=("configured")
+      fi
+    fi
+
+    MENU_IDX=$((MENU_IDX + 1))
+    echo -e "    ${MENU_IDX}) Enter different host:port"
+    MENU_MAP+=("custom")
+
+    echo ""
+    read -p "  Select [1-${MENU_IDX}]: " -n 1 -r DOLT_CHOICE
+    echo ""
+
+    # Default to first option on empty input
+    DOLT_CHOICE="${DOLT_CHOICE:-1}"
+    CHOICE_IDX=$((DOLT_CHOICE - 1))
+
+    if [[ "$CHOICE_IDX" -ge 0 && "$CHOICE_IDX" -lt "${#MENU_MAP[@]}" ]]; then
+      case "${MENU_MAP[$CHOICE_IDX]}" in
+        local)
+          DOLT_AVAILABLE=true
+          DOLT_HOST="127.0.0.1"
+          DOLT_PORT="3307"
+          DOLT_USER="root"
+          echo -e "${GREEN}  ✓${NC} Using local Dolt (localhost:3307)"
+          ;;
+        tunnel)
+          DOLT_AVAILABLE=true
+          DOLT_HOST="127.0.0.1"
+          DOLT_PORT="$TUNNEL_PORT"
+          DOLT_USER="${TUNNEL_USER:-root}"
+          echo -e "${GREEN}  ✓${NC} Using IAP tunnel (localhost:${TUNNEL_PORT})"
+          ;;
+        configured)
+          DOLT_AVAILABLE=true
+          DOLT_HOST="$CONFIGURED_HOST"
+          DOLT_PORT="$CONFIGURED_PORT"
+          DOLT_USER="$CONFIGURED_USER"
+          echo -e "${GREEN}  ✓${NC} Using configured remote (${CONFIGURED_HOST}:${CONFIGURED_PORT})"
+          ;;
+        custom)
+          read -p "  Dolt server host: " CUSTOM_HOST
+          read -p "  Dolt server port [3307]: " CUSTOM_PORT
+          CUSTOM_PORT="${CUSTOM_PORT:-3307}"
+          read -p "  Dolt user [root]: " CUSTOM_USER
+          CUSTOM_USER="${CUSTOM_USER:-root}"
+          if nc -z "$CUSTOM_HOST" "$CUSTOM_PORT" 2>/dev/null; then
+            echo -e "${GREEN}  ✓${NC} Connected to ${CUSTOM_HOST}:${CUSTOM_PORT}"
+            DOLT_AVAILABLE=true
+            DOLT_HOST="$CUSTOM_HOST"
+            DOLT_PORT="$CUSTOM_PORT"
+            DOLT_USER="$CUSTOM_USER"
+          else
+            echo -e "${RED}  Cannot reach ${CUSTOM_HOST}:${CUSTOM_PORT}${NC}"
+          fi
+          ;;
+      esac
+    fi
+  elif [[ "$HAS_LOCAL_DOLT" == true ]]; then
+    # Only local Dolt available, no tunnel credentials — use it
+    if nc -z 127.0.0.1 3307 2>/dev/null; then
+      DOLT_AVAILABLE=true
+      DOLT_HOST="127.0.0.1"
+      DOLT_PORT="3307"
+      echo -e "${GREEN}  ✓${NC} Dolt installed locally (localhost:3307)"
+    else
+      echo -e "${GREEN}  ✓${NC} Dolt installed locally (not currently running)"
+      DOLT_AVAILABLE=true
+      DOLT_HOST="127.0.0.1"
+      DOLT_PORT="3307"
+    fi
+  elif [[ "$HAS_CONFIGURED_REMOTE" == true ]]; then
+    # Only configured remote — use it
+    DOLT_AVAILABLE=true
+    DOLT_HOST="$CONFIGURED_HOST"
+    DOLT_PORT="$CONFIGURED_PORT"
+    DOLT_USER="$CONFIGURED_USER"
+    echo -e "${GREEN}  ✓${NC} Dolt server reachable at ${DOLT_HOST}:${DOLT_PORT}"
+  elif nc -z 127.0.0.1 3307 2>/dev/null; then
+    # Nothing configured but something is listening on the default port
+    DOLT_AVAILABLE=true
+    DOLT_HOST="127.0.0.1"
+    echo -e "${GREEN}  ✓${NC} Dolt server detected on default port (127.0.0.1:3307)"
+  fi
+
+  # Write server config to quality-config.json so bd init can find it
   if [[ "$DOLT_AVAILABLE" == true && -n "$DOLT_HOST" ]]; then
     python3 -c "
 import json
 path = '$AGENT_PROCESS_DIR/quality-config.json'
 try:
     cfg = json.load(open(path))
-    existing = cfg.get('beads', {}).get('server', {})
-    if not existing.get('host'):
-        cfg.setdefault('beads', {})['server'] = {'host': '$DOLT_HOST', 'port': int('$DOLT_PORT'), 'user': '$DOLT_USER'}
-        json.dump(cfg, open(path, 'w'), indent=2)
+    cfg.setdefault('beads', {})['server'] = {'host': '$DOLT_HOST', 'port': int('$DOLT_PORT'), 'user': '$DOLT_USER'}
+    json.dump(cfg, open(path, 'w'), indent=2)
 except:
     pass
 " 2>/dev/null
@@ -465,7 +620,10 @@ except:
   if [[ "$DOLT_AVAILABLE" == true ]] && ! command -v bd &>/dev/null; then
     echo -e "  Installing BEADS CLI (bd)..."
     BEADS_INSTALLED=false
-    if command -v npm &>/dev/null && npm install -g @beads/bd 2>/dev/null; then
+    if command -v go &>/dev/null && go install github.com/sammywachtel/beads/cmd/bd@latest 2>/dev/null; then
+      BEADS_INSTALLED=true
+      echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via go install"
+    elif command -v npm &>/dev/null && npm install -g @beads/bd 2>/dev/null; then
       BEADS_INSTALLED=true
       echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via npm"
     elif command -v brew &>/dev/null && brew install beads 2>/dev/null; then
@@ -544,12 +702,27 @@ if cp.has_section(key) and cp.has_option(key, 'password'):
     # bd loads this file automatically via gotenv.Load() before connecting.
     if [[ -n "$BHOST" && -n "${BPASS:-}" ]]; then
       mkdir -p "$TARGET_DIR/.beads"
-      echo "BEADS_DOLT_PASSWORD=${BPASS}" > "$TARGET_DIR/.beads/.env"
+      # Write via python — shell echo/printf can't be trusted with ! in passwords
+      python3 -c "
+import configparser, os
+cp = configparser.ConfigParser()
+cp.read(os.path.expanduser('~/.config/beads/credentials'))
+key = '${BHOST}:${BPORT:-3307}'
+pw = cp.get(key, 'password') if cp.has_section(key) and cp.has_option(key, 'password') else ''
+if pw:
+    with open('$TARGET_DIR/.beads/.env', 'w') as f:
+        f.write(f'BEADS_DOLT_PASSWORD={pw}\n')
+" 2>/dev/null
       chmod 600 "$TARGET_DIR/.beads/.env"
     fi
 
     if [[ "$DOLT_REACHABLE" == true ]]; then
-      if (cd "$TARGET_DIR" && bd init 2>/dev/null); then
+      # Remote server needs --server flag with explicit connection args; embedded mode requires CGO
+      BD_INIT_CMD="bd init"
+      if [[ -n "$BHOST" ]]; then
+        BD_INIT_CMD="bd init --server --server-host ${BHOST} --server-port ${BPORT:-3307} --server-user ${BUSER:-root}"
+      fi
+      if (cd "$TARGET_DIR" && $BD_INIT_CMD 2>/dev/null); then
         echo -e "${GREEN}  ✓${NC} Initialized BEADS database (.beads/)"
 
         # Write port to the port file (gitignored, per-machine).
