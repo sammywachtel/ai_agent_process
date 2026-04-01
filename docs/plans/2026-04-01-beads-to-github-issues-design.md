@@ -1,51 +1,136 @@
 # Design: Replace BEADS/Dolt with GitHub Issues + File-Based Tracking
 
 **Date:** 2026-04-01
-**Status:** Draft — Pending Design Review
+**Revision:** 2 (incorporates Round 1 review feedback + 3 research spikes)
+**Status:** Draft — Round 2 Design Review
 **Scope:** Full system migration: beads removal, GitHub Issues integration, knowledge relocation
 
 ---
 
 ## Table of Contents
 
-1. [Executive Summary](#1-executive-summary)
-2. [Current State: How BEADS Works Today](#2-current-state-how-beads-works-today)
-3. [Current State: Issue Types and Dependencies](#3-current-state-issue-types-and-dependencies)
-4. [Target State: GitHub Issues Integration](#4-target-state-github-issues-integration)
-5. [Mapping: BEADS Concepts → GitHub Issues](#5-mapping-beads-concepts--github-issues)
-6. [Knowledge System Migration](#6-knowledge-system-migration)
-7. [Installation Flow Changes](#7-installation-flow-changes)
-8. [GitHub Issues Health Check & Halt Protocol](#8-github-issues-health-check--halt-protocol)
-9. [Orchestration Changes (Claude + Codex)](#9-orchestration-changes-claude--codex)
-10. [Quality Config Cleanup](#10-quality-config-cleanup)
-11. [File-Based Fallback (No GitHub)](#11-file-based-fallback-no-github)
-12. [Files to Remove](#12-files-to-remove)
-13. [Files to Modify](#13-files-to-modify)
-14. [Files to Create](#14-files-to-create)
-15. [Migration Checklist](#15-migration-checklist)
-16. [Risk Assessment](#16-risk-assessment)
-17. [Open Questions](#17-open-questions)
+1. [Motivation & User Benefit](#1-motivation--user-benefit)
+2. [User Stories](#2-user-stories)
+3. [Success Criteria](#3-success-criteria)
+4. [Current State: How BEADS Works Today](#4-current-state-how-beads-works-today)
+5. [Current State: Issue Types and Dependencies](#5-current-state-issue-types-and-dependencies)
+6. [Target State: GitHub Issues Integration](#6-target-state-github-issues-integration)
+7. [Mapping: BEADS Concepts → GitHub Issues](#7-mapping-beads-concepts--github-issues)
+8. [Scope Tracker: Replacing current_iteration.conf](#8-scope-tracker-replacing-current_iterationconf)
+9. [Knowledge System Migration](#9-knowledge-system-migration)
+10. [Ad-Hoc Knowledge Workflow](#10-ad-hoc-knowledge-workflow)
+11. [Installation Flow Changes](#11-installation-flow-changes)
+12. [GitHub Issues Health Check & Halt Protocol](#12-github-issues-health-check--halt-protocol)
+13. [Orchestration Changes (Claude + Codex)](#13-orchestration-changes-claude--codex)
+14. [Quality Config Cleanup](#14-quality-config-cleanup)
+15. [File-Based Fallback (No GitHub)](#15-file-based-fallback-no-github)
+16. [Polyrepo Support](#16-polyrepo-support)
+17. [Standalone Migration Script](#17-standalone-migration-script)
+18. [Files to Remove](#18-files-to-remove)
+19. [Files to Modify](#19-files-to-modify)
+20. [Files to Create](#20-files-to-create)
+21. [`github-issues-lifecycle.sh` — Detailed Design](#21-github-issues-lifecyclesh--detailed-design)
+22. [Test Specifications](#22-test-specifications)
+23. [Migration Checklist](#23-migration-checklist)
+24. [Risk Assessment](#24-risk-assessment)
+25. [Decisions (Resolved)](#25-decisions-resolved)
 
 ---
 
-## 1. Executive Summary
+## Important: Source vs. Destination
 
-Replace the BEADS/Dolt durable state tracking system with **optional GitHub Issues integration** and **mandatory file-based tracking**. The knowledge base moves from `.beads/knowledge/` to `.agent_process/knowledge/` as the single canonical location.
-
-**Key principles:**
-- GitHub Issues is **opt-in**, not default. File-based tracking always works.
-- When GitHub Issues is enabled, it's treated as a **hard dependency** — failures halt work with clear feedback.
-- When GitHub Issues is disabled, the existing file-based system is the sole tracking mechanism. No degradation.
-- Zero Dolt/BEADS remnants after migration. Clean removal.
-- Works identically in Claude Code and Codex (OpenAI).
+This project (`ai_agent_process`) is the **framework source** — the repo from which AP gets installed into destination projects. Everything in this design describes changes to the source framework. When we say "install.sh creates labels," we mean the install.sh that ships with this framework and runs in the user's destination project.
 
 ---
 
-## 2. Current State: How BEADS Works Today
+## 1. Motivation & User Benefit
+
+### The Problem
+
+BEADS/Dolt adds significant complexity to the AI Agent Process framework for a resilience benefit most users never need:
+
+- **Installation friction:** Dolt is ~100MB, requires manual install (Homebrew/curl), and the install.sh Dolt endpoint detection spans 120+ lines with 4 interactive options (local binary, Docker, remote GCE, custom host:port)
+- **Infrastructure burden:** Remote Dolt requires a GCE VM (~$7/month), IAP tunnel configuration, credential files in `~/.config/beads/credentials`, and ongoing maintenance
+- **Complexity for contributors:** `beads-lifecycle.sh` is 405 lines handling auto-install, Docker host rewriting, credential loading, and breadcrumb tracking — all for optional state persistence
+- **Low adoption signal:** BEADS is designed as a resilience enhancement for multi-session scopes. The file-based fallback handles the common case (single-session scopes) identically
+
+### The Solution
+
+Replace BEADS with **optional GitHub Issues integration** — a tool developers already have, requiring zero additional infrastructure:
+
+- `gh` CLI is already installed in most dev environments (confirmed available in both Claude Code and Codex)
+- Authentication is already handled (`gh auth login` or `GH_TOKEN`)
+- GitHub Issues provides structured tracking (sub-issues, dependencies, labels) that BEADS approximated with a database
+- File-based tracking remains the mandatory default — always works, no dependencies
+
+### Who Benefits
+
+- **Solo developers:** Simpler install (no Dolt), optional GH tracking if they want visibility
+- **Teams:** GitHub Issues is shared by default — no Dolt server to deploy and maintain
+- **CI/Codex agents:** `gh` works via `GH_TOKEN` — no database credentials to manage
+- **Framework contributors:** 405-line lifecycle script drops to ~250 lines with simpler logic
+
+---
+
+## 2. User Stories
+
+**US-1:** As a developer installing AP on a new project, I want setup to complete without needing Docker or a database, so that I can start using agent-driven development in under 2 minutes.
+
+**US-2:** As a developer who uses GitHub daily, I want my AP scope tracking visible in GitHub Issues, so that I can see progress without switching tools.
+
+**US-3:** As a developer who does NOT want GitHub Issues tracking, I want file-based tracking to work seamlessly without any GitHub prompts or errors during execution.
+
+**US-4:** As an agent (Claude/Codex) executing a scope, I want a clear halt signal when GitHub Issues is enabled but broken, so that I don't silently lose tracking state.
+
+**US-5:** As a developer with an existing BEADS/Dolt setup, I want a migration script that discovers what I have and migrates it safely, so that I don't lose knowledge or tracking state.
+
+**US-6:** As a developer working in a polyrepo, I want to configure which repo holds my AP issues, so that issues land in the right place regardless of which subrepo I'm working in.
+
+**US-7:** As a developer mid-conversation with an agent, I want to say "add a note to the task" and have it go to the GitHub Issue, so that context is preserved for the next session.
+
+---
+
+## 3. Success Criteria
+
+### Migration Complete (verifiable)
+
+```bash
+# Zero BEADS/Dolt references in shipped framework files
+grep -ri 'beads\|\.beads\|bd \|bd$\|dolt' orchestration/ process/ scripts/ claude/ templates/ \
+  | grep -v 'migration-script' | grep -v 'CHANGELOG' | wc -l
+# Expected: 0
+
+# quality-config.json has no beads section
+python3 -c "import json; c=json.load(open('quality-config.json')); assert 'beads' not in c"
+
+# Knowledge lives in single canonical location
+test -d .agent_process/knowledge && echo "PASS"
+```
+
+### Functional (testable)
+
+- `install.sh` completes successfully with GitHub Issues enabled (fresh project)
+- `install.sh` completes successfully with GitHub Issues disabled (fresh project)
+- Full `ap_exec` cycle completes with GH enabled — scope issue created, work units as sub-issues, issue closed on APPROVE
+- Full `ap_exec` cycle completes with GH disabled — file-based tracking works identically to pre-migration behavior
+- `github-issues-lifecycle.sh health-check` returns clear, actionable errors for each failure mode
+- Health check + halt stops agent work; agent resumes after fix
+- Scope tracker file survives git merge from two developers working on different scopes
+- `test/unit/test-github-issues-lifecycle.bats` passes with 100% action coverage
+- Standalone migration script discovers and migrates `.beads/knowledge/` and `bd remember` data
+
+### Non-Functional
+
+- Health check completes in < 5 seconds (parallel network calls)
+- Per-scope GH API call budget: < 25 calls for a 5-work-unit scope
+- Process/instruction files remain small — no large GH context loaded into agent prompts
+- Minimum `gh` CLI version: >= 2.20.0
+
+---
+
+## 4. Current State: How BEADS Works Today
 
 ### Architecture
-
-BEADS is a git-native issue tracker backed by Dolt (a MySQL-compatible versioned database). The `bd` CLI communicates with a local or remote Dolt server.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -85,34 +170,17 @@ BEADS is a git-native issue tracker backed by Dolt (a MySQL-compatible versioned
 | Session recovery | `bd state {epic} iteration` | `current_iteration.conf` |
 | Breadcrumb audit | `.beads-state` file | `.beads-state` file |
 
-### Deployment Options (All Being Removed)
+### Metaswarm Relationship
 
-1. **Local Dolt binary** — `dolt` installed via Homebrew, serves on port 3307
-2. **Docker container** — `beads-dolt-server` container via `dolt-docker.sh`
-3. **Remote GCE VM** — `deploy/beads-server/setup.sh`, ~$7/month, IAP tunnel on port 3308
+AP does NOT invoke any metaswarm skills directly. Every metaswarm capability (prime, brainstorm, pr-shepherd, self-reflect) has a built-in AP alternative. Metaswarm's own `/prime` and `/self-reflect` skills read/write `.beads/knowledge/`, but AP never calls those skills — AP uses grep-based knowledge queries and direct file writes. Removing BEADS breaks nothing in AP's metaswarm integration.
 
-### Files Involved
-
-| File | Role | Lines |
-|------|------|-------|
-| `scripts/beads-lifecycle.sh` | Core BEADS orchestrator | 405 |
-| `scripts/migrate-knowledge.py` | Legacy → metaswarm knowledge migration | 160 |
-| `deploy/beads-server/setup.sh` | GCE VM deployment | 298 |
-| `deploy/beads-server/teardown.sh` | GCE VM cleanup | 76 |
-| `deploy/beads-server/dolt-docker.sh` | Docker Dolt server | 80+ |
-| `deploy/beads-server/README.md` | Deployment docs | ~100 |
-| `process/beads-integration.md` | How-to guide | 350 |
-| `test/contract/validate-beads-state.sh` | Breadcrumb validator | 95 |
-| `test/unit/test-beads-lifecycle.bats` | Lifecycle unit tests | 100+ |
-| `.agent_process/requirements_docs/decomposition/decomp_scope_07_*.md` | BEADS iteration state req | ~60 |
+If metaswarm is installed separately and expects `.beads/knowledge/`, users can create a symlink or metaswarm can be configured to use `.agent_process/knowledge/`. AP wraps any metaswarm functionality it needs through `/ap_*` commands (e.g., `/ap_brainstorm` has its own built-in 3-agent brainstorm that works without metaswarm).
 
 ---
 
-## 3. Current State: Issue Types and Dependencies
+## 5. Current State: Issue Types and Dependencies
 
 ### Issue Type Taxonomy
-
-The project uses two levels of work item types:
 
 **Level 1 — Backlog items** (in `.agent_process/roadmap/backlog.md`):
 - **Feature** — New capability
@@ -136,27 +204,14 @@ complexity: simple|moderate|complex
 **Level 3 — Work units** (within execution, ephemeral):
 - `WU-001`, `WU-002`, etc. — decomposed from a single requirement scope
 - Dependencies tracked within scope only: `WU-001 → WU-003`
-- No cross-scope dependency tracking implemented yet
 
-### How BEADS Maps These
+### Dependency Model (Current)
 
-| AP Concept | BEADS Mapping |
-|-----------|---------------|
-| Requirement scope | BEADS Epic |
-| Iteration | Epic state (`iteration=01`) |
-| Work unit | BEADS Task (child of epic) |
-| WU dependency | Label on task (no formal DAG) |
-| Backlog item | Not tracked in BEADS |
-
-### Dependency Model
-
-**Current reality:** No cross-requirement dependencies. Each scope is planned and executed independently. Within a scope, work units have simple ordering (WU-002 depends on WU-001).
-
-**Planned (backlog):** A `depends_on` field in requirement frontmatter, with a future `ap_project deps` command for visualization. Not yet implemented.
+No cross-requirement dependencies. Each scope is planned and executed independently. Within a scope, work units have simple ordering. A `depends_on` field in requirement frontmatter is planned but not yet implemented.
 
 ---
 
-## 4. Target State: GitHub Issues Integration
+## 6. Target State: GitHub Issues Integration
 
 ### Architecture
 
@@ -164,65 +219,95 @@ complexity: simple|moderate|complex
 ┌─────────────────────────────────────────────────────────┐
 │  Orchestration Layer (coordinators + steps)              │
 │                                                          │
-│  execute-preflight.md ──► gh-lifecycle.sh start          │
-│  execute-main.md ────────► gh-lifecycle.sh task-*        │
-│  review-iteration.md ────► gh-lifecycle.sh close         │
-│  007b-session-recovery.md► gh-lifecycle.sh get-iter      │
-│  07-10-post-decision.md ► deposits to .agent_process/kb  │
+│  execute-preflight.md ──► github-issues-lifecycle.sh     │
+│  execute-main.md ────────► github-issues-lifecycle.sh    │
+│  review-iteration.md ────► github-issues-lifecycle.sh    │
+│  007b-session-recovery.md► github-issues-lifecycle.sh    │
+│  07-10-post-decision.md ► .agent_process/knowledge/      │
 └──────────────────────┬──────────────────────────────────┘
                        │
                        ▼
-┌──────────────────────────────────┐
-│  gh-lifecycle.sh (~250 lines)    │
-│  - health check (gh auth status) │
-│  - issue CRUD via gh CLI         │
-│  - label management              │
-│  - file-based state always syncd │
-│  - HALT on gh failure            │
-└──────────────┬───────────────────┘
-               │
-               ▼
+┌──────────────────────────────────────┐
+│  github-issues-lifecycle.sh (~250 ln)│
+│  - health check (gh auth status)     │
+│  - scope issue CRUD via gh CLI       │
+│  - sub-issues for work units (API)   │
+│  - dependencies via gh api           │
+│  - always writes scope tracker file  │
+│  - HALT on gh failure (when enabled) │
+│  - always uses --repo for safety     │
+└──────────────────┬───────────────────┘
+                   │
+                   ▼
 ┌──────────────────────────────┐
 │  GitHub Issues API           │
-│  (via gh CLI)                │
+│  (via gh CLI + gh api)       │
 └──────────────────────────────┘
 ```
 
 ### GitHub Issues Data Model
 
-```
-GitHub Issue (type: "scope")          ← one per AP requirement scope
-├── Labels: ap:scope, priority:HIGH, category:auth
-├── Milestone: (optional, maps to roadmap phase)
-├── Body: requirement summary + acceptance criteria
-│
-├── Sub-issue or Tasklist Item: WU-001  ← work units as task list items
-├── Sub-issue or Tasklist Item: WU-002
-└── Sub-issue or Tasklist Item: WU-003
+**One issue per scope.** Issue body is a lightweight dashboard with links — not a data store.
 
-GitHub Issue (type: "iteration")      ← one per iteration attempt
-├── Labels: ap:iteration, scope:{id}
-├── Body: frozen criteria, files in scope
-└── Linked to parent scope issue
+```markdown
+## Scope: {scope_id}
+
+**Requirement:** {requirement_id}
+**Priority:** {priority}
+**Category:** {category}
+**Current Iteration:** iteration_02
+
+### Acceptance Criteria
+[Link to .agent_process/work/{scope}/iteration_02/iteration_plan.md]
+
+### Work
+Sub-issues track individual work units.
+See .agent_process/work/{scope}/ for full artifacts.
+
+### Notes
+(Agent and user can add notes/reminders here as comments)
 ```
+
+**Work units are GitHub sub-issues** (not task list checkboxes). Sub-issues are GA on all GitHub plans, support up to 50 per parent and 8 levels of nesting, and are created via REST API:
+
+```bash
+# Create work unit as sub-issue
+CHILD=$(gh issue create --repo "$TARGET_REPO" --title "WU-001: Schema migration" --body "..." | grep -o '[0-9]*$')
+gh api repos/OWNER/REPO/issues/PARENT_NUMBER/sub_issues -f sub_issue_id="$CHILD"
+```
+
+This eliminates the body-mutation concurrency hazard identified in Round 1 review. Sub-issues are independent API objects — no read-modify-write race.
+
+### Dependencies (Same-Repo Only)
+
+GitHub dependencies are GA (August 2025). Structured, queryable via REST API:
+
+```bash
+# Mark issue #10 as blocked by issue #5
+gh api repos/OWNER/REPO/issues/10/dependencies/blocked_by -f blocked_by_issue_id=5
+
+# Query what blocks issue #10
+gh api repos/OWNER/REPO/issues/10/dependencies/blocked_by
+```
+
+**Cross-repo dependencies are NOT supported** by GitHub's structured dependency API. Cross-repo blocking is text-only (`org/other-repo#42` autolinks but creates no structured relationship).
 
 ### Label Taxonomy
 
-Labels are the backbone of the GitHub Issues integration. Created automatically during install:
+Created automatically during install (idempotent), re-verified at `start` time:
 
 ```
-# Type labels (prefixed for filtering)
-ap:scope          — Requirement scope (maps to BEADS epic)
-ap:iteration      — Single iteration attempt
-ap:work-unit      — Decomposed work unit (if using sub-issues)
+# Type labels
+ap:scope          — Requirement scope (parent issue)
+ap:iteration      — Iteration tracking label
 
 # Status labels
-status:planning   — Scope is being planned
-status:executing  — Active implementation
-status:reviewing  — In review gate
-status:approved   — Completed and approved
-status:blocked    — External blocker
-status:iterate    — Needs another iteration
+status:planning
+status:executing
+status:reviewing
+status:approved
+status:blocked
+status:iterate
 
 # Priority labels (from requirement frontmatter)
 priority:critical
@@ -230,8 +315,8 @@ priority:high
 priority:medium
 priority:low
 
-# Category labels (from requirement category)
-category:{name}   — Dynamic, one per requirement category
+# Category labels (dynamic, one per requirement category)
+category:{name}
 
 # Backlog type labels
 type:feature
@@ -241,83 +326,100 @@ type:tech-debt
 type:investigation
 ```
 
-### Issue Relationships
-
-GitHub provides two mechanisms for relating issues:
-
-**1. Task Lists (native, recommended)**
-```markdown
-## Work Units
-- [ ] #42 WU-001: Schema migration
-- [ ] #43 WU-002: API endpoint (depends on WU-001)
-- [x] #44 WU-003: Frontend integration
-```
-Task lists in the scope issue body track work unit progress. This is the simplest approach and works well with the AP execution model.
-
-**2. Sub-Issues (GitHub feature, if available)**
-If the repository has sub-issues enabled, work units can be created as sub-issues of the scope issue. This provides better tracking but is not universally available.
-
-**3. Cross-Scope Dependencies**
-```markdown
-## Dependencies
-Blocked by: #38 (database migration must complete first)
-Related: #41 (shares auth middleware changes)
-```
-These go in the scope issue body. GitHub auto-links `#N` references. The `depends_on` field in requirement frontmatter maps to `Blocked by: #N` in the issue body.
-
-### State Tracking Comparison
-
-| Event | GitHub Issues | File Fallback |
-|-------|--------------|---------------|
-| Scope started | Create issue with `ap:scope` label | `current_iteration.conf` |
-| Iteration started | Create/update issue with `ap:iteration` label | `current_iteration.conf` |
-| Iteration # stored | Issue body metadata: `<!-- ap:iteration=01 -->` | `current_iteration.conf` |
-| WU progress | Check/uncheck task list item + comment | `current_work_unit.conf` |
-| Scope approved | Close issue, add `status:approved` label | `results.md` |
-| Scope blocked | Add `status:blocked` label + comment | `results.md` |
-| Session recovery | Query: `gh issue list --label ap:scope,status:executing` | `current_iteration.conf` |
-
 ---
 
-## 5. Mapping: BEADS Concepts → GitHub Issues
+## 7. Mapping: BEADS Concepts → GitHub Issues
 
-| BEADS Concept | BEADS Command | GitHub Replacement | gh Command |
-|--------------|---------------|-------------------|------------|
-| Create epic | `bd create` | Create scope issue | `gh issue create --label ap:scope` |
-| Find epic | `bd query "type=epic AND title=..."` | Find scope issue | `gh issue list --label ap:scope --search "{scope}"` |
-| Create task | `bd create` (child of epic) | Add task list item / sub-issue | `gh issue edit {N} --body` or `gh issue create` |
-| Update task | `bd label` | Check task item + comment | `gh issue comment {N}` |
-| Set iteration | `bd set-state iteration=N` | Update issue body metadata | `gh issue edit {N} --body` |
-| Get iteration | `bd state iteration` | Parse issue body metadata | `gh issue view {N} --json body` |
-| Close epic | `bd close` | Close issue + label | `gh issue close {N}` + `gh issue edit {N} --add-label status:approved` |
-| Verify state | `validate-beads-state.sh` | Query issue state | `gh issue view {N} --json state,labels` |
-| Breadcrumbs | `.beads-state` file | Issue comments (audit trail) | `gh issue comment {N} --body "..."` |
+| BEADS Concept | BEADS Command | GitHub Replacement | Implementation |
+|--------------|---------------|-------------------|----------------|
+| Create epic | `bd create` | Create scope issue | `gh issue create --repo $REPO --label ap:scope` |
+| Find epic | `bd query "type=epic..."` | Find scope issue | `gh issue list --repo $REPO --label ap:scope --search "{scope}"` |
+| Create task | `bd create` (child) | Create sub-issue | `gh issue create` + `gh api .../sub_issues` |
+| Update task | `bd label` | Close/label sub-issue | `gh issue close` / `gh issue edit --add-label` |
+| Set iteration | `bd set-state iteration=N` | Update scope tracker + comment | Write to tracker, `gh issue comment` |
+| Get iteration | `bd state iteration` | Read scope tracker | Parse scope-tracker.jsonl |
+| Close epic | `bd close` | Close issue + label | `gh issue close` + `--add-label status:approved` |
+| Dependencies | Not implemented | `gh api .../dependencies/blocked_by` | Same-repo only; cross-repo uses text |
+| Breadcrumbs | `.beads-state` | `scope-events.log` | Lightweight local audit (always written) |
+| Ad-hoc notes | Not supported | Issue comments | `gh issue comment` — agent evaluates for knowledge |
 
-### Key Differences
+### Key Differences from BEADS
 
-1. **No local database.** All state is in GitHub. Simpler, but requires network.
-2. **Audit trail is comments.** Instead of `.beads-state` breadcrumbs, lifecycle events become issue comments.
+1. **No local database.** All GH state is remote. Simpler, but requires network.
+2. **Sub-issues replace tasks.** First-class GH objects, no body mutation.
 3. **Labels replace status fields.** Status transitions are label swaps.
-4. **Issue numbers replace epic IDs.** Stored in `current_iteration.conf` as `GH_ISSUE=42`.
+4. **Scope tracker file is always written.** Local state is canonical; GH is the shared view.
+5. **`--repo` always explicit.** Never infer repo from CWD (polyrepo safety).
 
 ---
 
-## 6. Knowledge System Migration
+## 8. Scope Tracker: Replacing current_iteration.conf
+
+`current_iteration.conf` is a single-value file that gets overwritten on every scope change. It doesn't survive git merges when two developers work on different scopes, and it loses history.
+
+### New: `.agent_process/work/scope-tracker.jsonl`
+
+One JSONL line per scope. Lines are **updated in place** when status or iteration changes. Each line contains the full scope state including all iterations:
+
+```jsonl
+{"scope":"auth_middleware_01","status":"executing","gh_issue":42,"current_iteration":"iteration_02","iterations":{"iteration_01":{"status":"approved","ts":"2026-04-01T10:00:00Z"},"iteration_02":{"status":"executing","ts":"2026-04-01T14:00:00Z"}},"ts":"2026-04-01T14:00:00Z"}
+{"scope":"db_migration_03","status":"approved","gh_issue":45,"current_iteration":"iteration_01","iterations":{"iteration_01":{"status":"approved","ts":"2026-04-01T11:30:00Z"}},"ts":"2026-04-01T11:30:00Z"}
+```
+
+### Design Properties
+
+- **One line per scope** — easy to grep, easy to parse
+- **Merge-friendly** — different scopes = different lines, git merges cleanly
+- **Historical** — iteration status nested within the line
+- **Lightweight** — JSONL, efficient after hundreds of scopes
+- **Pointers** — links to `.agent_process/work/{scope}/` for full artifacts
+- **Machine-readable** — `jq` or simple JSON parsing
+- **GH_ISSUE cached** — avoids re-querying GitHub
+
+### Reading and Writing
+
+```bash
+# Read current iteration for a scope
+jq -r 'select(.scope=="auth_middleware_01") | .current_iteration' .agent_process/work/scope-tracker.jsonl
+
+# The lifecycle script owns all writes — coordinators only read
+```
+
+### Scope Events Log
+
+A simple append-only audit log replacing `.beads-state`:
+
+```
+# .agent_process/work/{scope}/scope-events.log
+2026-04-01T10:00:00Z SCOPE_START scope=auth_middleware_01 iteration=iteration_01
+2026-04-01T10:05:00Z WU_CREATE scope=auth_middleware_01 wu=WU-001 desc="Schema migration"
+2026-04-01T10:30:00Z WU_UPDATE scope=auth_middleware_01 wu=WU-001 status=complete
+2026-04-01T11:00:00Z ITERATION_CLOSE scope=auth_middleware_01 iteration=iteration_01 decision=ITERATE
+2026-04-01T11:05:00Z ITERATION_START scope=auth_middleware_01 iteration=iteration_02
+```
+
+Written by `github-issues-lifecycle.sh` on every action. The review coordinator's verification step reads this instead of `.beads-state`.
+
+### Replaces
+
+| Old File | New Location |
+|----------|-------------|
+| `current_iteration.conf` | `scope-tracker.jsonl` |
+| `current_work_unit.conf` | Can add `current_wu` field to tracker or keep within `.run/` |
+| `.beads-state` | `scope-events.log` per scope |
+
+---
+
+## 9. Knowledge System Migration
 
 ### Current State
 
 ```
-.beads/knowledge/        ← PRIMARY (when BEADS enabled)
-  patterns.jsonl
-  gotchas.jsonl
-  decisions.jsonl
-  anti-patterns.jsonl
-  codebase-facts.jsonl
-  api-behaviors.jsonl
-
-.agent_process/knowledge/ ← FALLBACK (when BEADS disabled)
-  README.md              ← only contains a pointer to .beads/
+.beads/knowledge/        ← PRIMARY (when BEADS enabled) — does not exist in this repo
+.agent_process/knowledge/ ← FALLBACK (when BEADS disabled) — contains only README.md
 ```
+
+Legacy projects may also have knowledge in `bd remember` (Dolt database, not files).
 
 ### Target State
 
@@ -329,20 +431,10 @@ These go in the scope issue body. GitHub auto-links `#N` references. The `depend
   anti-patterns.jsonl
   codebase-facts.jsonl
   api-behaviors.jsonl
-  README.md              ← updated to describe this as primary
+  README.md
 ```
 
-### Migration Steps
-
-1. **No runtime migration needed** — `.beads/knowledge/` doesn't exist in this repo (confirmed: no `.beads/` directory present)
-2. **Update `README.md`** in `.agent_process/knowledge/` to describe it as the primary and only location
-3. **Update all references** in orchestration/process docs from `.beads/knowledge` to `.agent_process/knowledge`
-4. **Remove dual-directory logic** — no more "check .beads first, fall back to .agent_process"
-5. **Simplify knowledge schema** — use the full metaswarm-compatible schema everywhere (no "minimal fallback" schema distinction)
-6. **Keep `migrate-knowledge.py` temporarily** for installed projects that have `.beads/knowledge/` — it migrates TO `.agent_process/knowledge/` instead, then can be removed in a future release
-7. **Update `process/knowledge-base.md`** — remove all BEADS/fallback language, make `.agent_process/knowledge/` the sole location
-
-### Knowledge Schema (Unified)
+### Unified Knowledge Schema
 
 ```json
 {
@@ -365,472 +457,127 @@ These go in the scope issue body. GitHub auto-links `#N` references. The `depend
 }
 ```
 
-One schema. No "minimal" variant. The `provenance` and `affectedFiles` fields are recommended but not required — simple entries still work.
+One schema everywhere. `provenance` and `affectedFiles` recommended but not required.
+
+### Knowledge Discovery
+
+`process/knowledge-base.md` must be easily discoverable by any fresh agent. Referenced in:
+- `orchestration/context/base-context.md` (loaded into every orchestration session)
+- Planning coordinator (Step 2.5)
+- Review coordinator (Steps 9.5/9.6)
+
+### Migration of Legacy Knowledge
+
+Handled by standalone script. See Section 17.
 
 ---
 
-## 7. Installation Flow Changes
+## 10. Ad-Hoc Knowledge Workflow
 
-### Current Flow (Beads)
+### User-Initiated Notes on Issues
+
+When a user tells the agent "add a note to the task" or "don't forget to...":
+
+1. Agent adds note as a **GitHub Issue comment** (if GH enabled)
+2. Agent **evaluates for knowledge value** using criteria in `process/knowledge-base.md`
+3. If knowledge-worthy: "This might be useful for future scopes. Add to knowledge?"
+4. If user consents: write to `.agent_process/knowledge/` with `"source": "human"` provenance
+
+### ITERATE Decision Knowledge Deposit
+
+When the iteration reviewer spots a **generalizable lesson or pattern across iterations** and the decision is ITERATE, the reviewer can deposit 0-2 process observations.
+
+**Why safe:** Knowledge is about the *process* (what went wrong), not the *code* (which isn't verified yet). Process observations are valid regardless of code correctness.
+
+### Updated Deposit Table
+
+| Decision | What to deposit | Trigger |
+|----------|----------------|---------|
+| **APPROVE** | Code patterns, gotchas, decisions, anti-patterns (0-3) | Automatic |
+| **BLOCK/PIVOT** | Process observations (0-2) | Automatic |
+| **ITERATE** | Process observations (0-2) | Conditional — reviewer spots generalizable lesson |
+| **Ad-hoc** | User-initiated note → knowledge | User consent required |
+
+### Updates to `process/knowledge-base.md`
+
+Add "Ad-Hoc Knowledge Evaluation Criteria":
+- Is this specific to this scope or generalizable?
+- Would a future agent benefit from knowing this?
+- Is there a concrete recommendation (not just "be careful")?
+- Does this duplicate existing knowledge?
+
+---
+
+## 11. Installation Flow Changes
+
+### New Flow
 
 ```
 install.sh
-  ├── Prompt: "Enable BEADS? [Y/n]"
-  ├── If yes:
-  │   ├── Detect Dolt endpoints (local/docker/tunnel)
-  │   ├── Present menu (4 options)
-  │   ├── Write server config to quality-config.json
-  │   ├── Create ~/.config/beads/credentials
-  │   ├── Create .beads/knowledge/
-  │   └── Run migrate-knowledge.py (.agent_process/knowledge → .beads/knowledge)
-  └── If no:
-      └── Set beads.enabled = false
-```
-
-### New Flow (GitHub Issues)
-
-```
-install.sh
-  ├── Create .agent_process/knowledge/ (always — it's the primary KB now)
+  ├── Create .agent_process/knowledge/ (always)
   ├── Prompt: "Track work with GitHub Issues? [y/N]"
   │
   ├── If yes:
-  │   ├── Verify gh CLI installed
-  │   │   └── If not: print install instructions, ask to retry or skip
+  │   ├── Verify gh CLI installed (>= 2.20.0)
   │   ├── Verify gh auth status
-  │   │   └── If not: print `gh auth login` instructions, ask to retry or skip
   │   ├── Verify repo has GitHub remote
-  │   │   └── If not: warn, ask to continue without GH
-  │   ├── Create AP labels in repo (ap:scope, status:*, priority:*, type:*)
-  │   │   └── Idempotent: skip labels that already exist
-  │   ├── Write to quality-config.json:
-  │   │   { "github_issues": { "enabled": true, "_user_configured": true } }
-  │   └── Print: "GitHub Issues enabled. Work tracking will use issues."
+  │   ├── Detect repo (auto from git remote; confirm if polyrepo)
+  │   ├── Create AP labels (idempotent)
+  │   ├── Write: { "github_issues": { "enabled": true, "repo": "owner/name" } }
+  │   └── Print: "GitHub Issues enabled for owner/name."
   │
   └── If no:
-      ├── Write to quality-config.json:
-      │   { "github_issues": { "enabled": false, "_user_configured": true } }
-      └── Print: "File-based tracking only. No GitHub Issues."
+      ├── Write: { "github_issues": { "enabled": false } }
+      └── Print: "File-based tracking only."
 ```
-
-### Key Changes
-
-1. **Default is NO** (not YES like BEADS). GitHub Issues adds friction; only opt in if you want it.
-2. **No database to manage.** No Dolt, no Docker, no GCE, no credentials files.
-3. **Upfront validation.** If the user says yes, we verify `gh` works BEFORE proceeding. No silent degradation.
-4. **Label creation is idempotent.** Safe to re-run.
-5. **No `.beads/` directory created.** No `~/.config/beads/` touched.
-6. **Knowledge directory is always `.agent_process/knowledge/`.** No conditional creation.
 
 ### Removed From Installation
 
-- All Dolt endpoint detection (local binary, Docker container, IAP tunnel)
-- Interactive Dolt menu (4 options)
+- All Dolt endpoint detection, Docker, GCE, credentials
 - `~/.config/beads/credentials` creation
 - `.beads/` directory creation
-- `migrate-knowledge.py` execution (keep script for manual migration of existing installs)
-- Any `bd` or `dolt` references
+- Knowledge migration (standalone script now)
 
 ---
 
-## 8. GitHub Issues Health Check & Halt Protocol
+## 12. GitHub Issues Health Check & Halt Protocol
 
-This is the most critical new behavior. When GitHub Issues is enabled, the system treats `gh` failures as **blocking errors**, not silent degradation.
-
-### Health Check Function
+### Health Check (parallel network calls, < 5s target)
 
 ```bash
-# gh-lifecycle.sh
 check_gh_health() {
   local errors=()
 
-  # 1. gh CLI exists?
   if ! command -v gh &>/dev/null; then
-    errors+=("gh CLI not found. Install: https://cli.github.com/")
-  fi
+    errors+=("gh CLI not found. Install: https://cli.github.com/"); fi
 
-  # 2. gh authenticated?
+  # Version check
+  local ver=$(gh --version 2>/dev/null | head -1 | grep -oP '\d+\.\d+\.\d+')
+  if ! version_gte "$ver" "2.20.0"; then
+    errors+=("gh $ver below minimum 2.20.0. Run: gh upgrade"); fi
+
+  # Parallel: auth + repo access
   if ! gh auth status &>/dev/null 2>&1; then
-    errors+=("gh not authenticated. Run: gh auth login")
-  fi
+    errors+=("Not authenticated. Run: gh auth login"); fi
+  if ! gh repo view "$REPO" --json name &>/dev/null 2>&1; then
+    errors+=("Cannot access '$REPO'. Check permissions."); fi
 
-  # 3. In a git repo with GitHub remote?
-  if ! gh repo view --json name &>/dev/null 2>&1; then
-    errors+=("Not in a GitHub repository, or remote not configured.")
-  fi
-
-  # 4. Can we read issues? (permission check)
-  if ! gh issue list --limit 1 &>/dev/null 2>&1; then
-    errors+=("Cannot access issues. Check repo permissions and gh auth scopes.")
-  fi
-
-  if [ ${#errors[@]} -gt 0 ]; then
-    echo "HALT"
-    echo "──────────────────────────────────────────────"
-    echo "  GitHub Issues is ENABLED but not working."
-    echo "  Work cannot proceed until these are fixed:"
-    echo "──────────────────────────────────────────────"
-    for err in "${errors[@]}"; do
-      echo "  ✗ $err"
-    done
-    echo ""
-    echo "  Options:"
-    echo "    1. Fix the issues above and retry"
-    echo "    2. Disable GitHub Issues:"
-    echo "       Set github_issues.enabled=false in quality-config.json"
-    echo "──────────────────────────────────────────────"
-    return 1
-  fi
+  [ ${#errors[@]} -gt 0 ] && { print_halt "${errors[@]}"; return 1; }
   return 0
 }
 ```
 
-### When Health Checks Run
-
-| Phase | Check Point | On Failure |
-|-------|------------|------------|
-| `ap_exec` Step 0.5 (preflight) | Before creating scope issue | HALT — print errors, stop execution |
-| `gh-lifecycle.sh` every action | Before any `gh issue` command | HALT — print errors, return non-zero |
-| Session recovery | Before querying issues | WARN — fall back to file state, suggest fixing gh |
-
-### Halt Behavior in Orchestrators
-
-**Claude Code:**
-The coordinator prompt will include:
-```markdown
-## GitHub Issues Gate (Step 0.4)
-
-If `quality-config.json` has `github_issues.enabled = true`:
-
-1. Run: `bash .agent_process/scripts/gh-lifecycle.sh health-check`
-2. If exit code ≠ 0:
-   - **STOP ALL WORK IMMEDIATELY**
-   - Display the error output to the user verbatim
-   - Tell the user: "GitHub Issues is enabled but not working. Let's fix this before continuing."
-   - Work with the user to resolve (install gh, run gh auth login, etc.)
-   - Re-run health check after each fix attempt
-   - Only proceed when health check passes
-3. If exit code = 0: continue to Step 0.5
-```
-
-**Codex (orchestrator prompts):**
-Same logic, expressed in the Codex orchestrator format:
-```markdown
-CRITICAL: If github_issues.enabled is true in quality-config.json, you MUST run
-the gh health check before any work begins. If it fails, output the errors and
-STOP. Do not continue. Do not fall back to file-based tracking silently.
-The user chose GitHub Issues — respect that choice.
-```
-
-### Recovery After Fix
-
-When the user fixes the `gh` issue:
-1. Agent re-runs `gh-lifecycle.sh health-check`
-2. If it passes, agent picks up where it stopped:
-   - If halted during preflight → continue preflight from Step 0.5
-   - If halted during execution → resume current work unit
-   - State is preserved in file-based tracking (always written regardless)
-3. File-based state ensures no work is lost during the halt
-
----
-
-## 9. Orchestration Changes (Claude + Codex)
-
-### Coordinator Changes
-
-**`execute-preflight.md`**
-```
-BEFORE: Step 0.5 — bash beads-lifecycle.sh start {scope}
-AFTER:  Step 0.4 — bash gh-lifecycle.sh health-check (if enabled)
-        Step 0.5 — bash gh-lifecycle.sh start {scope} (if enabled)
-```
-
-**`execute-main.md`**
-```
-BEFORE: beads-lifecycle.sh task-update {scope} WU-NNN in-progress
-AFTER:  gh-lifecycle.sh task-update {scope} WU-NNN in-progress
-```
-
-**`review-iteration.md`**
-```
-BEFORE: beads-lifecycle.sh verify, close, set-iteration
-AFTER:  gh-lifecycle.sh verify, close, set-iteration
-```
-
-**`plan-scope.md`**
-```
-BEFORE: "Do NOT run BEADS commands during planning"
-AFTER:  "Do NOT run gh-lifecycle.sh during planning" (same principle)
-```
-
-**`007b-session-recovery.md`**
-```
-BEFORE: beads-lifecycle.sh get-iteration → fall back to file
-AFTER:  gh-lifecycle.sh get-iteration → fall back to file
-        (same priority: GitHub first, file second, if GH enabled)
-```
-
-**`07-10-post-decision.md`**
-```
-BEFORE: Deposit to .beads/knowledge/ or .agent_process/knowledge/
-AFTER:  Deposit to .agent_process/knowledge/ (always, single location)
-BEFORE: beads-lifecycle.sh close {scope} approved
-AFTER:  gh-lifecycle.sh close {scope} approved
-```
-
-### Key Orchestration Principle
-
-**File-based state is ALWAYS written**, regardless of GitHub Issues being enabled or not. GitHub Issues is an enhancement layer on top, not a replacement for file-based tracking. This ensures:
-
-1. Session recovery works even if `gh` breaks mid-execution
-2. Work artifacts are always local (no network dependency for reading state)
-3. The `.agent_process/work/` directory remains the canonical work history
-
-### Claude Commands Changes
-
-**`ap_exec.md`:**
-- Remove all `beads.enabled` references
-- Add `github_issues.enabled` check at Step 0.4
-- Replace `beads-lifecycle.sh` calls with `gh-lifecycle.sh`
-
-**`ap_project.md`:**
-- No BEADS-specific changes needed (doesn't directly use BEADS)
-- May want to add `gh issue list --label ap:scope` as a status view
-
-**`.claude/settings.local.json`:**
-- Remove all `bd *` command permissions
-- Remove `dolt *` command permissions
-- Add `gh issue *`, `gh label *` command permissions
-
----
-
-## 10. Quality Config Cleanup
-
-### Current `quality-config.json` (BEADS section)
-
-```json
-{
-  "beads": {
-    "enabled": true,
-    "auto_install": true,
-    "_user_configured": true,
-    "server": {
-      "host": "127.0.0.1",
-      "port": 3308,
-      "user": "sam"
-    }
-  }
-}
-```
-
-### New `quality-config.json` (GitHub Issues section)
-
-```json
-{
-  "github_issues": {
-    "enabled": false,
-    "_user_configured": true
-  }
-}
-```
-
-That's it. No server config, no auto_install, no credentials. `gh` handles all auth.
-
-### Full Config After Cleanup
-
-```json
-{
-  "pre_flight": { "enabled": true, "session_recovery": true },
-  "knowledge_base": { "enabled": true, "query_during_planning": true },
-  "adversarial_review": { "enabled": true, "skip_for_trivial": true },
-  "work_unit_decomposition": { "enabled": true, "trigger_threshold_files": 3, "trigger_threshold_layers": 2 },
-  "design_review": { "enabled": false },
-  "github_issues": { "enabled": false, "_user_configured": true },
-  "pr_shepherd": { "enabled": true },
-  "metaswarm": { "enabled": false, "_user_configured": true, "features": { "..." } }
-}
-```
-
-### Installation Cleanup for Existing Projects
-
-When `install.sh` runs on a project that already has BEADS configured:
+### Retry Strategy
 
 ```bash
-# Detect and clean old BEADS config
-if cfg_has_key 'beads'; then
-  echo "Migrating from BEADS to new config format..."
-
-  # Remove beads section entirely
-  cfg_delete 'beads'
-
-  # Migrate .beads/knowledge/ → .agent_process/knowledge/ if exists
-  if [ -d ".beads/knowledge" ] && ls .beads/knowledge/*.jsonl &>/dev/null; then
-    echo "Migrating knowledge files from .beads/knowledge/ to .agent_process/knowledge/..."
-    cp -n .beads/knowledge/*.jsonl .agent_process/knowledge/ 2>/dev/null
-    echo "  Done. Original files preserved in .beads/knowledge/ (safe to delete)."
-  fi
-
-  # Prompt for GitHub Issues (new feature)
-  # ...
-fi
-```
-
----
-
-## 11. File-Based Fallback (No GitHub)
-
-When the user chooses NOT to use GitHub Issues, the system works exactly as it does today with BEADS disabled — which is already battle-tested.
-
-### What Stays the Same
-
-| Feature | Mechanism |
-|---------|-----------|
-| Iteration tracking | `current_iteration.conf` (SCOPE=, ITERATION=) |
-| Work unit tracking | `current_work_unit.conf` (CURRENT_UNIT=) |
-| Session recovery | Read `current_iteration.conf` |
-| Work history | `.agent_process/work/{scope}/iteration_*/` |
-| Knowledge base | `.agent_process/knowledge/*.jsonl` |
-| Roadmap status | `.agent_process/roadmap/master_roadmap.md` |
-| Backlog | `.agent_process/roadmap/backlog.md` |
-
-### What Changes
-
-1. **`gh-lifecycle.sh` exits silently** when `github_issues.enabled = false` — same pattern as `beads-lifecycle.sh` today
-2. **No breadcrumb file** (`.beads-state` goes away) — breadcrumbs are replaced by issue comments when GH enabled, or simply not generated when disabled
-3. **No audit trail beyond git** — this is acceptable for file-based-only mode
-
-### Seamless Experience
-
-The orchestration coordinators call `gh-lifecycle.sh` regardless. The script checks the config and returns silently if disabled. Coordinators don't need conditional logic — the script handles it.
-
-```bash
-# In any coordinator:
-bash .agent_process/scripts/gh-lifecycle.sh start "$SCOPE"
-# If GH disabled: exits 0 silently
-# If GH enabled: creates issue, writes state
-# File-based state is written by the coordinator directly (not by the script)
-```
-
----
-
-## 12. Files to Remove
-
-### Complete Removal
-
-| File | Reason |
-|------|--------|
-| `scripts/beads-lifecycle.sh` | Replaced by `gh-lifecycle.sh` |
-| `scripts/migrate-knowledge.py` | One-time migration, keep for 1 release then remove |
-| `deploy/beads-server/setup.sh` | No more Dolt server |
-| `deploy/beads-server/teardown.sh` | No more Dolt server |
-| `deploy/beads-server/dolt-docker.sh` | No more Docker Dolt |
-| `deploy/beads-server/README.md` | No more server docs |
-| `deploy/beads-server/` (directory) | Empty after above |
-| `process/beads-integration.md` | Replaced by github-issues-integration.md |
-| `test/contract/validate-beads-state.sh` | No more breadcrumb validation |
-| `test/unit/test-beads-lifecycle.bats` | Tests for removed script |
-| `.agent_process/requirements_docs/decomposition/decomp_scope_07_beads_iteration_state.md` | Requirement for removed system |
-
-### Files to Clean (remove BEADS references)
-
-| File | What to Remove |
-|------|---------------|
-| `.gitignore` | `deploy/beads-server/.beads-server-info` entry |
-| `.claude/settings.local.json` | All `bd *` and `dolt *` permission entries |
-| `quality-config.json` | Entire `beads` section |
-| `process/quality-configuration.md` | BEADS config documentation section |
-| `process/knowledge-base.md` | Dual-directory logic, `.beads/knowledge` references |
-| `README.md` | BEADS/Dolt references |
-
----
-
-## 13. Files to Create
-
-| File | Purpose |
-|------|---------|
-| `scripts/gh-lifecycle.sh` | GitHub Issues lifecycle script (replaces beads-lifecycle.sh) |
-| `process/github-issues-integration.md` | How-to guide (replaces beads-integration.md) |
-| `test/unit/test-gh-lifecycle.bats` | Unit tests for new script |
-| `test/contract/validate-gh-state.sh` | Contract validator for GH issue state |
-
----
-
-## 14. `gh-lifecycle.sh` — Detailed Design
-
-### Actions
-
-| Action | Description | gh Commands |
-|--------|------------|-------------|
-| `health-check` | Verify gh CLI, auth, repo access | `gh auth status`, `gh repo view`, `gh issue list` |
-| `start {scope}` | Create or find scope issue | `gh issue list --search`, `gh issue create` |
-| `set-iteration {scope} {N}` | Update iteration in issue body | `gh issue edit`, `gh issue comment` |
-| `get-iteration {scope}` | Read iteration from issue | `gh issue view --json body` |
-| `task-create {scope} WU-NNN {desc}` | Add work unit to task list | `gh issue edit` (update body) |
-| `task-update {scope} WU-NNN {status}` | Check/uncheck task + comment | `gh issue edit`, `gh issue comment` |
-| `close {scope} {decision}` | Close issue with label | `gh issue close`, `gh issue edit --add-label` |
-| `verify {scope}` | Check issue state consistency | `gh issue view --json` |
-
-### Issue Body Format
-
-```markdown
-## Scope: {scope_id}
-
-**Requirement:** {requirement_id}
-**Priority:** {priority}
-**Category:** {category}
-
-### Acceptance Criteria
-{criteria from iteration_plan.md}
-
-### Work Units
-- [ ] WU-001: {description}
-- [ ] WU-002: {description} (depends on WU-001)
-- [x] WU-003: {description}
-
-### Iteration History
-| # | Status | Decision |
-|---|--------|----------|
-| 01 | Complete | ITERATE |
-| 02 | Active | — |
-
-<!-- ap:metadata
-scope={scope_id}
-iteration=02
-issue_created=2026-04-01T10:00:00Z
--->
-```
-
-The HTML comment block stores machine-readable metadata that `gh-lifecycle.sh` parses. Human-readable content is above.
-
-### State File Integration
-
-`gh-lifecycle.sh` writes to `current_iteration.conf` on every state change:
-
-```bash
-# current_iteration.conf format (extended)
-SCOPE=auth_middleware_01
-ITERATION=iteration_02
-GH_ISSUE=42          # NEW: GitHub issue number (when GH enabled)
-```
-
-The `GH_ISSUE` field lets the script find the right issue without searching every time.
-
-### Error Handling
-
-```bash
-# Every gh command wrapped:
 run_gh() {
-  local output
-  output=$("$@" 2>&1)
-  local rc=$?
+  local output rc
+  output=$("$@" 2>&1); rc=$?
   if [ $rc -ne 0 ]; then
-    echo "HALT: GitHub CLI command failed" >&2
-    echo "Command: $*" >&2
-    echo "Output: $output" >&2
-    echo "" >&2
-    echo "GitHub Issues is enabled. Work cannot continue until this is resolved." >&2
-    echo "Fix the issue and re-run, or disable GitHub Issues in quality-config.json." >&2
-    return 1
+    # One retry for transient errors
+    if echo "$output" | grep -qiE '502|503|504|timeout|rate limit|API rate'; then
+      sleep 3; output=$("$@" 2>&1); rc=$?; fi
+    [ $rc -ne 0 ] && { echo "HALT: $output" >&2; return 1; }
   fi
   echo "$output"
 }
@@ -838,151 +585,249 @@ run_gh() {
 
 ---
 
-## 15. Migration Checklist
+## 13. Orchestration Changes (Claude + Codex)
 
-### Phase 1: Knowledge System (no breaking changes)
+### Files to Update
 
-- [ ] Update `.agent_process/knowledge/README.md` — describe as primary location
-- [ ] Update `process/knowledge-base.md` — remove dual-directory logic
-- [ ] Update all orchestration files — replace `.beads/knowledge` references
-- [ ] Update `07-10-post-decision.md` — always deposit to `.agent_process/knowledge/`
-- [ ] Update `025-knowledge-query.md` — single directory, no fallback logic
+| File | Change |
+|------|--------|
+| `execute-preflight.md` | Add Step 0.4 health check; Step 0.5 → github-issues-lifecycle.sh |
+| `execute-main.md` | Swap lifecycle script |
+| `review-iteration.md` | Swap lifecycle; verify via scope-events.log |
+| `plan-scope.md` | Update warning text |
+| `007b-session-recovery.md` | scope-tracker.jsonl + lifecycle script |
+| `07-10-post-decision.md` | Single KB dir; ITERATE deposit; lifecycle calls |
+| `025-knowledge-query.md` | Single KB directory |
+| `base-context.md` | Remove all BEADS/bd references |
+| `02-gather-context.md` | Remove `.beads/knowledge` reference |
+| `templates/iteration-plan.md` | Remove `.beads/knowledge` reference |
 
-### Phase 2: Create GitHub Issues System
+### Small Context Principle
 
-- [ ] Write `scripts/gh-lifecycle.sh` — full implementation
-- [ ] Write `process/github-issues-integration.md` — how-to guide
-- [ ] Write `test/unit/test-gh-lifecycle.bats` — unit tests
-- [ ] Write `test/contract/validate-gh-state.sh` — contract tests
-
-### Phase 3: Update Orchestration
-
-- [ ] Update `execute-preflight.md` — add Step 0.4 health check, replace Step 0.5
-- [ ] Update `execute-main.md` — replace beads-lifecycle.sh calls
-- [ ] Update `review-iteration.md` — replace beads-lifecycle.sh calls
-- [ ] Update `007b-session-recovery.md` — use gh-lifecycle.sh
-- [ ] Update `07-10-post-decision.md` — replace beads-lifecycle.sh calls
-- [ ] Update `plan-scope.md` — update "don't run BEADS" warning
-
-### Phase 4: Update Installation
-
-- [ ] Rewrite install.sh — remove BEADS, add GitHub Issues prompt
-- [ ] Add label creation logic to install.sh
-- [ ] Add BEADS config migration logic to install.sh
-- [ ] Add `.beads/knowledge/` → `.agent_process/knowledge/` migration
-- [ ] Update quality-config.json template — remove beads, add github_issues
-
-### Phase 5: Update Claude Commands & Settings
-
-- [ ] Update `claude/commands/ap_exec.md` — replace beads references
-- [ ] Update `.claude/settings.local.json` — remove bd/dolt, add gh permissions
-- [ ] Update `claude/commands/ap_project.md` — add GH issue status view
-
-### Phase 6: Remove BEADS
-
-- [ ] Delete `scripts/beads-lifecycle.sh`
-- [ ] Delete `deploy/beads-server/` (entire directory)
-- [ ] Delete `process/beads-integration.md`
-- [ ] Delete `test/contract/validate-beads-state.sh`
-- [ ] Delete `test/unit/test-beads-lifecycle.bats`
-- [ ] Delete `.agent_process/requirements_docs/decomposition/decomp_scope_07_*`
-- [ ] Clean `.gitignore` — remove beads-server-info entry
-- [ ] Clean `process/quality-configuration.md` — remove BEADS section
-- [ ] Clean `README.md` — remove BEADS/Dolt references
-
-### Phase 7: Documentation
-
-- [ ] Update `process/quality-configuration.md` — add github_issues schema
-- [ ] Write migration guide (how-to) for existing BEADS users
-- [ ] Update `README.md` — reflect new architecture
-- [ ] Verify all cross-references updated (grep for "beads", "dolt", "bd ")
-
-### Phase 8: Testing
-
-- [ ] Run `test/unit/test-gh-lifecycle.bats`
-- [ ] Run `test/contract/validate-gh-state.sh` against real repo
-- [ ] Manual test: install.sh with GH enabled (fresh project)
-- [ ] Manual test: install.sh with GH disabled (fresh project)
-- [ ] Manual test: install.sh upgrade (existing BEADS project)
-- [ ] Manual test: full ap_exec cycle with GH enabled
-- [ ] Manual test: full ap_exec cycle with GH disabled
-- [ ] Manual test: gh failure mid-execution (disconnect network)
-- [ ] Verify Codex orchestrator prompts work with new scripts
+GH integration adds minimal context to agent prompts:
+- `github_issues.repo` config field (one string)
+- Issue numbers in scope-tracker.jsonl (one integer per scope)
+- No issue bodies loaded into agent context — agents reference by number, use `gh` commands only when needed
 
 ---
 
-## 16. Risk Assessment
+## 14. Quality Config Cleanup
 
-### High Risk
+### New Section
 
-| Risk | Mitigation |
-|------|-----------|
-| Existing projects have `.beads/knowledge/` with data | Migration step in install.sh copies to `.agent_process/knowledge/`, preserves originals |
-| `gh` rate limiting on large projects | Cache issue numbers in `current_iteration.conf`, minimize API calls |
-| Network dependency for GitHub Issues | File-based state always written; recovery works offline |
-
-### Medium Risk
-
-| Risk | Mitigation |
-|------|-----------|
-| Label conflicts with existing repo labels | Use `ap:` prefix for all AP labels |
-| Issue body format parsing breaks | Use HTML comment block for machine data, human-readable above |
-| Codex agents don't have `gh` access | Health check catches this immediately; clear error message |
-| `gh` CLI version differences | Test against gh 2.x (current stable); document minimum version |
-
-### Low Risk
-
-| Risk | Mitigation |
-|------|-----------|
-| Users miss BEADS features | GitHub Issues provides equivalent tracking; knowledge system unchanged |
-| Performance (API calls vs local db) | Acceptable for the frequency of calls (~5-10 per scope execution) |
-
----
-
-## 17. Open Questions
-
-1. **Sub-issues vs task lists?** GitHub sub-issues are newer and not available in all orgs. Task list checkboxes in the issue body are universally available. **Recommendation:** Use task lists as default, document sub-issues as an optional enhancement.
-
-2. **Should we create a GitHub Issue for each iteration, or just the scope?** Creating per-iteration issues adds noise. **Recommendation:** One issue per scope, iteration state tracked in the issue body metadata and comments.
-
-3. **What about the `metaswarm:create-issue` skill?** It's an external metaswarm skill. We should ensure our GitHub Issues format is compatible with what metaswarm expects, but we don't control that skill's implementation. **Recommendation:** Use standard `gh` label conventions that metaswarm can query.
-
-4. **Should `migrate-knowledge.py` be kept or removed?** It's needed for one release cycle to help existing installs migrate `.beads/knowledge/` data. **Recommendation:** Keep it in Phase 1, mark as deprecated, remove in next major release.
-
-5. **Should the health check run on every `gh-lifecycle.sh` call or just at preflight?** Every call adds ~1s latency. **Recommendation:** Full health check at preflight only; individual commands just catch `gh` errors inline with HALT messaging.
-
----
-
-## Appendix A: Metaswarm Compatibility
-
-Metaswarm's knowledge system (`/metaswarm:prime`, `/metaswarm:self-reflect`) currently reads from `.beads/knowledge/`. After this migration:
-
-- Metaswarm should be configured to read from `.agent_process/knowledge/` instead
-- The knowledge schema remains metaswarm-compatible (same fields)
-- If metaswarm has hardcoded `.beads/knowledge/`, a symlink can bridge temporarily:
-  ```bash
-  ln -s .agent_process/knowledge .beads/knowledge
-  ```
-- Long-term: metaswarm should respect the same config or discover the knowledge directory dynamically
-
-## Appendix B: `gh-lifecycle.sh` Action Reference
-
+```json
+{
+  "github_issues": {
+    "enabled": false,
+    "_user_configured": true,
+    "repo": "owner/repo-name"
+  }
+}
 ```
-Usage: gh-lifecycle.sh <action> [args...]
 
-Actions:
-  health-check                  Verify gh CLI, auth, and repo access
-  start <scope>                 Create or find scope issue, set initial state
-  set-iteration <scope> <N>     Update iteration pointer in issue metadata
-  get-iteration <scope>         Read current iteration from issue (or file fallback)
-  task-create <scope> <id> <desc>  Add work unit to scope issue task list
-  task-update <scope> <id> <status>  Update work unit status (in-progress|complete|blocked)
-  close <scope> <decision>      Close scope issue (approved|blocked)
-  verify <scope>                Check issue state consistency
-  comment <scope> <message>     Add audit comment to scope issue
+No server config, no auto_install, no credentials. The `repo` field ensures `--repo` is always explicit.
 
-Environment:
-  Reads github_issues.enabled from .agent_process/quality-config.json
-  Exits silently (0) if disabled or config missing
-  Exits with error (1) if enabled but gh not working — HALT behavior
-```
+---
+
+## 15. File-Based Fallback (No GitHub)
+
+Default and primary mode. `github-issues-lifecycle.sh` exits silently when disabled but **still writes local state** (scope-tracker.jsonl + scope-events.log).
+
+| Feature | Mechanism |
+|---------|-----------|
+| Scope tracking | `scope-tracker.jsonl` (one line per scope, mutable) |
+| Iteration tracking | Nested in tracker line |
+| Audit trail | `scope-events.log` per scope |
+| Work history | `.agent_process/work/{scope}/iteration_*/` |
+| Knowledge | `.agent_process/knowledge/*.jsonl` |
+| Roadmap | `.agent_process/roadmap/master_roadmap.md` |
+
+---
+
+## 16. Polyrepo Support
+
+### Solution
+
+1. `github_issues.repo` in quality-config.json — always explicit
+2. `--repo` flag on every `gh` command — never infer from CWD
+3. Install-time detection — auto-detect from git remote, confirm if polyrepo
+
+### Cross-Repo Capabilities
+
+- References (`org/root-repo#42`) autolink in commits, PRs, comments
+- `Closes org/root-repo#42` in a sub-repo PR closes the root issue on merge
+- Sub-issues CAN be cross-repo
+- Dependencies CANNOT be cross-repo (GitHub limitation)
+
+---
+
+## 17. Standalone Migration Script
+
+`scripts/migrate-from-beads.sh` — NOT run during install. Interactive, per-step permission.
+
+| Source | Discovery | Migration |
+|--------|-----------|-----------|
+| `.beads/knowledge/*.jsonl` | Check directory, count entries | Copy to `.agent_process/knowledge/`, skip duplicates |
+| `bd remember` data | Query `bd` if installed | Export to `.agent_process/knowledge/` as JSONL |
+| `.beads-state` files | Glob `**/.beads-state` | Convert to `scope-events.log` format |
+| `current_iteration.conf` | Glob | Convert to `scope-tracker.jsonl` entries |
+| `quality-config.json` beads section | Check for key | Remove section, prompt for github_issues |
+
+After migration, prints cleanup reminders (delete `.beads/`, `~/.config/beads/credentials`, uninstall dolt, tear down servers).
+
+---
+
+## 18. Files to Remove
+
+| File | Reason |
+|------|--------|
+| `scripts/beads-lifecycle.sh` | Replaced by `github-issues-lifecycle.sh` |
+| `deploy/beads-server/` (entire directory) | No more Dolt server |
+| `process/beads-integration.md` | Replaced by `github-issues-integration.md` |
+| `test/contract/validate-beads-state.sh` | Replaced by scope-events validation |
+| `test/unit/test-beads-lifecycle.bats` | Tests for removed script |
+| `scripts/migrate-knowledge.py` | Absorbed by migrate-from-beads.sh |
+| `.agent_process/requirements_docs/decomposition/decomp_scope_07_*` | Requirement for removed system |
+
+---
+
+## 19. Files to Modify
+
+| File | What Changes |
+|------|-------------|
+| `quality-config.json` | Remove `beads`, add `github_issues` |
+| `process/quality-configuration.md` | Swap config docs |
+| `process/knowledge-base.md` | Single dir, ad-hoc knowledge, ITERATE deposit, discovery |
+| All 10 orchestration files (Section 13) | Lifecycle script swap, KB path |
+| `.gitignore` | Remove beads-server-info entry |
+| `.claude/settings.local.json` | Swap `bd`/`dolt` → `gh` permissions |
+| `claude/commands/ap_exec.md` | Replace beads refs |
+| `claude/commands/ap_brainstorm.md` | Ensure built-in fallback is primary |
+| `install.sh` | Remove BEADS, add GitHub Issues |
+| `README.md` | Remove BEADS/Dolt references |
+
+---
+
+## 20. Files to Create
+
+| File | Purpose |
+|------|---------|
+| `scripts/github-issues-lifecycle.sh` | GitHub Issues lifecycle script |
+| `scripts/migrate-from-beads.sh` | Standalone migration for BEADS users |
+| `process/github-issues-integration.md` | How-to guide |
+| `test/unit/test-github-issues-lifecycle.bats` | Unit tests |
+| `test/contract/validate-scope-events.sh` | Scope events validator |
+
+---
+
+## 21. `github-issues-lifecycle.sh` — Detailed Design
+
+### Actions
+
+| Action | GH Commands | Always Writes Locally |
+|--------|-------------|----------------------|
+| `health-check` | `gh auth status`, `gh repo view` | Nothing |
+| `start {scope}` | `gh issue create/list --repo` | scope-tracker + events |
+| `set-iteration {scope} {N}` | `gh issue comment --repo` | scope-tracker + events |
+| `get-iteration {scope}` | None (reads tracker) | Nothing |
+| `task-create {scope} {id} {desc}` | `gh issue create` + `gh api .../sub_issues` | events |
+| `task-update {scope} {id} {status}` | `gh issue edit/close --repo` | events |
+| `close {scope} {decision}` | `gh issue close` + `--add-label` | scope-tracker + events |
+| `verify {scope}` | `gh issue view --json --repo` | Nothing |
+| `comment {scope} {message}` | `gh issue comment --repo` | events |
+
+### Safety
+
+- `validate_scope_name()` — `[a-zA-Z0-9_-]` only, called first in every action
+- All variables double-quoted in `gh` commands
+- Never `eval` or `source` issue body content
+- `--repo` on every `gh` command
+
+### When Disabled
+
+Writes scope-tracker.jsonl and scope-events.log, then exits 0. No `gh` commands run.
+
+---
+
+## 22. Test Specifications
+
+### Mock Strategy
+
+**PATH override** (same as test-beads-lifecycle.bats): mock `gh` script in `$TEST_DIR/bin/`, records calls, returns configurable output.
+
+### Test Cases Per Action
+
+**health-check:** gh missing → error; not authenticated → error; repo inaccessible → error; version too old → error; all pass → exit 0
+
+**start:** GH disabled → local state only; no existing issue → create + tracker; existing issue → reuse; gh fails → HALT + local state written; bad scope name → rejected
+
+**set-iteration / get-iteration:** Round-trip consistency; GH disabled → tracker only; scope not found → error
+
+**task-create / task-update:** Sub-issue created via `gh api`; GH disabled → events only; validates WU ID
+
+**close:** Closes issue, labels, updates tracker; GH disabled → tracker only
+
+**Transient retry:** Mock 502 first call, 200 second → success; Mock 401 → no retry, immediate HALT
+
+---
+
+## 23. Migration Checklist
+
+### Phase 1: Knowledge System
+Update KB to single directory, add ad-hoc knowledge section, ITERATE deposit.
+
+### Phase 2: Scope Tracker + Events Log
+Design and test the new file formats.
+
+### Phase 3: GitHub Issues Lifecycle (TDD)
+Write tests first, implement against them.
+
+### Phase 4: Update Orchestration (atomic with Phase 3)
+Update all 10+ orchestration files. Merge with Phase 3.
+
+### Phase 5: Update Installation
+Rewrite install.sh. Remove BEADS, add GH prompt.
+
+### Phase 6: Claude Commands & Settings
+Swap permissions and references.
+
+### Phase 7: Remove BEADS
+Delete all files from Section 18. Clean references.
+
+### Phase 8: Migration Script + Docs
+Write migrate-from-beads.sh. Write how-to guide. Update README.
+
+### Phase 9: Testing
+Full test matrix: GH enabled/disabled, fresh/upgrade, halt/resume, migration, merge-friendliness.
+
+---
+
+## 24. Risk Assessment
+
+| Level | Risk | Mitigation |
+|-------|------|-----------|
+| High | Existing `.beads/knowledge/` data | Standalone migration script, per-step permission |
+| High | `gh` rate limiting | Cache in tracker; ~25 calls/scope; 5000/hr headroom |
+| Medium | Label conflicts | `ap:` prefix on all labels |
+| Medium | Polyrepo wrong repo | `--repo` always explicit from config |
+| Medium | Concurrent tracker writes | Per-scope lines don't conflict; one agent per scope |
+| Medium | BEADS users perceive churn | Clear migration, motivation docs, zero data loss |
+| Low | 50 sub-issue limit | Rare; document; comments for overflow |
+| Low | `bd remember` data loss | Migration script explicitly extracts |
+
+---
+
+## 25. Decisions (Resolved)
+
+| # | Question | Decision | Rationale |
+|---|----------|----------|-----------|
+| 1 | Sub-issues vs task lists? | **Sub-issues** | GA all plans; eliminates body-mutation concurrency; proper parent-child |
+| 2 | Per-iteration or per-scope issues? | **Per-scope** | Less noise; iteration tracked in scope-tracker.jsonl + comments |
+| 3 | Health check frequency? | **Preflight only** | Per-command errors caught by `run_gh` wrapper |
+| 4 | Metaswarm compatibility? | **AP wraps in `/ap_*` commands** | Can't modify metaswarm; AP is self-sufficient |
+| 5 | Codex compatibility? | **Works** | gh installed + GH_TOKEN authenticated in Codex |
+| 6 | Session recovery deadlock? | **Not possible** | No network = no LLM = no agent |
+| 7 | Issue body length? | **Keep light — links, not data** | Artifacts in `.agent_process/work/` |
+| 8 | File attachments? | **Not needed** | No API support; issue links to local files |
+| 9 | Script naming? | **`github-issues-lifecycle.sh`** | Names the feature, not the CLI tool |
+| 10 | File-state ownership? | **Lifecycle script owns all writes** | Centralized, consistent, coordinators only read |
