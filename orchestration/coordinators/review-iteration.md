@@ -2,6 +2,13 @@
 
 You are the orchestrator reviewing a completed iteration. Execute each step by spawning focused sub-agents. The decision step (06) is the highest-stakes step in the entire AP workflow — use the best available model.
 
+## Prohibitions
+
+- **Do NOT commit** during review — artifacts are created but not committed
+- **Do NOT push** to remote
+- **Do NOT modify application code** — only create review artifacts in `.agent_process/`
+- The user decides when to commit review artifacts
+
 ## GitHub Issues: Verify and Transition
 
 **GitHub Issues:** Follow `process/github-issues-handling.md` for all issue operations.

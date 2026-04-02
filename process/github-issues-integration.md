@@ -72,6 +72,7 @@ bash .agent_process/scripts/github-issues-lifecycle.sh create-labels
 | `/ap_brainstorm #43` | Reads issue for context, brainstorms, creates requirement, associates scope |
 | `/ap_requirements add #43` | Reads issue for context, creates requirement, associates scope |
 | `plan-scope` (Step 0.5) | Creates issue if none exists yet, sets `status:planning` |
+| `plan-scope` scope-check FAIL | Calls `split` — closes parent with `status:split`, creates child issues |
 | `/ap_exec` preflight (Step 0.4) | Health check — verifies `gh` works and repo is accessible |
 | `/ap_exec` preflight (Step 0.5) | Verifies issue exists; if not, **asks user** for number, 'create', or 'skip' |
 | During execution | Work unit sub-issues created, `status:executing` label |
@@ -91,6 +92,7 @@ bash .agent_process/scripts/github-issues-lifecycle.sh create-labels
 | `status:approved` | Scope approved (issue closed) |
 | `status:iterate` | Needs another iteration |
 | `status:blocked` | Scope blocked (issue closed) |
+| `status:split` | Scope was too large, split into children (issue closed) |
 
 ### File-Based State (Always Active)
 
@@ -148,6 +150,9 @@ bash .agent_process/scripts/github-issues-lifecycle.sh verify <scope>
 
 # Add comment
 bash .agent_process/scripts/github-issues-lifecycle.sh comment <scope> <message>
+
+# Split scope into children (when scope-check fails)
+bash .agent_process/scripts/github-issues-lifecycle.sh split <parent_scope> <child1> <child2> [child3...]
 
 # Create work unit sub-issue
 bash .agent_process/scripts/github-issues-lifecycle.sh task-create <scope> <wu_id> <description>

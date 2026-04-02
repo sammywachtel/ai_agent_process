@@ -9,8 +9,9 @@ This is designed for a separate orchestration session. Key points:
 
 1. **Fresh Session**: Assume no prior context - load all files explicitly using Read tool
 2. **Read-Only Review**: Do not modify application code (only create process artifacts)
-3. **Handoff Required**: Stop and provide summary for human approval before execution
-4. **Implementation Separate**: A different session will execute the work
+3. **No Commits**: Do NOT commit or push — the user decides when to commit planning artifacts
+4. **Handoff Required**: Stop and provide summary for human approval before execution
+5. **Implementation Separate**: A different session will execute the work
 
 **You are NOT the implementation agent.**
 Your role: Plan → Review Code → Decide → Handoff to implementation

@@ -30,6 +30,9 @@ bash .agent_process/scripts/github-issues-lifecycle.sh comment <scope> "message"
 bash .agent_process/scripts/github-issues-lifecycle.sh close <scope> <decision>
 bash .agent_process/scripts/github-issues-lifecycle.sh verify <scope>
 
+# Scope splitting (when scope fails size gate)
+bash .agent_process/scripts/github-issues-lifecycle.sh split <parent_scope> <child1> <child2> [child3...]
+
 # Work unit management
 bash .agent_process/scripts/github-issues-lifecycle.sh task-create <scope> <wu-id> <description>
 bash .agent_process/scripts/github-issues-lifecycle.sh task-update <scope> <wu-id> <status>
@@ -48,6 +51,7 @@ The script handles `--repo`, retries, label management, and tracker updates inte
 | APPROVE decision | `status:approved` | Issue closed |
 | ITERATE decision | `status:iterate` | Needs another pass |
 | BLOCK decision | `status:blocked` | Issue closed |
+| Scope split | `status:split` | Parent issue closed, child issues created |
 
 Use `set-status` to transition between labels. The script removes old `status:*` labels before applying the new one.
 
@@ -77,6 +81,32 @@ When a pipeline step needs a GH issue for a scope:
 ```
 
 **Key rule:** `scope-tracker.jsonl`'s `gh_issue` field is the single source of truth. Whoever sets it first wins. Subsequent steps adopt it.
+
+## 4.1. Split Handling (Scope Size Gate Failure)
+
+When a scope fails the hard size gate during planning (too many criteria, files, or subsystems):
+
+```
+1. Scope-check coordinator returns FAIL with recommended breakdown
+   │
+2. Planning coordinator calls: lifecycle.sh split <parent> <child1> <child2> ...
+   │
+   ├─ Tracker updates:
+   │  ├─ Parent scope: status="split", split_into=[child1, child2, ...]
+   │  └─ Each child: status="pending", split_from=parent
+   │
+   └─ GH operations (if enabled):
+      ├─ Create child issues with body: "Split from #N (parent_scope)"
+      ├─ Comment on parent: "Scope split into smaller pieces: #A, #B, #C"
+      ├─ Add status:split label to parent
+      └─ Close parent issue
+```
+
+**Key rules:**
+- Child scopes are **independent** — they can be planned/executed in any order
+- Parent issue is **closed** — all future work happens on child issues
+- Child tracker entries have `split_from` field linking back to parent
+- Child issues are regular `ap:scope` issues (no special `ap:child` label needed)
 
 ## 5. Context File
 

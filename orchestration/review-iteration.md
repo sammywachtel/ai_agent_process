@@ -9,8 +9,9 @@ This is designed for a separate orchestration session. Key points:
 
 1. **Fresh Session**: Assume no prior context - load all files explicitly using Read tool
 2. **Read-Only Review**: Do not modify application code (only create review artifacts)
-3. **Code Verification Required**: Read actual files to verify implementation (don't just trust documentation)
-4. **Implementation Separate**: You are reviewing work done by a different session
+3. **No Commits**: Do NOT commit or push — the user decides when to commit review artifacts
+4. **Code Verification Required**: Read actual files to verify implementation (don't just trust documentation)
+5. **Implementation Separate**: You are reviewing work done by a different session
 
 **You are NOT the implementation agent.**
 Your role: Load → Review Code → Decide → Document

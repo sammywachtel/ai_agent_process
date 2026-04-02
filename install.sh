@@ -305,6 +305,7 @@ if [[ "$FEAT_GH" == "yes" ]]; then
       "status:blocked:#B60205"
       "status:review:#6F42C1"
       "status:done:#0E8A16"
+      "status:split:#D93F0B"
     )
     LABELS_CREATED=0
     for label_entry in "${AP_LABELS[@]}"; do

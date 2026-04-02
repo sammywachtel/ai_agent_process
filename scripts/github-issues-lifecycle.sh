@@ -7,6 +7,7 @@
 #
 # Usage:
 #   bash scripts/github-issues-lifecycle.sh health-check
+#   bash scripts/github-issues-lifecycle.sh create-labels
 #   bash scripts/github-issues-lifecycle.sh start <scope>
 #   bash scripts/github-issues-lifecycle.sh associate <scope> <issue_number_or_url>
 #   bash scripts/github-issues-lifecycle.sh set-status <scope> <label>
@@ -17,6 +18,7 @@
 #   bash scripts/github-issues-lifecycle.sh close <scope> <decision>
 #   bash scripts/github-issues-lifecycle.sh verify <scope>
 #   bash scripts/github-issues-lifecycle.sh comment <scope> <message>
+#   bash scripts/github-issues-lifecycle.sh split <parent_scope> <child1> <child2> [child3...]
 #
 # Config: reads .agent_process/quality-config.json
 #   github_issues.enabled = true/false
@@ -31,7 +33,7 @@ source "${SCRIPT_DIR}/lib/tracker-utils.sh"
 # --- Parse action ---
 ACTION="${1:-}"
 if [[ -z "$ACTION" ]]; then
-  echo "Usage: github-issues-lifecycle.sh <health-check|start|associate|set-status|set-iteration|get-iteration|task-create|task-update|close|verify|comment> [args...]" >&2
+  echo "Usage: github-issues-lifecycle.sh <health-check|create-labels|start|associate|set-status|set-iteration|get-iteration|task-create|task-update|close|verify|comment|split> [args...]" >&2
   exit 1
 fi
 
@@ -90,7 +92,7 @@ run_gh() {
 
 # --- Label management (idempotent) ---
 
-REQUIRED_LABELS="ap:scope status:active status:approved status:blocked status:complete status:planning status:executing status:reviewing status:iterate"
+REQUIRED_LABELS="ap:scope status:active status:approved status:blocked status:complete status:planning status:executing status:reviewing status:iterate status:split"
 
 ensure_labels() {
   [[ "$GH_ENABLED" != "true" ]] && return 0
@@ -103,6 +105,32 @@ ensure_labels() {
       run_gh gh label create "$label" --repo "$REPO" --force >/dev/null || true
     fi
   done
+}
+
+do_create_labels() {
+  if [[ "$GH_ENABLED" != "true" ]]; then
+    echo "[gh-issues] GH disabled — no labels to create"
+    return 0
+  fi
+
+  echo "[gh-issues] Ensuring labels exist in $REPO..."
+  local existing created=0
+  existing=$(run_gh gh label list --repo "$REPO" --limit 100) || existing=""
+
+  for label in $REQUIRED_LABELS; do
+    if ! echo "$existing" | grep -q "^${label}"; then
+      if run_gh gh label create "$label" --repo "$REPO" --force >/dev/null 2>&1; then
+        echo "  Created: $label"
+        created=$((created + 1))
+      fi
+    fi
+  done
+
+  if [[ $created -eq 0 ]]; then
+    echo "[gh-issues] All labels already exist"
+  else
+    echo "[gh-issues] Created $created new label(s)"
+  fi
 }
 
 # --- Parse issue number from #43, 43, or full URL ---
@@ -654,11 +682,124 @@ do_comment() {
   echo "[gh-issues] Comment added to #$issue_num"
 }
 
+do_split() {
+  local parent_scope="$1"
+  shift
+  local child_scopes=("$@")
+
+  validate_scope_name "$parent_scope" || return 1
+
+  if [[ ${#child_scopes[@]} -lt 2 ]]; then
+    echo "ERROR: split requires at least 2 child scopes" >&2
+    return 1
+  fi
+
+  for child in "${child_scopes[@]}"; do
+    validate_scope_name "$child" || return 1
+  done
+
+  local ts
+  ts=$(_timestamp)
+
+  # Update parent tracker: mark as split with child references
+  local parent_current
+  parent_current=$(tracker_read_scope "$parent_scope")
+  if [[ -z "$parent_current" ]]; then
+    echo "ERROR: Parent scope '$parent_scope' not found in tracker" >&2
+    return 1
+  fi
+
+  local children_json
+  children_json=$(printf '%s\n' "${child_scopes[@]}" | jq -R . | jq -sc .)
+
+  if command -v jq &>/dev/null; then
+    tracker_write_scope "$parent_scope" "$(echo "$parent_current" | jq -c \
+      --arg st "split" \
+      --argjson children "$children_json" \
+      '. + {status: $st, split_into: $children}')"
+  fi
+
+  events_log "$parent_scope" "SCOPE_SPLIT" "children=${child_scopes[*]}"
+
+  # Create tracker entries for each child (minimal — they get fully initialized at plan time)
+  for child in "${child_scopes[@]}"; do
+    local existing
+    existing=$(tracker_read_scope "$child")
+    if [[ -z "$existing" ]]; then
+      if command -v jq &>/dev/null; then
+        tracker_write_scope "$child" "$(jq -n -c \
+          --arg s "$child" \
+          --arg t "$ts" \
+          --arg p "$parent_scope" \
+          '{scope: $s, status: "pending", created: $t, iteration: "iteration_01", split_from: $p}')"
+      else
+        tracker_write_scope "$child" "{\"scope\":\"$child\",\"status\":\"pending\",\"created\":\"$ts\",\"iteration\":\"iteration_01\",\"split_from\":\"$parent_scope\"}"
+      fi
+    fi
+  done
+
+  if [[ "$GH_ENABLED" != "true" ]]; then
+    echo "[gh-issues] GH disabled — split recorded locally: $parent_scope → ${child_scopes[*]}"
+    return 0
+  fi
+
+  ensure_labels
+
+  local parent_issue
+  parent_issue=$(tracker_get_field "$parent_scope" "gh_issue")
+
+  # Create child issues with reference to parent
+  local created_children=()
+  for child in "${child_scopes[@]}"; do
+    local body="Split from #${parent_issue:-N/A} ($parent_scope)"
+    local child_output child_num
+
+    if child_output=$(run_gh gh issue create --repo "$REPO" \
+      --title "$child" \
+      --body "$body" \
+      --label "ap:scope"); then
+      child_num=$(echo "$child_output" | grep -o '[0-9]*$')
+      created_children+=("#$child_num")
+
+      # Update child tracker with gh_issue
+      local child_current
+      child_current=$(tracker_read_scope "$child")
+      if [[ -n "$child_current" ]] && command -v jq &>/dev/null; then
+        tracker_write_scope "$child" "$(echo "$child_current" | jq -c --arg n "$child_num" '. + {gh_issue: $n}')"
+      fi
+
+      echo "[gh-issues] Created child issue #$child_num for $child"
+    else
+      echo "[gh-issues] WARNING: Failed to create issue for child $child" >&2
+    fi
+  done
+
+  # Close parent issue with status:split and summary comment
+  if [[ -n "$parent_issue" ]]; then
+    local split_comment="Scope split into smaller pieces:
+
+${created_children[*]}
+
+This issue is now closed. Track progress on the child issues above."
+
+    run_gh gh issue comment "$parent_issue" --repo "$REPO" --body "$split_comment" >/dev/null 2>&1 || true
+    run_gh gh issue edit "$parent_issue" --repo "$REPO" --add-label "status:split" >/dev/null 2>&1 || true
+    run_gh gh issue close "$parent_issue" --repo "$REPO" >/dev/null 2>&1 || true
+
+    echo "[gh-issues] Closed parent issue #$parent_issue with status:split"
+  fi
+
+  echo "[gh-issues] Split complete: $parent_scope → ${child_scopes[*]}"
+}
+
 # --- Route actions ---
 
 case "$ACTION" in
   health-check)
     do_health_check
+    ;;
+  create-labels)
+    do_create_labels
     ;;
   start)
     SCOPE="${2:-}"
@@ -719,9 +860,16 @@ case "$ACTION" in
     [[ -z "$SCOPE" || -z "$MESSAGE" ]] && { echo "Usage: github-issues-lifecycle.sh comment <scope> <message>" >&2; exit 1; }
     do_comment "$SCOPE" "$MESSAGE"
     ;;
+  split)
+    PARENT_SCOPE="${2:-}"
+    shift 2 2>/dev/null || shift $#
+    CHILD_SCOPES=("$@")
+    [[ -z "$PARENT_SCOPE" || ${#CHILD_SCOPES[@]} -lt 2 ]] && { echo "Usage: github-issues-lifecycle.sh split <parent_scope> <child1> <child2> [child3...]" >&2; exit 1; }
+    do_split "$PARENT_SCOPE" "${CHILD_SCOPES[@]}"
+    ;;
   *)
     echo "ERROR: Unknown action '$ACTION'" >&2
-    echo "Valid actions: health-check, start, associate, set-status, set-iteration, get-iteration, task-create, task-update, close, verify, comment" >&2
+    echo "Valid actions: health-check, create-labels, start, associate, set-status, set-iteration, get-iteration, task-create, task-update, close, verify, comment, split" >&2
     exit 1
     ;;
 esac

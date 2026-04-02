@@ -8,6 +8,13 @@ You are orchestrating the scope planning workflow. Execute each step by spawning
 
 If GH issues are enabled, the issue should exist by the time planning starts. Step 0.5 below handles creation/adoption — this ensures the issue is available for the entire pipeline, not deferred to execution.
 
+## Prohibitions
+
+- **Do NOT commit** during planning — artifacts are created but not committed
+- **Do NOT push** to remote
+- **Do NOT modify application code** — only create process artifacts in `.agent_process/`
+- The user decides when to commit planning artifacts
+
 ## Inputs
 
 - **Requirement path:** provided by the prompt template (e.g., `decomposition/decomp_scope_01_planning.md`)
@@ -66,7 +73,29 @@ Read `orchestration/steps/planning/01-scope-check.md`.
 Spawn a **cheap** sub-agent with that prompt. Pass the requirement file path as context.
 
 - **Output:** `.run/planning/01-scope-check.md`
-- **Gate logic:** If output contains `VERDICT: FAIL` → **STOP**. Tell the user the scope must be split. Offer to run the automated breakdown process (see the step file for details). Do NOT proceed to Step 02.
+- **Gate logic:** If output contains `VERDICT: FAIL` → **STOP NORMAL PLANNING**. Offer the user two options:
+  1. **Run automated breakdown** → Proceed to Step 01b
+  2. **Add scope_override to requirement** → User manually edits, then re-run Step 01
+
+Do NOT proceed to Step 02 until scope check passes.
+
+### Step 01b: Scope Breakdown (CONDITIONAL — only if Step 01 FAIL)
+
+Read `orchestration/steps/planning/01b-scope-breakdown.md`.
+
+This step runs the full breakdown process:
+1. **Architectural review** — 2-3 capable reviewers analyze the entire requirement before splitting
+2. **Dependency mapping** — Identify internal dependencies and execution order
+3. **Create children** — Generate `{id}-01.md`, `{id}-02.md`, etc. (preserving original name)
+4. **Create breakdown file** — Rename original to `{id}-breakdown.md`
+5. **GitHub Issues** — Call `lifecycle.sh split` if enabled
+
+**Naming rule (CRITICAL):** Children use sequential suffixes, NOT descriptive names:
+- CORRECT: `phase_07_user_log-01.md`, `phase_07_user_log-02.md`
+- WRONG: `phase_07_user_log_entity_linking.md`, `phase_07_user_log_review_ux.md`
+
+- **Output:** `.run/planning/01b-breakdown.md` + child requirement files
+- **After completion:** Each child can be planned via a separate `plan-scope` invocation. Do NOT continue to Step 02 for the original scope — it no longer exists as a plannable unit.
 
 ### Step 02: Derive Folder Name
 
@@ -193,6 +222,7 @@ After all steps complete, provide the handoff summary to the user:
 Before presenting the handoff, verify all `.run/planning/` output files exist:
 
 - [ ] `.run/planning/01-scope-check.md`
+- [ ] `.run/planning/01b-breakdown.md` (only if scope was split — if present, planning stops here)
 - [ ] `.run/planning/02-folder-name.txt`
 - [ ] `.run/planning/025-knowledge.md`
 - [ ] `.run/planning/03-code-review.md`
