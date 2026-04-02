@@ -588,9 +588,14 @@ do_task_create() {
   child_num=$(echo "$child_output" | grep -o '[0-9]*$')
 
   # Link as sub-issue via API
+  # Note: The API requires the issue ID (large integer), not the issue number
   if [[ -n "$child_num" ]]; then
-    run_gh gh api "repos/$OWNER/$REPONAME/issues/$parent_num/sub_issues" \
-      -f sub_issue_id="$child_num" >/dev/null 2>&1 || true
+    local child_id
+    child_id=$(run_gh gh api "repos/$OWNER/$REPONAME/issues/$child_num" --jq '.id' 2>/dev/null)
+    if [[ -n "$child_id" ]]; then
+      run_gh gh api "repos/$OWNER/$REPONAME/issues/$parent_num/sub_issues" \
+        -F sub_issue_id="$child_id" >/dev/null 2>&1 || true
+    fi
     echo "[gh-issues] Created sub-issue #$child_num ($wu_id) under #$parent_num"
   fi
 }
@@ -819,6 +824,18 @@ do_split() {
       child_current=$(tracker_read_scope "$child")
       if [[ -n "$child_current" ]] && command -v jq &>/dev/null; then
         tracker_write_scope "$child" "$(echo "$child_current" | jq -c --arg n "$child_num" '. + {gh_issue: $n}')"
+      fi
+
+      # Link as sub-issue via API (creates parent-child relationship in GitHub UI)
+      # Note: The API requires the issue ID (large integer), not the issue number
+      if [[ -n "$parent_issue" ]]; then
+        local child_id
+        child_id=$(run_gh gh api "repos/$OWNER/$REPONAME/issues/$child_num" --jq '.id' 2>/dev/null)
+        if [[ -n "$child_id" ]]; then
+          run_gh gh api "repos/$OWNER/$REPONAME/issues/$parent_issue/sub_issues" \
+            -F sub_issue_id="$child_id" >/dev/null 2>&1 || \
+            echo "[gh-issues] WARNING: Could not link #$child_num as sub-issue of #$parent_issue" >&2
+        fi
       fi
 
       echo "[gh-issues] Created child issue #$child_num for $child"
