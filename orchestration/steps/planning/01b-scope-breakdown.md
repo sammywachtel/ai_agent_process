@@ -212,16 +212,20 @@ depends_on: [{list of child IDs this depends on, if any}]
 
 This prevents creating children that will immediately fail when planned. The breakdown isn't done until all children pass.
 
-### Validation Loop
+### Validation (Parallel Sub-Agents)
 
-For each child requirement file created in Phase 3:
+Spawn **cheap** sub-agents in parallel — one per child — to run scope-check simultaneously:
 
-1. **Run scope-check** — Use the same logic as `orchestration/steps/planning/01-scope-check.md`:
-   - Count acceptance criteria (target: 3-7)
-   - Count expected files (target: ≤12)
-   - Count subsystems touched (target: 1-3)
+1. **Spawn parallel validators:**
+   ```
+   For each child ({id}-01, {id}-02, {id}-03, ...):
+     Spawn cheap sub-agent with:
+       - Input: child requirement file path
+       - Task: Run scope-check logic from `orchestration/steps/planning/01-scope-check.md`
+       - Output: PASS/FAIL + metrics (criteria count, file count, subsystem count)
+   ```
 
-2. **Record result:**
+2. **Wait for all to complete, then aggregate:**
    ```markdown
    | Child | Criteria | Files | Subsystems | Verdict |
    |-------|----------|-------|------------|---------|
@@ -236,7 +240,7 @@ For each child requirement file created in Phase 3:
      - Split the failing child further (create -02a, -02b OR renumber as -02, -03, -04...)
      - Move criteria between children to rebalance
      - Create an additional child to absorb overflow
-   - Re-validate ALL children (not just the adjusted ones)
+   - **Re-validate ALL children in parallel** (spawn new batch of sub-agents)
    - **Max 2 adjustment cycles** — if still failing after 2 adjustments, escalate to human
 
 4. **If ALL children pass:** Proceed to Phase 5
