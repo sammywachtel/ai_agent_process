@@ -373,15 +373,27 @@ json.dump(cfg, open(path, 'w'), indent=2)
   echo -e "${GREEN}  ✓${NC} Removed legacy 'beads' key from quality-config.json"
 }
 
-# ─── Remove AGENTS.md if it contains BEADS instructions ───────────────
-# Metaswarm injects BEADS integration into AGENTS.md, which causes agents
-# to run `bd onboard` and `bd prime` during AP orchestration. AP doesn't
-# use BEADS, so we remove this file to prevent confusion.
+# ─── Remove BEADS-related files ───────────────────────────────────────
+# AP doesn't use BEADS. Remove any BEADS artifacts to prevent agents from
+# running bd commands during orchestration.
+
+# Remove AGENTS.md if it contains BEADS instructions
 if [[ -f "$TARGET_DIR/AGENTS.md" ]]; then
   if grep -q "BEADS INTEGRATION\|bd prime\|bd onboard\|beads.*issue" "$TARGET_DIR/AGENTS.md" 2>/dev/null; then
     rm -f "$TARGET_DIR/AGENTS.md"
-    echo -e "${GREEN}  ✓${NC} Removed AGENTS.md (contained BEADS instructions incompatible with AP)"
+    echo -e "${GREEN}  ✓${NC} Removed AGENTS.md (contained BEADS instructions)"
   fi
+fi
+
+# Remove beads-integration.md from process directory (legacy file)
+if [[ -f "$AGENT_PROCESS_DIR/process/beads-integration.md" ]]; then
+  rm -f "$AGENT_PROCESS_DIR/process/beads-integration.md"
+  echo -e "${GREEN}  ✓${NC} Removed legacy beads-integration.md"
+fi
+
+# Remove .beads directory if it exists
+if [[ -d "$TARGET_DIR/.beads" ]]; then
+  echo -e "${YELLOW}  ⊙${NC} Found .beads/ directory — run ${GREEN}scripts/migrate-from-beads.sh${NC} to clean up"
 fi
 
 # ─── Metaswarm Setup (if enabled) ─────────────────────────────────────
