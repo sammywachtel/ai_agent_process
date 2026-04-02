@@ -120,6 +120,30 @@ For projects where the AP framework lives in a different repo than the code:
 
 The `repo` field is passed as `--repo` to every `gh` command, so issues are created in the correct repository regardless of which repo you're working in.
 
+### Nested Repos (Monorepo with Sub-repos)
+
+If your project has nested git repositories (e.g., a root repo containing multiple sub-repos), the lifecycle script automatically handles this:
+
+1. **AP Root Detection** — If you run commands from a sub-repo, the script traverses up to find `.agent_process/` and operates from there.
+
+2. **Git Remote Info** — If the current git remote differs from the configured `github_issues.repo`, the script logs an informational message but continues. This is expected in polyrepo setups where issues are tracked in a central repo.
+
+**Example structure:**
+```
+stratum-root/           ← AP installed here, issues tracked in stratum-root repo
+├── .agent_process/
+├── stratum/            ← nested git repo (different remote)
+├── stratum-clin/       ← nested git repo (different remote)
+└── ai-lab/             ← nested git repo (different remote)
+```
+
+Running `lifecycle.sh` from `stratum-root/stratum/` will:
+1. Detect no `.agent_process/` in cwd
+2. Find AP root at `stratum-root/`
+3. Change to that directory
+4. Log: "Not at AP root. Changing to: /path/to/stratum-root"
+5. Continue with the command
+
 ---
 
 ## The Lifecycle Script

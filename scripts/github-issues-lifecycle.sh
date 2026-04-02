@@ -37,6 +37,37 @@ if [[ -z "$ACTION" ]]; then
   exit 1
 fi
 
+# --- AP Root Detection (polyrepo support) ---
+# If .agent_process/ doesn't exist in cwd, traverse up to find it.
+# This handles nested repos where the agent may be in a sub-repo.
+
+find_ap_root() {
+  local dir="$PWD"
+  while [[ "$dir" != "/" ]]; do
+    if [[ -d "$dir/.agent_process" ]]; then
+      echo "$dir"
+      return 0
+    fi
+    dir=$(dirname "$dir")
+  done
+  return 1
+}
+
+AP_ROOT=""
+if [[ ! -d ".agent_process" ]]; then
+  AP_ROOT=$(find_ap_root)
+  if [[ -n "$AP_ROOT" ]]; then
+    echo "[gh-issues] Not at AP root. Changing to: $AP_ROOT" >&2
+    cd "$AP_ROOT" || { echo "ERROR: Failed to cd to AP root" >&2; exit 1; }
+  else
+    echo "ERROR: No .agent_process/ found in current directory or any parent." >&2
+    echo "HINT: Run this script from your project root, or ensure AP is installed." >&2
+    exit 1
+  fi
+else
+  AP_ROOT="$PWD"
+fi
+
 # --- Config reading ---
 CONFIG_FILE=".agent_process/quality-config.json"
 GH_ENABLED="false"
@@ -56,6 +87,16 @@ REPONAME=""
 if [[ -n "$REPO" && "$REPO" == *"/"* ]]; then
   OWNER="${REPO%%/*}"
   REPONAME="${REPO##*/}"
+fi
+
+# --- Git Remote Sanity Check (polyrepo support) ---
+# Warn if current git repo doesn't match configured repo — may indicate misconfiguration.
+if [[ "$GH_ENABLED" == "true" && -n "$REPO" ]]; then
+  CURRENT_REMOTE=$(git remote get-url origin 2>/dev/null | sed -E 's|.*github\.com[:/]([^/]+/[^/.]+)(\.git)?$|\1|')
+  if [[ -n "$CURRENT_REMOTE" && "$CURRENT_REMOTE" != "$REPO" ]]; then
+    echo "[gh-issues] INFO: Git remote ($CURRENT_REMOTE) differs from configured repo ($REPO)" >&2
+    echo "[gh-issues] This is expected in polyrepo setups where issues are tracked centrally." >&2
+  fi
 fi
 
 # --- Input validation ---
