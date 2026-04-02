@@ -341,5 +341,36 @@ if [[ -f "$TARGET_DIR/AGENTS.md" ]]; then
   fi
 fi
 
+# Auto-remove BEADS scripts from scripts directory
+beads_scripts_found=()
+for script in "beads-lifecycle.sh" "validate-beads-state.sh" "migrate-knowledge.py"; do
+  if [[ -f "$AP_DIR/scripts/$script" ]]; then
+    beads_scripts_found+=("$script")
+  fi
+done
+
+if [[ ${#beads_scripts_found[@]} -gt 0 ]]; then
+  echo ""
+  echo -e "Found ${#beads_scripts_found[@]} legacy BEADS scripts: ${beads_scripts_found[*]}"
+  if ask_yn "Remove these BEADS scripts?"; then
+    for script in "${beads_scripts_found[@]}"; do
+      rm -f "$AP_DIR/scripts/$script"
+      echo -e "  ${GREEN}Removed $script${NC}"
+    done
+  else
+    echo "  Skipped."
+  fi
+fi
+
+# Auto-remove beads-integration.md from process directory
+if [[ -f "$AP_DIR/process/beads-integration.md" ]]; then
+  if ask_yn "Remove beads-integration.md (legacy BEADS process file)?"; then
+    rm -f "$AP_DIR/process/beads-integration.md"
+    echo -e "  ${GREEN}Removed beads-integration.md${NC}"
+  else
+    echo "  Skipped."
+  fi
+fi
+
 echo ""
 echo "Other cleanups are manual — this script doesn't delete source artifacts without asking."

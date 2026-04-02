@@ -391,6 +391,14 @@ if [[ -f "$AGENT_PROCESS_DIR/process/beads-integration.md" ]]; then
   echo -e "${GREEN}  ✓${NC} Removed legacy beads-integration.md"
 fi
 
+# Remove BEADS scripts from scripts directory (legacy files)
+for beads_script in "beads-lifecycle.sh" "validate-beads-state.sh" "migrate-knowledge.py"; do
+  if [[ -f "$AGENT_PROCESS_DIR/scripts/$beads_script" ]]; then
+    rm -f "$AGENT_PROCESS_DIR/scripts/$beads_script"
+    echo -e "${GREEN}  ✓${NC} Removed legacy $beads_script"
+  fi
+done
+
 # Remove .beads directory if it exists
 if [[ -d "$TARGET_DIR/.beads" ]]; then
   echo -e "${YELLOW}  ⊙${NC} Found .beads/ directory — run ${GREEN}scripts/migrate-from-beads.sh${NC} to clean up"
