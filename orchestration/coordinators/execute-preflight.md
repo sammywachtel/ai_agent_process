@@ -2,9 +2,11 @@
 
 You are running pre-flight checks before implementation begins. These checks catch common problems that waste iteration time. After preflight completes, the main execution prompt takes over with full Agent/Task tool access.
 
-## Important: No Lifecycle Commands During Preflight Sub-agents
+## GitHub Issues: Verify and Ask
 
-GitHub Issues lifecycle is handled by a direct bash call below (Steps 0.4–0.5), not by sub-agents. Sub-agents should not call `github-issues-lifecycle.sh`.
+**GitHub Issues:** Follow `process/github-issues-handling.md` for all issue operations.
+
+Steps 0.4–0.5 handle GH issue verification. If no issue exists, the preflight *asks the user* rather than auto-creating — the user may have a pre-existing issue the agent can't find.
 
 ## Inputs
 
@@ -42,20 +44,39 @@ These instructions are ADDITIVE — they augment but never skip default steps.
 If `github_issues.enabled` is true in `quality-config.json`, run:
 
 ```bash
-bash .agent_process/scripts/github-issues-lifecycle.sh health
+bash .agent_process/scripts/github-issues-lifecycle.sh health-check
 ```
 
 If this exits non-zero, STOP and tell the user: "GitHub Issues integration is enabled but the health check failed."
 
-### Step 0.5: Scope Tracking Init (direct bash — not a sub-agent)
+### Step 0.5: GitHub Issues Verification (conditional)
 
-Run this directly — do not spawn a sub-agent:
+If `github_issues.enabled` is true in `quality-config.json`:
+
+Spawn a **cheap** sub-agent with `process/github-issues-handling.md` as input:
+
+**Task:**
+1. Read `scope-tracker.jsonl` for `{scope}`'s `gh_issue` field
+2. **If `gh_issue` exists:**
+   - Run `lifecycle.sh start {scope}` (adopts and verifies)
+   - Run `lifecycle.sh set-status {scope} status:executing`
+   - Continue
+3. **If `gh_issue` does NOT exist:**
+   - **ASK the user:** "No GitHub Issue found for scope '{scope}'. Do you have an existing issue? Enter the number/link, say 'create' for a new one, or 'skip' to continue without."
+   - If user provides number: `lifecycle.sh associate {scope} {number}`, then `lifecycle.sh set-status {scope} status:executing`
+   - If user says create: `lifecycle.sh start {scope}`, then `lifecycle.sh set-status {scope} status:executing`
+   - If user says skip: continue without GH issue, log warning
+4. Return updated `.run/gh-issue-context.md`
+
+**Input:** `process/github-issues-handling.md` + `.run/gh-issue-context.md` (if exists)
+
+If GH is disabled, also run scope tracking init for local state:
 
 ```bash
-bash .agent_process/scripts/github-issues-lifecycle.sh start {scope} {iteration}
+bash .agent_process/scripts/github-issues-lifecycle.sh start {scope}
 ```
 
-Replace `{iteration}` and `{scope}` with actual values. If this exits non-zero, STOP and tell the user: "Scope tracking failed to initialize."
+If this exits non-zero, STOP and tell the user: "Scope tracking failed to initialize."
 
 ### Step 0.7: Pre-flight Checks
 

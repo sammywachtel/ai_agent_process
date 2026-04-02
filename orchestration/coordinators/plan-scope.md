@@ -2,9 +2,11 @@
 
 You are orchestrating the scope planning workflow. Execute each step by spawning a focused sub-agent with ONLY that step's prompt file. Never embed step logic inline — the whole point is each sub-agent sees only its ~40-80 lines.
 
-## Important: No Lifecycle Commands During Planning
+## GitHub Issues: Create or Adopt at Planning Time
 
-**Do NOT run `github-issues-lifecycle.sh` during planning.** Lifecycle tracking is managed by the execution phase (`ap_exec` Step 0.5). Planning only produces the iteration plan and supporting artifacts — lifecycle state is initialized when execution begins.
+**GitHub Issues:** Follow `process/github-issues-handling.md` for all issue operations.
+
+If GH issues are enabled, the issue should exist by the time planning starts. Step 0.5 below handles creation/adoption — this ensures the issue is available for the entire pipeline, not deferred to execution.
 
 ## Inputs
 
@@ -41,6 +43,21 @@ Read `.agent_process/process/local_environment_instructions.md` before starting 
 ---
 
 ## Step Sequence
+
+### Step 0.5: GitHub Issues Check (conditional)
+
+Check `quality-config.json` for `github_issues.enabled`:
+
+**If GH enabled:**
+
+Spawn a **cheap** sub-agent with `process/github-issues-handling.md` as input:
+- **Task:** "Check GH issue for scope {scope}. If `gh_issue` exists in tracker, run `lifecycle.sh start {scope}` to adopt. If not, run `lifecycle.sh start {scope}` to create. Then run `lifecycle.sh set-status {scope} status:planning`. Return the updated `.run/gh-issue-context.md`."
+- **Input:** `process/github-issues-handling.md` + `.run/gh-issue-context.md` (if exists)
+- **Output:** `.agent_process/work/{scope}/.run/gh-issue-context.md`
+
+If the sub-agent reports failure (issue creation failed, HALT), log a warning but **do not block planning**. Planning can proceed without a GH issue — execution will pick it up later.
+
+**If GH disabled:** Skip entirely.
 
 ### Step 01: Scope Check (HARD GATE)
 
