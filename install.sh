@@ -373,6 +373,17 @@ json.dump(cfg, open(path, 'w'), indent=2)
   echo -e "${GREEN}  ✓${NC} Removed legacy 'beads' key from quality-config.json"
 }
 
+# ─── Remove AGENTS.md if it contains BEADS instructions ───────────────
+# Metaswarm injects BEADS integration into AGENTS.md, which causes agents
+# to run `bd onboard` and `bd prime` during AP orchestration. AP doesn't
+# use BEADS, so we remove this file to prevent confusion.
+if [[ -f "$TARGET_DIR/AGENTS.md" ]]; then
+  if grep -q "BEADS INTEGRATION\|bd prime\|bd onboard\|beads.*issue" "$TARGET_DIR/AGENTS.md" 2>/dev/null; then
+    rm -f "$TARGET_DIR/AGENTS.md"
+    echo -e "${GREEN}  ✓${NC} Removed AGENTS.md (contained BEADS instructions incompatible with AP)"
+  fi
+fi
+
 # ─── Metaswarm Setup (if enabled) ─────────────────────────────────────
 if [[ "$FEAT_METASWARM" == "yes" ]]; then
   echo ""

@@ -329,5 +329,17 @@ if command -v bd &>/dev/null; then
 fi
 
 echo -e "  - Tear down Dolt server (if any): Check your infrastructure docs"
+# Auto-remove AGENTS.md if it contains BEADS instructions
+if [[ -f "$TARGET_DIR/AGENTS.md" ]]; then
+  if grep -q "BEADS INTEGRATION\|bd prime\|bd onboard\|beads.*issue" "$TARGET_DIR/AGENTS.md" 2>/dev/null; then
+    if ask_yn "Remove AGENTS.md (contains BEADS instructions)?"; then
+      rm -f "$TARGET_DIR/AGENTS.md"
+      echo -e "  ${GREEN}Removed AGENTS.md${NC}"
+    else
+      echo "  Skipped."
+    fi
+  fi
+fi
+
 echo ""
-echo "These cleanups are manual — this script never deletes source artifacts."
+echo "Other cleanups are manual — this script doesn't delete source artifacts without asking."
