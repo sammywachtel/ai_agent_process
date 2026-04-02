@@ -39,9 +39,8 @@
     "max_reviewers": 4
   },
 
-  "beads": {
-    "enabled": true,
-    "auto_install": true
+  "github_issues": {
+    "enabled": false
   },
 
   "pr_shepherd": {
