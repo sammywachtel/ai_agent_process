@@ -312,8 +312,9 @@ Rename the original file to `{id}-breakdown.md` and prepend:
 id: {original_id}
 type: breakdown
 category: {original}
-status: not_started
+status: split
 priority: {original}
+children: [{id}-01, {id}-02, {id}-03]
 ---
 
 # {Original Title} — BREAKDOWN
