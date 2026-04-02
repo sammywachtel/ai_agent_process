@@ -96,7 +96,7 @@ The AI Agent Process solves a common problem: AI-assisted development often beco
 | **PR Shepherd** | Post-PR agent monitoring CI, reviews, and merge-readiness |
 | **Design Review Gate** | Multi-reviewer plan assessment for complex scopes (opt-in) |
 | **Quality Configuration** | Centralized feature control via `quality-config.json` |
-| **GitHub Issues Integration** | Optional scope and work unit tracking via GitHub Issues |
+| **GitHub Issues Integration** | Issue-first workflow with optional scope and work unit tracking via GitHub Issues |
 | **Metaswarm Integration** | Optional multi-agent brainstorming, design review, PR automation (opt-in) |
 
 ---
@@ -170,23 +170,23 @@ The complete lifecycle from idea to acceptance, with all optional features enabl
 │                                                                       │
 │  ┌─── IDEATION ─────────────────────────────────────────────────────┐ │
 │  │                                                                  │ │
-│  │  Vague idea?            Clear requirement?    Existing spec?     │ │
-│  │  ────────────           ──────────────────    ──────────────     │ │
-│  │  /ap_brainstorm "idea"  /ap_requirements      /ap_requirements   │ │
-│  │    │                      add "title"           import "file"    │ │
-│  │    ├─ Product agent              │                   │           │ │
-│  │    ├─ Architecture agent         │                   │           │ │
-│  │    ├─ Critical agent             │                   │           │ │
-│  │    ▼                             │                   │           │ │
-│  │  Brainstorm synthesis            │                   │           │ │
-│  │    │                             │                   │           │ │
-│  │    ├─ Optional: design review    │                   │           │ │
-│  │    ▼                             ▼                   ▼           │ │
+│  │  GH Issue?              Vague idea?            Clear req?        │ │
+│  │  ──────────             ────────────           ──────────        │ │
+│  │  /ap_brainstorm #42     /ap_brainstorm "idea"  /ap_requirements  │ │
+│  │  /ap_requirements       │                        add "title"     │ │
+│  │    add #42              ├─ Product agent              │          │ │
+│  │    │                    ├─ Architecture agent         │          │ │
+│  │    │                    ├─ Critical agent             │          │ │
+│  │    │                    ▼                             │          │ │
+│  │    │                  Brainstorm synthesis            │          │ │
+│  │    │                    │                             │          │ │
+│  │    │                    ├─ Optional: design review    │          │ │
+│  │    ▼                    ▼                             ▼          │ │
 │  │  ┌───────────────────────────────────────────────────────────┐   │ │
 │  │  │ Formal AP Requirement (.agent_process/requirements_docs/) │   │ │
 │  │  │ • YAML frontmatter (id, type, category, status, priority) │   │ │
 │  │  │ • Objective, Technical Requirements, Success Criteria      │  │ │
-│  │  │ • Files Expected to Change, Out of Scope, Known Risks     │   │ │
+│  │  │ • Auto-associated with GH issue if #N was provided        │   │ │
 │  │  └───────────────────────────────────────────────────────────┘   │ │
 │  └───────────────────────────────────────────────────────────────────┘│
 │                                  │                                    │
@@ -196,6 +196,7 @@ The complete lifecycle from idea to acceptance, with all optional features enabl
 │  │  Human copies requirement → orchestration/plan-scope.md          │ │
 │  │                                                                  │ │
 │  │  Orchestrator:                                                   │ │
+│  │    0.5. GH issue check — adopt existing, create, or skip        │ │
 │  │    1. Size check — fits 1-2 weeks? Split if too large            │ │
 │  │    2. Query knowledge base — patterns, gotchas, decisions        │ │
 │  │    3. Create iteration_plan.md with LOCKED acceptance criteria   │ │
@@ -211,7 +212,7 @@ The complete lifecycle from idea to acceptance, with all optional features enabl
 │  ┌─── EXECUTION (/ap_exec) ─────────────────────────────────────────┐ │
 │  │                                                                  │ │
 │  │  Step 0.4:  GitHub Issues health check (if enabled)              │ │
-│  │  Step 0.5:  Scope tracking init (issue creation + events)        │ │
+│  │  Step 0.5:  Scope tracking init (adopt or create issue + events) │ │
 │  │  Step 0.7:  Pre-flight checks                                    │ │
 │  │    • Session recovery — detect interrupted work                  │ │
 │  │    • Working tree check — uncommitted changes in scope?          │ │
@@ -422,15 +423,19 @@ See `process/design-review-gate.md` for the full how-to guide.
 
 ### GitHub Issues Integration
 
-Optional scope and work unit tracking via GitHub Issues. When enabled, the framework creates and manages issues automatically:
+Optional scope and work unit tracking via GitHub Issues with an **issue-first workflow** — issues can exist before any AP command runs:
 
-- **Issue per scope** — Created on first `/ap_exec`, closed on APPROVE
-- **Sub-issues per work unit** — Labels track `status:executing`, `status:reviewing`, etc.
-- **Session recovery** — `scope-tracker.jsonl` + `scope-events.log` provide authoritative state
+- **Issue-first flow** — Create a GitHub Issue, then pass it to `/ap_brainstorm #42` or `/ap_requirements add #42` to seed the workflow from the issue's content
+- **Associate existing issues** — Link any issue to a scope via the `associate` action, or the pipeline auto-creates when missing
+- **Adopt or create** — If a scope already has a linked issue, the pipeline reuses it (no duplicates); if not, it creates one or asks the user
+- **Pipeline-wide status labels** — Each stage updates the issue: `status:planning` → `status:executing` → `status:reviewing` → `status:approved`
+- **Sub-issues per work unit** — Individual work unit tracking as sub-issues
+- **Sub-agent delegation** — All GH operations are isolated in cheap sub-agents via `process/github-issues-handling.md`, keeping parent coordinators focused and context-lean
+- **Session recovery** — `scope-tracker.jsonl` + `scope-events.log` provide authoritative local state regardless of GH availability
 
-Configured during `install.sh` (prompts for opt-in). File-based tracking (`scope-tracker.jsonl`, `scope-events.log`) always works regardless of GitHub Issues setting.
+Configured during `install.sh` (prompts for opt-in). File-based tracking always works even with GitHub Issues disabled.
 
-See `process/github-issues-integration.md` for the full how-to guide.
+See `process/github-issues-integration.md` for setup and `process/github-issues-handling.md` for the sub-agent delegation pattern.
 
 ### Scoped Validation
 
@@ -457,18 +462,22 @@ Pre-existing issues are documented once in the iteration plan, not re-litigated 
 ```bash
 /ap_brainstorm "Improve the login experience"     # Multi-agent brainstorm → formal requirement
 /ap_brainstorm "We need better error handling"     # Works with or without metaswarm
+/ap_brainstorm #42                                 # Seed brainstorm from GitHub Issue #42
 ```
 
-Spawns 3 parallel agents (Product, Architecture, Critical) to explore the idea from different angles, synthesizes their output, optionally runs design review, and creates a formal AP requirement.
+Spawns 3 parallel agents (Product, Architecture, Critical) to explore the idea from different angles, synthesizes their output, optionally runs design review, and creates a formal AP requirement. When given a `#N` issue argument, reads the issue content as the brainstorm seed and associates the resulting requirement with that issue.
 
 ### `/ap_requirements` — Requirements Management
 
 ```bash
 /ap_requirements add "feature name"          # Create requirement (offers brainstorm option)
+/ap_requirements add #42                     # Create requirement from GitHub Issue #42
 /ap_requirements import "path/to/file.md"    # Import existing file as requirement
 /ap_requirements list                        # Show all requirements by category
 /ap_requirements list "infrastructure"       # Filter by category
 ```
+
+When given a `#N` argument, reads the issue title and body to pre-populate the requirement and automatically associates the scope with that issue in `scope-tracker.jsonl`.
 
 ### `/ap_project` — Project Management
 
@@ -614,6 +623,7 @@ your-project/
     │   ├── design-review-gate.md
     │   ├── quality-configuration.md
     │   ├── github-issues-integration.md
+    │   ├── github-issues-handling.md
     │   ├── metaswarm-integration.md
     │   ├── local_environment_instructions.md
     │   └── ...
@@ -629,6 +639,8 @@ your-project/
     ├── scripts/
     │   ├── after_edit/     # Scoped validation scripts (auto-generated)
     │   ├── github-issues-lifecycle.sh
+    │   ├── lib/
+    │   │   └── tracker-utils.sh
     │   ├── evaluate-scope.sh
     │   └── hook_after_edit.sh
     │
@@ -787,6 +799,7 @@ For teams using this framework across multiple projects, you can configure centr
 | Design Review Gate | `process/design-review-gate.md` | Multi-reviewer plan assessment for complex scopes |
 | Quality Configuration | `process/quality-configuration.md` | `quality-config.json` schema reference |
 | GitHub Issues Integration | `process/github-issues-integration.md` | Optional issue tracking setup and usage |
+| GitHub Issues Handling | `process/github-issues-handling.md` | Sub-agent delegation pattern for GH operations |
 | Metaswarm Integration | `process/metaswarm-integration.md` | Multi-agent brainstorming and review gates |
 | Local Environment | `process/local_environment_instructions.md` | Project-specific customization |
 | Roadmap Schema | `process/roadmap_schema.md` | Roadmap file format |
