@@ -1,7 +1,7 @@
 ---
 name: ap_requirements
 description: Create, import, brainstorm, and manage project requirements
-argument-hint: add | import | brainstorm | list ["details"]
+argument-hint: add | import | brainstorm | list ["details" | "#N"]
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, TodoWrite, Agent]
 arguments:
   - name: action
@@ -18,8 +18,8 @@ arguments:
     type: string
     description: |
       Additional details depending on action:
-      - add: "requirement title"
-      - import: "file_path [--supersedes old_requirement_id]"
+      - add: "requirement title" or "#N" (issue reference)
+      - import: "file_path [--supersedes old_requirement_id]" or "#N file_path"
       - brainstorm: "idea or problem description"
       - list: "category" (optional filter)
 ---
@@ -94,8 +94,28 @@ Then proceed with the non-metaswarm path. Don't block on it.
 
 {% if not details %}
 Error: Please provide a requirement name.
-Usage: `/ap_requirements add "User authentication system"`
+Usage: `/ap_requirements add "User authentication system"` or `/ap_requirements add #43`
 {% endif %}
+
+### Step 1.5: Issue Detection (if #N provided)
+
+Check if `{{ details }}` starts with `#` followed by digits (e.g., `#43`):
+
+**If issue reference detected:**
+
+1. Read `.agent_process/quality-config.json` — check `github_issues.enabled`
+2. If GH enabled:
+   - Extract the issue number (strip `#`)
+   - Read the issue: `gh issue view <N> --repo <REPO> --json title,body,labels`
+   - If issue not found: **STOP** with clear error
+   - Use the issue **title** as the requirement name for subsequent steps
+   - Use the issue **body** as additional context for generating the requirement
+   - Store the issue number for post-creation association (Step 7.5)
+3. If GH disabled:
+   - Warn: "GitHub Issues tracking is disabled. Cannot read issue #N. Please provide the requirement title as text instead."
+   - **STOP**
+
+**If no issue reference:** proceed normally with `{{ details }}` as the requirement name.
 
 ### Step 2: Offer Brainstorm (if metaswarm available)
 
@@ -194,7 +214,17 @@ priority: {{ priority }}
 
 Add new requirement to master roadmap with NOT_STARTED status.
 
-### Step 7: Suggest Next Steps
+### Step 7 (if issue reference was provided): Associate Issue
+
+If an issue number was detected in Step 1.5:
+
+1. Determine the requirement ID (from Step 4)
+2. Run: `bash .agent_process/scripts/github-issues-lifecycle.sh associate <requirement_id> <issue_number>`
+3. Comment on the issue: `bash .agent_process/scripts/github-issues-lifecycle.sh comment <requirement_id> "Requirement created: requirements_docs/<category>/<requirement_id>.md"`
+
+**GitHub Issues:** Follow `process/github-issues-handling.md` for all issue operations.
+
+### Step 7.5: Suggest Next Steps
 
 Recommend:
 - Fill in the requirement details with acceptance criteria and scope
@@ -243,8 +273,16 @@ Import an existing markdown file as a formal requirement. Adds frontmatter if mi
 {% else %}
 
 Parse the details argument:
-- **File path:** First part (required)
+- **File path:** First part (required) — or `#N file_path` if issue reference included
 - **--supersedes:** Optional flag with old requirement ID to archive
+
+**Issue Detection:** If the first token starts with `#` followed by digits:
+1. Extract the issue number and store it for post-import association
+2. Read the issue (same pattern as `add` Step 1.5) for context
+3. The remaining argument becomes the file path
+4. After successful import, associate the scope with the issue (same as `add` Step 7)
+
+**GitHub Issues:** Follow `process/github-issues-handling.md` for all issue operations.
 
 ### Step 2: Read and Validate Source File
 
