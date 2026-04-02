@@ -101,9 +101,10 @@ After branch check passes, spawn THREE **cheap** sub-agents **simultaneously**:
    - **Gate:** If output says `EXISTING_RESULTS: complete`, STOP and ask user if they want to re-execute
 
 2. `orchestration/steps/execution/007c-working-tree.md`
-   - Pass: scope
+   - Pass: scope, iteration
    - **Output:** `.run/execution/007c-working-tree.md`
    - **Gate:** If output says `CONFLICT: true`, STOP and ask user to resolve
+   - **Note:** Sub-iterations (`_a`, `_b`, `_c`) expect uncommitted changes from prior iterations — this is normal, not a conflict
 
 3. `orchestration/steps/execution/007d-git-context.md`
    - Pass: scope
