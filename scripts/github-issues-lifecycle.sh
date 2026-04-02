@@ -263,33 +263,39 @@ do_health_check() {
     return 1
   fi
 
-  # 3. Check auth + repo access in parallel via background jobs
-  local auth_tmp repo_tmp
-  auth_tmp=$(mktemp)
+  # 3. Check auth + repo access
+  # If GH_TOKEN or GITHUB_TOKEN is set, skip `gh auth status` (it doesn't recognize env var auth)
+  # and rely on the repo access check to verify the token works.
+  local auth_method="interactive"
+  if [[ -n "${GH_TOKEN:-}" || -n "${GITHUB_TOKEN:-}" ]]; then
+    auth_method="token"
+  fi
+
+  local repo_tmp
   repo_tmp=$(mktemp)
 
-  gh auth status >"$auth_tmp" 2>&1 &
-  local auth_pid=$!
-  gh repo view "$REPO" --json name >"$repo_tmp" 2>&1 &
-  local repo_pid=$!
+  if [[ "$auth_method" == "interactive" ]]; then
+    # Check interactive auth
+    if ! gh auth status >/dev/null 2>&1; then
+      echo "ERROR: gh not authenticated. Run: gh auth login, or set GH_TOKEN/GITHUB_TOKEN" >&2
+      rm -f "$repo_tmp"
+      return 1
+    fi
+  fi
 
-  local auth_ok=true repo_ok=true
-  wait "$auth_pid" || auth_ok=false
-  wait "$repo_pid" || repo_ok=false
-
-  rm -f "$auth_tmp" "$repo_tmp"
-
-  if [[ "$auth_ok" == false ]]; then
-    echo "ERROR: gh not authenticated. Run: gh auth login, or set GH_TOKEN/GITHUB_TOKEN" >&2
+  # Check repo access (this validates token auth too)
+  if ! gh repo view "$REPO" --json name >"$repo_tmp" 2>&1; then
+    rm -f "$repo_tmp"
+    if [[ "$auth_method" == "token" ]]; then
+      echo "ERROR: Cannot access repo $REPO with GH_TOKEN — check token permissions and repo name" >&2
+    else
+      echo "ERROR: Cannot access repo $REPO — check permissions and repo name" >&2
+    fi
     return 1
   fi
 
-  if [[ "$repo_ok" == false ]]; then
-    echo "ERROR: Cannot access repo $REPO — check permissions and repo name" >&2
-    return 1
-  fi
-
-  echo "OK: gh $version, authenticated, repo $REPO accessible"
+  rm -f "$repo_tmp"
+  echo "OK: gh $version, authenticated ($auth_method), repo $REPO accessible"
   return 0
 }
 
