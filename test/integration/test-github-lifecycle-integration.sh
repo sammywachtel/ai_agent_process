@@ -129,6 +129,10 @@ setup_test_env() {
   "github_issues": {
     "enabled": true,
     "repo": "$REPO"
+  },
+  "priority_labels": {
+    "enabled": true,
+    "default": "priority:P2"
   }
 }
 EOF
@@ -474,6 +478,107 @@ if [[ -n "$wu_parent" ]]; then
   fi
 else
   log_fail "could not create parent for work unit test"
+fi
+
+# --- Test 12: Priority Labels (create-labels includes priority) ---
+
+log_test "create-labels (priority labels)"
+
+# Run create-labels again to ensure priority labels are created
+output=$(bash scripts/github-issues-lifecycle.sh create-labels 2>&1)
+if echo "$output" | grep -q "priority:P"; then
+  log_pass "create-labels created priority labels"
+elif echo "$output" | grep -q "All labels already exist"; then
+  log_pass "create-labels: priority labels already exist"
+else
+  # Check if labels exist via API
+  if gh label list --repo "$REPO" --limit 100 2>/dev/null | grep -q "priority:P2"; then
+    log_pass "priority:P2 label exists"
+  else
+    log_fail "priority labels not found: $output"
+  fi
+fi
+
+# --- Test 13: Set Priority (with mutual exclusivity) ---
+
+log_test "set-priority (mutual exclusivity)"
+
+TEST_SCOPE_PRIO="test_prio_$(date +%s)"
+output=$(bash scripts/github-issues-lifecycle.sh start "$TEST_SCOPE_PRIO" 2>&1)
+prio_issue=$(echo "$output" | grep -o '#[0-9]*' | head -1 | tr -d '#')
+
+if [[ -n "$prio_issue" ]]; then
+  CREATED_ISSUES+=("$prio_issue")
+
+  # Verify default priority was applied
+  if has_label "$prio_issue" "priority:P2"; then
+    log_pass "start applied default priority:P2"
+  else
+    log_fail "start did not apply default priority:P2"
+  fi
+
+  # Change to P1
+  output=$(bash scripts/github-issues-lifecycle.sh set-priority "$TEST_SCOPE_PRIO" "priority:P1" 2>&1)
+
+  if has_label "$prio_issue" "priority:P1"; then
+    log_pass "set-priority to P1 worked"
+  else
+    log_fail "set-priority to P1 failed"
+  fi
+
+  if ! has_label "$prio_issue" "priority:P2"; then
+    log_pass "priority:P2 was removed (mutual exclusivity works)"
+  else
+    log_fail "priority:P2 was NOT removed (mutual exclusivity broken)"
+  fi
+else
+  log_fail "could not create issue for priority test"
+fi
+
+# --- Test 14: Split inherits priority ---
+
+log_test "split (inherits priority)"
+
+TEST_PARENT_PRIO="test_parent_prio_$(date +%s)"
+output=$(bash scripts/github-issues-lifecycle.sh start "$TEST_PARENT_PRIO" 2>&1)
+parent_prio_issue=$(echo "$output" | grep -o '#[0-9]*' | head -1 | tr -d '#')
+
+if [[ -n "$parent_prio_issue" ]]; then
+  CREATED_ISSUES+=("$parent_prio_issue")
+
+  # Set parent to P1
+  bash scripts/github-issues-lifecycle.sh set-priority "$TEST_PARENT_PRIO" "priority:P1" >/dev/null 2>&1
+
+  # Split
+  CHILD_PRIO_1="${TEST_PARENT_PRIO}-01"
+  CHILD_PRIO_2="${TEST_PARENT_PRIO}-02"
+  output=$(bash scripts/github-issues-lifecycle.sh split "$TEST_PARENT_PRIO" "$CHILD_PRIO_1" "$CHILD_PRIO_2" 2>&1)
+
+  if echo "$output" | grep -q "Split complete"; then
+    # Get child issue numbers
+    child1_issue=$(grep "\"scope\":\"$CHILD_PRIO_1\"" .agent_process/work/scope-tracker.jsonl 2>/dev/null | jq -r '.gh_issue // empty' | head -1)
+    child2_issue=$(grep "\"scope\":\"$CHILD_PRIO_2\"" .agent_process/work/scope-tracker.jsonl 2>/dev/null | jq -r '.gh_issue // empty' | head -1)
+
+    [[ -n "$child1_issue" ]] && CREATED_ISSUES+=("$child1_issue")
+    [[ -n "$child2_issue" ]] && CREATED_ISSUES+=("$child2_issue")
+
+    # Check children inherited P1
+    if [[ -n "$child1_issue" ]] && has_label "$child1_issue" "priority:P1"; then
+      log_pass "child 1 inherited priority:P1"
+    else
+      log_fail "child 1 did not inherit priority:P1"
+    fi
+
+    if [[ -n "$child2_issue" ]] && has_label "$child2_issue" "priority:P1"; then
+      log_pass "child 2 inherited priority:P1"
+    else
+      log_fail "child 2 did not inherit priority:P1"
+    fi
+  else
+    log_fail "split for priority inheritance test failed: $output"
+  fi
+else
+  log_fail "could not create parent for priority inheritance test"
 fi
 
 # --- Summary ---

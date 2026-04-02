@@ -331,6 +331,65 @@ json.dump(cfg, open(path, 'w'), indent=2)
 
     GH_SETUP_OK=true
     echo -e "${GREEN}  ✓${NC} GitHub Issues configured for $GH_REPO"
+
+    # Priority labels config (only prompt if GH was successfully configured)
+    echo ""
+    echo -e "${BLUE}▸${NC} Priority labels (priority:P0-P4) help triage scope urgency"
+    read -p "  Enable priority labels? [Y/n]: " ENABLE_PRIORITY
+    ENABLE_PRIORITY="${ENABLE_PRIORITY:-Y}"
+
+    if [[ "$ENABLE_PRIORITY" =~ ^[Yy] ]]; then
+      read -p "  Default priority [priority:P2]: " DEFAULT_PRIORITY
+      DEFAULT_PRIORITY="${DEFAULT_PRIORITY:-priority:P2}"
+
+      # Create priority labels in GitHub
+      echo -e "  Creating priority labels..."
+      PRIORITY_LABELS=(
+        "priority:P0:#B60205:Critical - drop everything"
+        "priority:P1:#D93F0B:High - this sprint"
+        "priority:P2:#FBCA04:Medium - default priority"
+        "priority:P3:#0E8A16:Low - when time permits"
+        "priority:P4:#C5DEF5:Minimal - nice to have"
+      )
+      PRIO_CREATED=0
+      for entry in "${PRIORITY_LABELS[@]}"; do
+        IFS=':' read -r prefix level color desc <<< "$entry"
+        label_name="${prefix}:${level}"
+        if gh label create "$label_name" --repo "$GH_REPO" --color "${color#\#}" --description "$desc" --force 2>/dev/null; then
+          PRIO_CREATED=$((PRIO_CREATED + 1))
+        fi
+      done
+
+      python3 -c "
+import json
+path = '$AGENT_PROCESS_DIR/quality-config.json'
+try:
+    cfg = json.load(open(path))
+except:
+    cfg = {}
+cfg['priority_labels'] = {
+    'enabled': True,
+    'default': '$DEFAULT_PRIORITY'
+}
+json.dump(cfg, open(path, 'w'), indent=2)
+" 2>/dev/null
+      echo -e "${GREEN}  ✓${NC} Priority labels enabled ($PRIO_CREATED created, default: $DEFAULT_PRIORITY)"
+    else
+      python3 -c "
+import json
+path = '$AGENT_PROCESS_DIR/quality-config.json'
+try:
+    cfg = json.load(open(path))
+except:
+    cfg = {}
+cfg['priority_labels'] = {
+    'enabled': False,
+    'default': 'priority:P2'
+}
+json.dump(cfg, open(path, 'w'), indent=2)
+" 2>/dev/null
+      echo -e "${YELLOW}  ○${NC} Priority labels disabled"
+    fi
   fi
 
   # If user said yes but we bailed out, update the config to disabled

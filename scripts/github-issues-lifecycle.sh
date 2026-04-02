@@ -11,6 +11,7 @@
 #   bash scripts/github-issues-lifecycle.sh start <scope>
 #   bash scripts/github-issues-lifecycle.sh associate <scope> <issue_number_or_url>
 #   bash scripts/github-issues-lifecycle.sh set-status <scope> <label>
+#   bash scripts/github-issues-lifecycle.sh set-priority <scope> <priority:P0-P4>
 #   bash scripts/github-issues-lifecycle.sh set-iteration <scope> <iteration>
 #   bash scripts/github-issues-lifecycle.sh get-iteration <scope>
 #   bash scripts/github-issues-lifecycle.sh task-create <scope> <wu-id> <description>
@@ -39,7 +40,7 @@ source "${SCRIPT_DIR}/lib/tracker-utils.sh"
 # --- Parse action ---
 ACTION="${1:-}"
 if [[ -z "$ACTION" ]]; then
-  echo "Usage: github-issues-lifecycle.sh <health-check|create-labels|start|associate|set-status|set-iteration|get-iteration|task-create|task-update|close|verify|comment|split> [args...]" >&2
+  echo "Usage: github-issues-lifecycle.sh <health-check|create-labels|start|associate|set-status|set-priority|set-iteration|get-iteration|task-create|task-update|close|verify|comment|split> [args...]" >&2
   exit 1
 fi
 
@@ -137,9 +138,40 @@ run_gh() {
   echo "$output"
 }
 
+# --- Priority config helpers ---
+
+get_priority_config() {
+  local field="$1"
+  if [[ -f "$CONFIG_FILE" ]] && command -v jq &>/dev/null; then
+    jq -r ".priority_labels.${field} // empty" "$CONFIG_FILE" 2>/dev/null
+  fi
+}
+
+priority_labels_enabled() {
+  local enabled
+  enabled=$(get_priority_config "enabled")
+  # Default to true if not specified (or if config section missing)
+  [[ "$enabled" != "false" ]]
+}
+
+get_default_priority() {
+  local default
+  default=$(get_priority_config "default")
+  echo "${default:-priority:P2}"
+}
+
 # --- Label management (idempotent) ---
 
 REQUIRED_LABELS="ap:scope status:active status:approved status:blocked status:complete status:planning status:executing status:reviewing status:iterate status:split"
+
+# Priority labels (P0=critical, P4=low) — only created if priority_labels.enabled
+PRIORITY_LABELS=(
+  "priority:P0|#B60205|Critical - drop everything"
+  "priority:P1|#D93F0B|High - this sprint"
+  "priority:P2|#FBCA04|Medium - default priority"
+  "priority:P3|#0E8A16|Low - when time permits"
+  "priority:P4|#C5DEF5|Minimal - nice to have"
+)
 
 ensure_labels() {
   [[ "$GH_ENABLED" != "true" ]] && return 0
@@ -172,6 +204,24 @@ do_create_labels() {
       fi
     fi
   done
+
+  # Create priority labels if enabled
+  if priority_labels_enabled; then
+    for entry in "${PRIORITY_LABELS[@]}"; do
+      local label color desc
+      label="${entry%%|*}"
+      local rest="${entry#*|}"
+      color="${rest%%|*}"
+      desc="${rest#*|}"
+
+      if ! echo "$existing" | grep -q "^${label}"; then
+        if run_gh gh label create "$label" --repo "$REPO" --color "${color#\#}" --description "$desc" --force >/dev/null 2>&1; then
+          echo "  Created: $label"
+          created=$((created + 1))
+        fi
+      fi
+    done
+  fi
 
   if [[ $created -eq 0 ]]; then
     echo "[gh-issues] All labels already exist"
@@ -303,27 +353,8 @@ do_start() {
   local scope="$1"
   validate_scope_name "$scope" || return 1
 
-  local ts
-  ts=$(_timestamp)
-
-  # Always write local state first
-  local existing
-  existing=$(tracker_read_scope "$scope")
-
-  if [[ -z "$existing" ]]; then
-    # New scope — create tracker entry
-    if command -v jq &>/dev/null; then
-      tracker_write_scope "$scope" "$(jq -n -c \
-        --arg s "$scope" \
-        --arg t "$ts" \
-        --arg st "active" \
-        '{scope: $s, status: $st, created: $t, iteration: "iteration_01"}')"
-    else
-      tracker_write_scope "$scope" "{\"scope\":\"$scope\",\"status\":\"active\",\"created\":\"$ts\",\"iteration\":\"iteration_01\"}"
-    fi
-  fi
-
-  events_log "$scope" "SCOPE_START" "action=start"
+  # Handle local state (tracker, events, current_iteration.conf)
+  scope_start "$scope" >/dev/null
 
   # GH operations
   if [[ "$GH_ENABLED" != "true" ]]; then
@@ -396,6 +427,14 @@ do_start() {
     else
       tracker_write_scope "$scope" "{\"scope\":\"$scope\",\"status\":\"active\",\"created\":\"$ts\",\"iteration\":\"iteration_01\",\"gh_issue\":\"$issue_num\"}"
     fi
+
+    # Apply default priority label if priority labels are enabled
+    if priority_labels_enabled; then
+      local default_priority
+      default_priority=$(get_default_priority)
+      run_gh gh issue edit "$issue_num" --repo "$REPO" --add-label "$default_priority" >/dev/null 2>&1 || true
+    fi
+
     generate_context_file "$scope" "$issue_num" "status:active"
   fi
 }
@@ -471,7 +510,8 @@ do_set_status() {
     return 1
   fi
 
-  events_log "$scope" "COMMENT" "message=status-change:$label"
+  # Update local state (tracker + events)
+  scope_set_status "$scope" "$label"
 
   if [[ "$GH_ENABLED" != "true" ]]; then
     echo "[gh-issues] GH disabled — status change logged locally for $scope"
@@ -505,30 +545,60 @@ do_set_status() {
   echo "[gh-issues] Updated #$issue_num → $label"
 }
 
+do_set_priority() {
+  local scope="$1"
+  local new_priority="$2"
+  validate_scope_name "$scope" || return 1
+
+  # Validate priority format
+  if [[ ! "$new_priority" =~ ^priority:P[0-4]$ ]]; then
+    echo "ERROR: Invalid priority '$new_priority'" >&2
+    echo "  Valid values: priority:P0, priority:P1, priority:P2, priority:P3, priority:P4" >&2
+    return 1
+  fi
+
+  if ! priority_labels_enabled; then
+    echo "[gh-issues] Priority labels are disabled in config" >&2
+    return 1
+  fi
+
+  events_log "$scope" "COMMENT" "message=priority-change:$new_priority"
+
+  if [[ "$GH_ENABLED" != "true" ]]; then
+    echo "[gh-issues] GH disabled — priority change logged locally for $scope"
+    return 0
+  fi
+
+  local issue_num
+  issue_num=$(tracker_get_field "$scope" "gh_issue")
+  if [[ -z "$issue_num" ]]; then
+    echo "[gh-issues] WARNING: No gh_issue found for scope $scope" >&2
+    return 0
+  fi
+
+  # Remove existing priority:P* labels, then add the new one
+  local current_labels
+  current_labels=$(run_gh gh issue view "$issue_num" --repo "$REPO" --json labels --jq '.labels[].name' 2>/dev/null) || current_labels=""
+
+  for old_priority in priority:P0 priority:P1 priority:P2 priority:P3 priority:P4; do
+    if echo "$current_labels" | grep -q "^${old_priority}$"; then
+      run_gh gh issue edit "$issue_num" --repo "$REPO" --remove-label "$old_priority" >/dev/null 2>&1 || true
+    fi
+  done
+
+  # Add new priority label
+  run_gh gh issue edit "$issue_num" --repo "$REPO" --add-label "$new_priority" >/dev/null 2>&1 || true
+
+  echo "[gh-issues] Updated #$issue_num → $new_priority"
+}
+
 do_set_iteration() {
   local scope="$1"
   local iteration="$2"
   validate_scope_name "$scope" || return 1
 
-  # Check scope exists in tracker
-  local current
-  current=$(tracker_read_scope "$scope")
-  if [[ -z "$current" ]]; then
-    echo "ERROR: Scope '$scope' not found in tracker" >&2
-    return 1
-  fi
-
-  # Update tracker
-  if command -v jq &>/dev/null; then
-    tracker_write_scope "$scope" "$(echo "$current" | jq -c --arg i "$iteration" '. + {iteration: $i}')"
-  else
-    # sed fallback: replace the iteration value in the JSON line
-    local updated
-    updated=$(echo "$current" | sed "s/\"iteration\":\"[^\"]*\"/\"iteration\":\"$iteration\"/")
-    tracker_write_scope "$scope" "$updated"
-  fi
-
-  events_log "$scope" "ITERATION_START" "iteration=$iteration"
+  # Update local state (tracker, current_iteration.conf, events)
+  scope_set_iteration "$scope" "$iteration" || return 1
 
   # GH: comment on the issue
   if [[ "$GH_ENABLED" == "true" ]]; then
@@ -648,14 +718,8 @@ do_close() {
   local decision="${2:-approved}"
   validate_scope_name "$scope" || return 1
 
-  # Update tracker status
-  local current
-  current=$(tracker_read_scope "$scope")
-  if [[ -n "$current" ]] && command -v jq &>/dev/null; then
-    tracker_write_scope "$scope" "$(echo "$current" | jq -c --arg d "$decision" '. + {status: "closed", decision: $d}')"
-  fi
-
-  events_log "$scope" "SCOPE_CLOSE" "decision=$decision"
+  # Update local state (tracker + events)
+  scope_close "$scope" "$decision"
 
   if [[ "$GH_ENABLED" != "true" ]]; then
     echo "[gh-issues] GH disabled — scope $scope closed locally ($decision)"
@@ -806,6 +870,14 @@ do_split() {
   local parent_issue
   parent_issue=$(tracker_get_field "$parent_scope" "gh_issue")
 
+  # Get parent's priority label to inherit to children
+  local parent_priority=""
+  if priority_labels_enabled && [[ -n "$parent_issue" ]]; then
+    local parent_labels
+    parent_labels=$(run_gh gh issue view "$parent_issue" --repo "$REPO" --json labels --jq '.labels[].name' 2>/dev/null) || parent_labels=""
+    parent_priority=$(echo "$parent_labels" | grep "^priority:P[0-4]$" | head -1)
+  fi
+
   # Create child issues with reference to parent
   local created_children=()
   for child in "${child_scopes[@]}"; do
@@ -824,6 +896,11 @@ do_split() {
       child_current=$(tracker_read_scope "$child")
       if [[ -n "$child_current" ]] && command -v jq &>/dev/null; then
         tracker_write_scope "$child" "$(echo "$child_current" | jq -c --arg n "$child_num" '. + {gh_issue: $n}')"
+      fi
+
+      # Inherit parent's priority label
+      if [[ -n "$parent_priority" ]]; then
+        run_gh gh issue edit "$child_num" --repo "$REPO" --add-label "$parent_priority" >/dev/null 2>&1 || true
       fi
 
       # Link as sub-issue via API (creates parent-child relationship in GitHub UI)
@@ -888,6 +965,12 @@ case "$ACTION" in
     [[ -z "$SCOPE" || -z "$LABEL" ]] && { echo "Usage: github-issues-lifecycle.sh set-status <scope> <label>" >&2; exit 1; }
     do_set_status "$SCOPE" "$LABEL"
     ;;
+  set-priority)
+    SCOPE="${2:-}"
+    PRIORITY="${3:-}"
+    [[ -z "$SCOPE" || -z "$PRIORITY" ]] && { echo "Usage: github-issues-lifecycle.sh set-priority <scope> <priority:P0-P4>" >&2; exit 1; }
+    do_set_priority "$SCOPE" "$PRIORITY"
+    ;;
   set-iteration)
     SCOPE="${2:-}"
     ITERATION="${3:-}"
@@ -939,7 +1022,7 @@ case "$ACTION" in
     ;;
   *)
     echo "ERROR: Unknown action '$ACTION'" >&2
-    echo "Valid actions: health-check, create-labels, start, associate, set-status, set-iteration, get-iteration, task-create, task-update, close, verify, comment, split" >&2
+    echo "Valid actions: health-check, create-labels, start, associate, set-status, set-priority, set-iteration, get-iteration, task-create, task-update, close, verify, comment, split" >&2
     exit 1
     ;;
 esac

@@ -1,14 +1,22 @@
 #!/usr/bin/env bash
-# tracker-utils.sh — Read/write helpers for scope-tracker.jsonl and scope-events.log
+# tracker-utils.sh — Scope state management for AI Agent Process
 #
-# Source this from lifecycle scripts:
+# Source this from any script that needs to manage scope state:
 #   source "$(dirname "$0")/lib/tracker-utils.sh"
 #
-# Provides:
+# Low-level functions:
 #   tracker_read_scope  <scope>          → prints the JSON line for <scope>
 #   tracker_write_scope <scope> <json>   → atomic upsert of <scope> in tracker
 #   tracker_get_field   <scope> <field>  → prints a single field value
 #   events_log          <scope> <type> [key=val ...]  → appends to scope-events.log
+#
+# High-level scope operations (GitHub-independent):
+#   scope_start         <scope>          → initialize/adopt scope, set as current
+#   scope_set_status    <scope> <status> → update status in tracker
+#   scope_set_iteration <scope> <iter>   → update iteration, set as current
+#   scope_close         <scope> <decision> → mark scope closed
+#   set_current_scope   <scope> <iter>   → update current_iteration.conf
+#   get_current_scope                    → read current scope/iteration
 #
 # Designed for bash 3.2+ (macOS) and bash 5+.
 # jq is preferred but we degrade gracefully to grep+sed when it's missing.
@@ -122,6 +130,176 @@ tracker_get_field() {
     # Nested objects? You really want jq for that.
     echo "$line" | sed -n "s/.*\"${field}\":\"\([^\"]*\)\".*/\1/p"
   fi
+}
+
+# set_current_scope <scope> <iteration>
+#   Updates .agent_process/work/current_iteration.conf with the active scope.
+#   This file is read by hooks and other scripts to know what's being worked on.
+set_current_scope() {
+  local scope="$1"
+  local iteration="${2:-iteration_01}"
+
+  if [[ -z "$scope" ]]; then
+    echo "set_current_scope: scope argument required" >&2
+    return 1
+  fi
+
+  local conf_file="${EVENTS_DIR}/current_iteration.conf"
+  mkdir -p "$(dirname "$conf_file")"
+
+  cat > "$conf_file" << EOF
+SCOPE=$scope
+ITERATION=$iteration
+EOF
+}
+
+# get_current_scope
+#   Reads current scope from current_iteration.conf. Returns "scope iteration" or empty.
+get_current_scope() {
+  local conf_file="${EVENTS_DIR}/current_iteration.conf"
+  if [[ -f "$conf_file" ]]; then
+    local scope iteration
+    scope=$(grep "^SCOPE=" "$conf_file" 2>/dev/null | cut -d'=' -f2)
+    iteration=$(grep "^ITERATION=" "$conf_file" 2>/dev/null | cut -d'=' -f2)
+    echo "$scope $iteration"
+  fi
+}
+
+# --- High-level scope operations ---
+# These functions manage scope state in the tracker, independent of GitHub.
+
+# scope_start <scope>
+#   Initializes or adopts a scope in the tracker. Sets it as current.
+#   Returns the current iteration for this scope.
+scope_start() {
+  local scope="$1"
+  if [[ -z "$scope" ]]; then
+    echo "scope_start: scope argument required" >&2
+    return 1
+  fi
+
+  local ts
+  ts=$(_timestamp)
+
+  local existing
+  existing=$(tracker_read_scope "$scope")
+
+  local iteration="iteration_01"
+  if [[ -z "$existing" ]]; then
+    # New scope — create tracker entry
+    if _has_jq; then
+      tracker_write_scope "$scope" "$(jq -n -c \
+        --arg s "$scope" \
+        --arg t "$ts" \
+        --arg st "active" \
+        '{scope: $s, status: $st, created: $t, iteration: "iteration_01"}')"
+    else
+      tracker_write_scope "$scope" "{\"scope\":\"$scope\",\"status\":\"active\",\"created\":\"$ts\",\"iteration\":\"iteration_01\"}"
+    fi
+    events_log "$scope" "SCOPE_START" "action=start"
+  else
+    # Existing scope — get current iteration
+    iteration=$(tracker_get_field "$scope" "iteration")
+    iteration="${iteration:-iteration_01}"
+    events_log "$scope" "SCOPE_ADOPT" "action=adopt"
+  fi
+
+  # Set as current working scope
+  set_current_scope "$scope" "$iteration"
+
+  echo "$iteration"
+}
+
+# scope_set_status <scope> <status>
+#   Updates the status field in the tracker.
+#   Status should be the short name (e.g., "executing" not "status:executing").
+scope_set_status() {
+  local scope="$1"
+  local status="$2"
+  if [[ -z "$scope" || -z "$status" ]]; then
+    echo "scope_set_status: scope and status arguments required" >&2
+    return 1
+  fi
+
+  # Strip "status:" prefix if present
+  status="${status#status:}"
+
+  local current
+  current=$(tracker_read_scope "$scope")
+  if [[ -z "$current" ]]; then
+    echo "scope_set_status: scope '$scope' not found in tracker" >&2
+    return 1
+  fi
+
+  if _has_jq; then
+    tracker_write_scope "$scope" "$(echo "$current" | jq -c --arg st "$status" '. + {status: $st}')"
+  else
+    # sed fallback
+    local updated
+    updated=$(echo "$current" | sed "s/\"status\":\"[^\"]*\"/\"status\":\"$status\"/")
+    tracker_write_scope "$scope" "$updated"
+  fi
+
+  events_log "$scope" "COMMENT" "message=status-change:status:$status"
+}
+
+# scope_set_iteration <scope> <iteration>
+#   Updates the iteration field in the tracker and current_iteration.conf.
+scope_set_iteration() {
+  local scope="$1"
+  local iteration="$2"
+  if [[ -z "$scope" || -z "$iteration" ]]; then
+    echo "scope_set_iteration: scope and iteration arguments required" >&2
+    return 1
+  fi
+
+  local current
+  current=$(tracker_read_scope "$scope")
+  if [[ -z "$current" ]]; then
+    echo "scope_set_iteration: scope '$scope' not found in tracker" >&2
+    return 1
+  fi
+
+  if _has_jq; then
+    tracker_write_scope "$scope" "$(echo "$current" | jq -c --arg i "$iteration" '. + {iteration: $i}')"
+  else
+    local updated
+    updated=$(echo "$current" | sed "s/\"iteration\":\"[^\"]*\"/\"iteration\":\"$iteration\"/")
+    tracker_write_scope "$scope" "$updated"
+  fi
+
+  set_current_scope "$scope" "$iteration"
+  events_log "$scope" "ITERATION_START" "iteration=$iteration"
+}
+
+# scope_close <scope> <decision>
+#   Marks a scope as closed with a decision (approved, blocked, etc.)
+#   Sets status to "closed" and records the decision.
+scope_close() {
+  local scope="$1"
+  local decision="${2:-approved}"
+  if [[ -z "$scope" ]]; then
+    echo "scope_close: scope argument required" >&2
+    return 1
+  fi
+
+  local current
+  current=$(tracker_read_scope "$scope")
+  if [[ -z "$current" ]]; then
+    echo "scope_close: scope '$scope' not found in tracker" >&2
+    return 1
+  fi
+
+  if _has_jq; then
+    tracker_write_scope "$scope" "$(echo "$current" | jq -c --arg d "$decision" '. + {status: "closed", decision: $d}')"
+  else
+    # sed fallback - just update status
+    local updated
+    updated=$(echo "$current" | sed "s/\"status\":\"[^\"]*\"/\"status\":\"closed\"/")
+    tracker_write_scope "$scope" "$updated"
+  fi
+
+  events_log "$scope" "SCOPE_CLOSE" "decision=$decision"
 }
 
 # events_log <scope> <event_type> [key=value ...]

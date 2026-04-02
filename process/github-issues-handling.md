@@ -25,6 +25,7 @@ Read `.agent_process/quality-config.json`:
 bash .agent_process/scripts/github-issues-lifecycle.sh start <scope>
 bash .agent_process/scripts/github-issues-lifecycle.sh associate <scope> <issue_number_or_url>
 bash .agent_process/scripts/github-issues-lifecycle.sh set-status <scope> <label>
+bash .agent_process/scripts/github-issues-lifecycle.sh set-priority <scope> <priority:P0-P4>
 bash .agent_process/scripts/github-issues-lifecycle.sh set-iteration <scope> <iteration>
 bash .agent_process/scripts/github-issues-lifecycle.sh comment <scope> "message"
 bash .agent_process/scripts/github-issues-lifecycle.sh close <scope> <decision>
@@ -54,6 +55,39 @@ The script handles `--repo`, retries, label management, and tracker updates inte
 | Scope split | `status:split` | Parent issue closed, child issues created |
 
 Use `set-status` to transition between labels. The script removes old `status:*` labels before applying the new one.
+
+## 3.1. Priority Labels
+
+Priority labels help triage scope urgency. When enabled, `start` applies a default priority and `split` inherits the parent's priority to children.
+
+| Priority | Color | Meaning |
+|----------|-------|---------|
+| `priority:P0` | Red (#B60205) | Critical — drop everything |
+| `priority:P1` | Orange (#D93F0B) | High — this sprint |
+| `priority:P2` | Yellow (#FBCA04) | Medium — default priority |
+| `priority:P3` | Green (#0E8A16) | Low — when time permits |
+| `priority:P4` | Blue (#C5DEF5) | Minimal — nice to have |
+
+**Configuration:**
+```json
+{
+  "priority_labels": {
+    "enabled": true,
+    "default": "priority:P2"
+  }
+}
+```
+
+**Behavior:**
+- **`start`**: Applies default priority (P2 unless configured otherwise)
+- **`set-priority`**: Changes priority with mutual exclusivity (removes old, adds new)
+- **`split`**: Children inherit parent's priority automatically
+- **`create-labels`**: Creates priority labels if enabled
+
+Use `set-priority` to change priority:
+```bash
+bash .agent_process/scripts/github-issues-lifecycle.sh set-priority my_scope priority:P1
+```
 
 ## 4. Create / Adopt / Verify Decision Tree
 
