@@ -66,17 +66,24 @@ Do NOT create `.agent_process/work/{parent_scope}/`. The parent scope is being b
 │     - Determine split boundaries                                 │
 │     - Define execution order (if dependencies exist)             │
 ├──────────────────────────────────────────────────────────────────┤
-│  3. CREATE CHILD REQUIREMENTS                                    │
+│  3. CREATE CHILD REQUIREMENTS (DRAFT)                            │
 │     - Generate {id}-01.md, {id}-02.md, etc.                      │
 │     - Each child is a valid, standalone requirement              │
 │     - Include `split_from:` and `depends_on:` frontmatter        │
 ├──────────────────────────────────────────────────────────────────┤
-│  4. CREATE PARENT BREAKDOWN FILE                                 │
+│  4. VALIDATE CHILDREN (scope-check each one)            ◄── NEW  │
+│     - Run 01-scope-check against EACH child                      │
+│     - If ANY child fails → adjust breakdown, re-validate         │
+│     - Loop until ALL children pass or escalate to human          │
+│     - Max 2 adjustment cycles before escalation                  │
+├──────────────────────────────────────────────────────────────────┤
+│  5. FINALIZE CHILDREN + CREATE PARENT BREAKDOWN FILE             │
+│     - Move draft children to final location                      │
 │     - Rename original to {id}-breakdown.md                       │
 │     - Add coverage map                                           │
 │     - Preserve original content for reference                    │
 ├──────────────────────────────────────────────────────────────────┤
-│  5. GITHUB ISSUES (if enabled)                                   │
+│  6. GITHUB ISSUES (if enabled)                                   │
 │     - Call lifecycle.sh split to close parent, create children   │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -199,7 +206,104 @@ depends_on: [{list of child IDs this depends on, if any}]
 
 ---
 
-## Phase 4: Create Parent Breakdown File
+## Phase 4: Validate Children (REQUIRED GATE)
+
+**Before finalizing, validate EVERY child through the scope-check process.**
+
+This prevents creating children that will immediately fail when planned. The breakdown isn't done until all children pass.
+
+### Validation Loop
+
+For each child requirement file created in Phase 3:
+
+1. **Run scope-check** — Use the same logic as `orchestration/steps/planning/01-scope-check.md`:
+   - Count acceptance criteria (target: 3-7)
+   - Count expected files (target: ≤12)
+   - Count subsystems touched (target: 1-3)
+
+2. **Record result:**
+   ```markdown
+   | Child | Criteria | Files | Subsystems | Verdict |
+   |-------|----------|-------|------------|---------|
+   | -01   | 5        | 4     | 2          | PASS    |
+   | -02   | 10       | 8     | 6          | FAIL    |
+   | -03   | 4        | 3     | 1          | PASS    |
+   ```
+
+3. **If ANY child fails:**
+   - Identify which child(ren) failed and why
+   - Adjust the breakdown:
+     - Split the failing child further (create -02a, -02b OR renumber as -02, -03, -04...)
+     - Move criteria between children to rebalance
+     - Create an additional child to absorb overflow
+   - Re-validate ALL children (not just the adjusted ones)
+   - **Max 2 adjustment cycles** — if still failing after 2 adjustments, escalate to human
+
+4. **If ALL children pass:** Proceed to Phase 5
+
+### Adjustment Strategy
+
+When a child fails, analyze the failure mode:
+
+**Too many criteria (>7):**
+- Split by layer (schema vs API vs UI)
+- Split by feature cluster (group related criteria)
+- Create a "foundation" child for shared infrastructure
+
+**Too many subsystems (>3):**
+- The child is doing too many different things
+- Each child should focus on one cohesive area
+- Cross-cutting concerns may need their own dedicated child
+
+**Too many files (>12):**
+- Often a symptom of too many subsystems
+- Consider whether some files are actually in a different child's domain
+
+### Example Adjustment
+
+```
+Initial breakdown (Phase 3):
+  -01: schema + API + workers (FAIL: 10 criteria, 6 subsystems)
+  -02: UI components (PASS)
+  
+Adjusted breakdown (after validation):
+  -01: schema + migrations (PASS: 4 criteria, 2 subsystems)
+  -02: API endpoints (PASS: 3 criteria, 1 subsystem)
+  -03: workers + queues (PASS: 3 criteria, 2 subsystems)
+  -04: UI components (PASS — renumbered from original -02)
+```
+
+### Output
+
+Add validation results to `.run/planning/01b-breakdown.md`:
+
+```markdown
+## Child Validation
+
+### Attempt 1
+| Child | Criteria | Files | Subsystems | Verdict |
+|-------|----------|-------|------------|---------|
+| -01   | 10       | 8     | 6          | FAIL    |
+| -02   | 4        | 3     | 1          | PASS    |
+
+**Adjustment:** Split -01 into -01 (schema), -02 (API), -03 (workers). Renumbered original -02 to -04.
+
+### Attempt 2 (Final)
+| Child | Criteria | Files | Subsystems | Verdict |
+|-------|----------|-------|------------|---------|
+| -01   | 4        | 3     | 2          | PASS    |
+| -02   | 3        | 2     | 1          | PASS    |
+| -03   | 3        | 3     | 2          | PASS    |
+| -04   | 4        | 3     | 1          | PASS    |
+
+**All children validated. Proceeding to finalization.**
+```
+
+---
+
+## Phase 5: Finalize Children + Create Parent Breakdown File
+
+**Only run this phase after ALL children pass validation in Phase 4.**
 
 Rename the original file to `{id}-breakdown.md` and prepend:
 
@@ -251,7 +355,7 @@ priority: {original}
 
 ---
 
-## Phase 5: GitHub Issues (if enabled)
+## Phase 6: GitHub Issues (if enabled)
 
 If `quality-config.json` has `github_issues.enabled: true`:
 
@@ -293,10 +397,17 @@ Write to `.run/planning/01b-breakdown.md`:
 
 ## Children Created
 
-| Child | Description | Depends On | Files |
-|-------|-------------|------------|-------|
-| {id}-01 | {description} | — | {count} |
-| {id}-02 | {description} | -01 | {count} |
+| Child | Description | Depends On | Criteria | Files | Subsystems |
+|-------|-------------|------------|----------|-------|------------|
+| {id}-01 | {description} | — | {N} | {N} | {N} |
+| {id}-02 | {description} | -01 | {N} | {N} | {N} |
+
+## Child Validation
+
+**Adjustment cycles:** {0, 1, or 2}
+**Final verdict:** ALL PASS
+
+{Include validation table from Phase 4}
 
 ## GitHub Issues
 
@@ -315,8 +426,9 @@ Recommended execution order: {list}
 **Stop and escalate if:**
 - Architectural review finds fundamental issues with the requirement itself
 - Dependencies form a cycle (A needs B, B needs A)
-- Any single child still exceeds size thresholds after split
+- **Child validation fails after 2 adjustment cycles** — the requirement may be too complex to split mechanically
 - Reviewers can't agree on split boundaries after 2 revision cycles
+- Adjustment cycles create more than 6 children (indicates the original scope was massive)
 
 ---
 
