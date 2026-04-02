@@ -55,7 +55,7 @@ work_unit_conf_files=()
 if ls "$TARGET_DIR/.beads/knowledge/"*.jsonl 2>/dev/null | head -1 >/dev/null 2>&1; then
   knowledge_count=$(cat "$TARGET_DIR/.beads/knowledge/"*.jsonl 2>/dev/null | wc -l | tr -d ' ')
   knowledge_file_count=$(ls "$TARGET_DIR/.beads/knowledge/"*.jsonl 2>/dev/null | wc -l | tr -d ' ')
-  mapfile -t knowledge_files < <(ls "$TARGET_DIR/.beads/knowledge/"*.jsonl 2>/dev/null)
+  while IFS= read -r f; do knowledge_files+=("$f"); done < <(ls "$TARGET_DIR/.beads/knowledge/"*.jsonl 2>/dev/null)
   found_knowledge=1
   echo -e "  ${GREEN}✓${NC} .beads/knowledge/ — $knowledge_count entries across $knowledge_file_count files"
 else
@@ -76,7 +76,7 @@ else
 fi
 
 # 3. .beads-state files
-mapfile -t beads_state_files < <(find "$TARGET_DIR" -name '.beads-state' -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null | sort)
+while IFS= read -r f; do beads_state_files+=("$f"); done < <(find "$TARGET_DIR" -name '.beads-state' -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null | sort)
 if [[ ${#beads_state_files[@]} -gt 0 ]]; then
   found_beads_state=1
   echo -e "  ${GREEN}✓${NC} ${#beads_state_files[@]} .beads-state files"
@@ -85,7 +85,7 @@ else
 fi
 
 # 4. current_iteration.conf files
-mapfile -t iteration_conf_files < <(find "$TARGET_DIR" -name 'current_iteration.conf' -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null | sort)
+while IFS= read -r f; do iteration_conf_files+=("$f"); done < <(find "$TARGET_DIR" -name 'current_iteration.conf' -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null | sort)
 if [[ ${#iteration_conf_files[@]} -gt 0 ]]; then
   found_iteration_conf=1
   echo -e "  ${GREEN}✓${NC} ${#iteration_conf_files[@]} current_iteration.conf files"
@@ -102,7 +102,7 @@ else
 fi
 
 # 6. current_work_unit.conf files
-mapfile -t work_unit_conf_files < <(find "$TARGET_DIR" -name 'current_work_unit.conf' -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null | sort)
+while IFS= read -r f; do work_unit_conf_files+=("$f"); done < <(find "$TARGET_DIR" -name 'current_work_unit.conf' -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null | sort)
 if [[ ${#work_unit_conf_files[@]} -gt 0 ]]; then
   found_work_unit_conf=1
   echo -e "  ${GREEN}✓${NC} ${#work_unit_conf_files[@]} current_work_unit.conf files (noted, no auto-conversion)"
@@ -282,11 +282,52 @@ fi
 echo ""
 echo -e "${GREEN}Migration complete.${NC}"
 echo ""
+
+# Platform-aware cleanup commands
+PLATFORM="$(uname -s)"
 echo -e "${YELLOW}⚠ CLEANUP REMINDERS:${NC}"
 echo -e "  - Delete .beads/ directory:       ${BLUE}rm -rf $TARGET_DIR/.beads/${NC}"
-echo -e "  - Delete credentials file:        ${BLUE}rm ~/.config/beads/credentials${NC}"
-echo -e "  - Uninstall Dolt (optional):      ${BLUE}brew uninstall dolt${NC}"
-echo -e "  - Uninstall bd CLI (optional):    ${BLUE}npm uninstall -g beads${NC}"
+echo -e "  - Delete credentials file:        ${BLUE}rm -f ~/.config/beads/credentials${NC}"
+
+# Dolt uninstall
+if command -v dolt &>/dev/null; then
+  dolt_path=$(which dolt)
+  case "$PLATFORM" in
+    Darwin)
+      if [[ "$dolt_path" == *"/homebrew/"* || "$dolt_path" == "/usr/local/bin/dolt" || "$dolt_path" == "/opt/homebrew/bin/dolt" ]]; then
+        echo -e "  - Uninstall Dolt:                 ${BLUE}brew uninstall dolt${NC}"
+      else
+        echo -e "  - Uninstall Dolt:                 ${BLUE}rm $dolt_path${NC} (manual)"
+      fi
+      ;;
+    Linux)
+      if command -v apt &>/dev/null && dpkg -l dolt &>/dev/null 2>&1; then
+        echo -e "  - Uninstall Dolt:                 ${BLUE}sudo apt remove dolt${NC}"
+      elif command -v yum &>/dev/null; then
+        echo -e "  - Uninstall Dolt:                 ${BLUE}sudo yum remove dolt${NC}"
+      else
+        echo -e "  - Uninstall Dolt:                 ${BLUE}rm $dolt_path${NC} (manual)"
+      fi
+      ;;
+    *)
+      echo -e "  - Uninstall Dolt:                 ${BLUE}rm $dolt_path${NC} (manual)"
+      ;;
+  esac
+fi
+
+# bd CLI uninstall
+if command -v bd &>/dev/null; then
+  bd_path=$(which bd)
+  # Detect how bd was installed
+  if [[ "$bd_path" == *"/homebrew/"* || "$bd_path" == "/usr/local/bin/bd" || "$bd_path" == "/opt/homebrew/bin/bd" ]]; then
+    echo -e "  - Uninstall bd CLI:               ${BLUE}brew uninstall beads${NC}"
+  elif npm list -g @beads/bd &>/dev/null 2>&1 || npm list -g beads &>/dev/null 2>&1; then
+    echo -e "  - Uninstall bd CLI:               ${BLUE}npm uninstall -g @beads/bd${NC}"
+  elif [[ -f "$bd_path" ]]; then
+    echo -e "  - Uninstall bd CLI:               ${BLUE}rm $bd_path${NC}"
+  fi
+fi
+
 echo -e "  - Tear down Dolt server (if any): Check your infrastructure docs"
 echo ""
 echo "These cleanups are manual — this script never deletes source artifacts."
