@@ -488,7 +488,7 @@ do_set_status() {
   # Remove existing status:* labels, then add the new one
   # Get current labels
   local current_labels
-  current_labels=$(run_gh gh issue view "$issue_num" --repo "$REPO" --json labels --jq '.[].name' 2>/dev/null) || current_labels=""
+  current_labels=$(run_gh gh issue view "$issue_num" --repo "$REPO" --json labels --jq '.labels[].name' 2>/dev/null) || current_labels=""
 
   # Remove old status labels (best-effort)
   for old_label in status:planning status:executing status:reviewing status:iterate status:active; do
