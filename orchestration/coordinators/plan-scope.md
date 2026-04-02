@@ -2,9 +2,9 @@
 
 You are orchestrating the scope planning workflow. Execute each step by spawning a focused sub-agent with ONLY that step's prompt file. Never embed step logic inline — the whole point is each sub-agent sees only its ~40-80 lines.
 
-## Important: No BEADS During Planning
+## Important: No Lifecycle Commands During Planning
 
-**Do NOT run `bd`, `bds`, or any BEADS commands during planning.** BEADS lifecycle is managed by the execution phase (`ap_exec` Step 0.5 via `beads-lifecycle.sh`). If the project's CLAUDE.md or other instructions say "use bd for task tracking," that applies to the implementation agent — not to you during planning. Ignore those instructions here.
+**Do NOT run `github-issues-lifecycle.sh` during planning.** Lifecycle tracking is managed by the execution phase (`ap_exec` Step 0.5). Planning only produces the iteration plan and supporting artifacts — lifecycle state is initialized when execution begins.
 
 ## Inputs
 

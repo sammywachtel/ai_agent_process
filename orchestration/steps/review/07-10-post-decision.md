@@ -19,12 +19,16 @@ Read the decision first, then follow the matching section below.
 
 1. **Update iteration_plan.md:** Set latest iteration, decision = APPROVE, date
 2. **Update requirement doc:** Change frontmatter `status:` to `approved`, update body text
-3. **Deposit knowledge (Step 9.5):**
+3. **Close scope tracking (direct bash):**
+   ```bash
+   bash .agent_process/scripts/github-issues-lifecycle.sh close {scope} approved
+   ```
+4. **Deposit knowledge (Step 9.5):**
    - Check `quality-config.json` → `knowledge_base.deposit_on_approve`
    - If enabled, extract 0-3 learnings → append to `$KB_DIR/*.jsonl`
    - Use metaswarm-compatible schema: `id`, `type`, `fact`, `recommendation`, `confidence`, `provenance`, `tags`, `affectedFiles`
    - Knowledge dir: `.agent_process/knowledge/`
-4. **Suggest release workflow:** `/ap_release pr` or `/ap_release beta`
+5. **Suggest release workflow:** `/ap_release pr` or `/ap_release beta`
 6. **Suggest artifact validation:** `bash .agent_process/scripts/evaluate-scope.sh .agent_process/work/{scope}`
 
 ## If ITERATE
@@ -35,8 +39,12 @@ Read the decision first, then follow the matching section below.
    ```
 2. **Write placeholder results.md** with 1-3 required fixes from the decision
 3. **Update iteration_plan.md:** Latest iteration pointer, decision = ITERATE
-4. **Update validation script** if fixes touch new files not in original scope
-5. **Deposit process knowledge (Step 9.7, conditional):**
+4. **Advance scope tracking (direct bash):**
+   ```bash
+   bash .agent_process/scripts/github-issues-lifecycle.sh set-iteration {scope} {next_iteration}
+   ```
+5. **Update validation script** if fixes touch new files not in original scope
+6. **Deposit process knowledge (Step 9.7, conditional):**
    - Only if the reviewer spots a generalizable lesson about process, scope structure, or agent behavior
    - If found, deposit 0-2 process observations to `.agent_process/knowledge/*.jsonl`
    - Most ITERATEs won't produce learnings — that's fine
@@ -46,7 +54,11 @@ Read the decision first, then follow the matching section below.
 
 1. **Update iteration_plan.md:** Decision = BLOCK, date, reason
 2. **Update requirement doc:** Change frontmatter `status:` to `blocked`
-3. **Deposit process knowledge (Step 9.6):**
+3. **Close scope tracking (direct bash):**
+   ```bash
+   bash .agent_process/scripts/github-issues-lifecycle.sh close {scope} blocked
+   ```
+4. **Deposit process knowledge (Step 9.6):**
    - Check `quality-config.json` → `knowledge_base.deposit_on_block_pivot`
    - If systemic pattern found, deposit 0-2 process observations
 4. **Escalate to human** with decision options (ship/pivot/abort)
@@ -54,8 +66,12 @@ Read the decision first, then follow the matching section below.
 ## If PIVOT
 
 1. **Update iteration_plan.md:** Decision = PIVOT, date, proposed changes
-2. **Deposit process knowledge (Step 9.6)** if systemic pattern found
-3. Do NOT update requirement doc — wait for human approval of scope change
+2. **Close scope tracking (direct bash):**
+   ```bash
+   bash .agent_process/scripts/github-issues-lifecycle.sh close {scope} blocked
+   ```
+3. **Deposit process knowledge (Step 9.6)** if systemic pattern found
+4. Do NOT update requirement doc — wait for human approval of scope change
 5. **Get human approval** before modifying criteria or creating new iteration
 
 ---

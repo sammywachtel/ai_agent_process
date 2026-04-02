@@ -2,12 +2,12 @@
 
 You are the implementation agent. Preflight checks have already run — read their outputs from `.run/execution/` and proceed directly to implementation.
 
-## Important: No BEADS Commands
+## Important: No Lifecycle Commands During Implementation
 
-BEADS lifecycle was handled in preflight (Step 0.5). Do not run `bd`, `bds`, or `beads-lifecycle.sh` during implementation. For work unit state updates during decomposed execution, use:
+Scope tracking was initialized in preflight (Step 0.5). Do not call `github-issues-lifecycle.sh` during implementation except for work unit state updates during decomposed execution:
 ```bash
-bash .agent_process/scripts/beads-lifecycle.sh task-update {scope} WU-NNN in-progress
-bash .agent_process/scripts/beads-lifecycle.sh task-update {scope} WU-NNN complete
+bash .agent_process/scripts/github-issues-lifecycle.sh task-update {scope} WU-NNN in-progress
+bash .agent_process/scripts/github-issues-lifecycle.sh task-update {scope} WU-NNN complete
 ```
 
 ## Local Environment Instructions
@@ -132,7 +132,7 @@ When `.run/execution/0125-decomposition.md` contains work units, spawn agents pe
 - Each agent gets ONLY its work unit's files — no overlap
 - Update work unit tracking after each completes:
   ```bash
-  bash .agent_process/scripts/beads-lifecycle.sh task-update {scope} WU-NNN complete
+  bash .agent_process/scripts/github-issues-lifecycle.sh task-update {scope} WU-NNN complete
   ```
 
 ---

@@ -13,11 +13,12 @@ Check if a previous execution of this scope/iteration was interrupted or already
 
 ## Checks
 
-**Check BEADS for iteration state (if enabled):**
+**Check scope tracker for iteration state:**
 ```bash
-bash .agent_process/scripts/beads-lifecycle.sh get-iteration {scope} 2>/dev/null
+# Get current iteration from scope-tracker.jsonl (authoritative source)
+jq -r 'select(.scope=="{scope}") | .iteration' .agent_process/work/scope-tracker.jsonl 2>/dev/null
 ```
-If BEADS returns an iteration value, it's the authoritative source. Compare it to the requested iteration — if they differ, the scope may have moved on.
+If the tracker returns an iteration value, it's the authoritative source. Compare it to the requested iteration — if they differ, the scope may have moved on.
 
 **Check for existing results.md:**
 ```bash
@@ -29,9 +30,9 @@ ls .agent_process/work/{scope}/{iteration}/results.md 2>/dev/null
 head -10 .agent_process/work/{scope}/{iteration}/results.md
 ```
 
-**Also check BEADS breadcrumbs for work unit progress:**
+**Check scope event log for work unit progress:**
 ```bash
-cat .agent_process/work/{scope}/{iteration}/.beads-state 2>/dev/null
+grep "{scope}" .agent_process/work/scope-events.log 2>/dev/null | tail -10
 ```
 
 ## Output Format
@@ -45,11 +46,11 @@ Write to `.run/execution/007a-session-recovery.md`:
 **Iteration:** {iteration}
 
 EXISTING_RESULTS: none / template_only / complete
-BEADS_STATE: {summary of .beads-state or "none"}
+TRACKER_STATE: {summary from scope-tracker.jsonl or "none"}
 
 ## Assessment
 - {If "none": Clean start — proceed normally}
 - {If "template_only": Previous run was interrupted. Resuming from scratch.}
 - {If "complete": This iteration already has results. User must confirm re-execution.}
-- {If BEADS state shows partial work units: list which completed}
+- {If event log shows partial work units: list which completed}
 ```
