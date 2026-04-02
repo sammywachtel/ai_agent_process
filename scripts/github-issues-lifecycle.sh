@@ -8,6 +8,8 @@
 # Usage:
 #   bash scripts/github-issues-lifecycle.sh health-check
 #   bash scripts/github-issues-lifecycle.sh start <scope>
+#   bash scripts/github-issues-lifecycle.sh associate <scope> <issue_number_or_url>
+#   bash scripts/github-issues-lifecycle.sh set-status <scope> <label>
 #   bash scripts/github-issues-lifecycle.sh set-iteration <scope> <iteration>
 #   bash scripts/github-issues-lifecycle.sh get-iteration <scope>
 #   bash scripts/github-issues-lifecycle.sh task-create <scope> <wu-id> <description>
@@ -29,7 +31,7 @@ source "${SCRIPT_DIR}/lib/tracker-utils.sh"
 # --- Parse action ---
 ACTION="${1:-}"
 if [[ -z "$ACTION" ]]; then
-  echo "Usage: github-issues-lifecycle.sh <health-check|start|set-iteration|get-iteration|task-create|task-update|close|verify|comment> [args...]" >&2
+  echo "Usage: github-issues-lifecycle.sh <health-check|start|associate|set-status|set-iteration|get-iteration|task-create|task-update|close|verify|comment> [args...]" >&2
   exit 1
 fi
 
@@ -88,7 +90,7 @@ run_gh() {
 
 # --- Label management (idempotent) ---
 
-REQUIRED_LABELS="ap:scope status:active status:approved status:blocked status:complete"
+REQUIRED_LABELS="ap:scope status:active status:approved status:blocked status:complete status:planning status:executing status:reviewing status:iterate"
 
 ensure_labels() {
   [[ "$GH_ENABLED" != "true" ]] && return 0
@@ -101,6 +103,60 @@ ensure_labels() {
       run_gh gh label create "$label" --repo "$REPO" --force >/dev/null || true
     fi
   done
+}
+
+# --- Parse issue number from #43, 43, or full URL ---
+
+parse_issue_number() {
+  local input="$1"
+  local num=""
+
+  # Strip leading # if present
+  input="${input#\#}"
+
+  if [[ "$input" =~ ^[0-9]+$ ]]; then
+    num="$input"
+  elif [[ "$input" =~ /issues/([0-9]+) ]]; then
+    num="${BASH_REMATCH[1]}"
+  else
+    echo "ERROR: Cannot parse issue number from '$1' — expected #N, N, or full URL" >&2
+    return 1
+  fi
+
+  echo "$num"
+}
+
+# --- Generate .run/gh-issue-context.md for sub-agents ---
+
+generate_context_file() {
+  local scope="$1"
+  local issue_num="$2"
+  local status_label="${3:-}"
+
+  local scope_dir=".agent_process/work/${scope}/.run"
+  mkdir -p "$scope_dir"
+
+  local iteration
+  iteration=$(tracker_get_field "$scope" "iteration")
+  iteration="${iteration:-iteration_01}"
+
+  cat > "${scope_dir}/gh-issue-context.md" << CTXEOF
+## GitHub Issue Context
+- Issue: #${issue_num}
+- Repo: ${REPO}
+- Current Status: ${status_label:-unknown}
+- Scope: ${scope}
+- Iteration: ${iteration}
+
+## Available Actions
+- Update status: \`bash .agent_process/scripts/github-issues-lifecycle.sh set-status ${scope} <label>\`
+- Set iteration: \`bash .agent_process/scripts/github-issues-lifecycle.sh set-iteration ${scope} ${iteration}\`
+- Add note: \`bash .agent_process/scripts/github-issues-lifecycle.sh comment ${scope} "your message"\`
+- Create work unit: \`bash .agent_process/scripts/github-issues-lifecycle.sh task-create ${scope} WU-001 "description"\`
+
+## Rules
+See process/github-issues-handling.md
+CTXEOF
 }
 
 # --- Action implementations ---
@@ -196,7 +252,37 @@ do_start() {
 
   ensure_labels
 
-  # Check for existing scope issue
+  # --- Adopt path: if tracker already has gh_issue, verify and adopt ---
+  local tracked_issue
+  tracked_issue=$(tracker_get_field "$scope" "gh_issue")
+
+  if [[ -n "$tracked_issue" ]]; then
+    # Verify the issue still exists and is open
+    local view_output
+    if view_output=$(run_gh gh issue view "$tracked_issue" --repo "$REPO" --json state,title 2>/dev/null); then
+      local issue_state=""
+      if command -v jq &>/dev/null; then
+        issue_state=$(echo "$view_output" | jq -r '.state // empty' 2>/dev/null)
+      fi
+
+      if [[ "$issue_state" == "CLOSED" ]]; then
+        echo "ERROR: Issue #$tracked_issue is closed. Reopen it or remove gh_issue from tracker to create a new one." >&2
+        return 1
+      fi
+
+      # Adopt: ensure ap:scope label is present
+      run_gh gh issue edit "$tracked_issue" --repo "$REPO" --add-label "ap:scope" >/dev/null 2>&1 || true
+
+      events_log "$scope" "SCOPE_ADOPT" "issue=$tracked_issue"
+      generate_context_file "$scope" "$tracked_issue" "status:active"
+      echo "[gh-issues] Adopted existing issue #$tracked_issue for $scope"
+      return 0
+    else
+      echo "[gh-issues] WARNING: Could not verify issue #$tracked_issue — proceeding to search/create" >&2
+    fi
+  fi
+
+  # --- Search path: look for existing issue by title/label ---
   local issue_list issue_num=""
   issue_list=$(gh issue list --repo "$REPO" --label "ap:scope" --search "$scope in:title" --state open --json number,title --limit 10 2>/dev/null) || issue_list=""
 
@@ -207,13 +293,12 @@ do_start() {
   if [[ -n "$issue_num" ]]; then
     echo "[gh-issues] Existing issue found: #$issue_num for $scope"
   else
-    # Create new issue
+    # --- Create path: no existing issue found ---
     local create_output
     if ! create_output=$(run_gh gh issue create --repo "$REPO" \
       --title "$scope" \
       --body "AP scope: $scope" \
       --label "ap:scope,status:active"); then
-      # run_gh already printed the HALT message — local state was written above
       return 1
     fi
 
@@ -230,7 +315,113 @@ do_start() {
     else
       tracker_write_scope "$scope" "{\"scope\":\"$scope\",\"status\":\"active\",\"created\":\"$ts\",\"iteration\":\"iteration_01\",\"gh_issue\":\"$issue_num\"}"
     fi
+    generate_context_file "$scope" "$issue_num" "status:active"
   fi
+}
+
+do_associate() {
+  local scope="$1"
+  local issue_input="$2"
+  validate_scope_name "$scope" || return 1
+
+  local issue_num
+  issue_num=$(parse_issue_number "$issue_input") || return 1
+
+  # Check if already associated with the same issue — idempotent
+  local current_issue
+  current_issue=$(tracker_get_field "$scope" "gh_issue")
+  if [[ "$current_issue" == "$issue_num" ]]; then
+    echo "[gh-issues] Scope $scope already associated with issue #$issue_num"
+    return 0
+  fi
+
+  # Ensure scope exists in tracker
+  local existing
+  existing=$(tracker_read_scope "$scope")
+  if [[ -z "$existing" ]]; then
+    local ts
+    ts=$(_timestamp)
+    if command -v jq &>/dev/null; then
+      tracker_write_scope "$scope" "$(jq -n -c \
+        --arg s "$scope" --arg t "$ts" --arg st "active" --arg gh "$issue_num" \
+        '{scope: $s, status: $st, created: $t, iteration: "iteration_01", gh_issue: $gh}')"
+    else
+      tracker_write_scope "$scope" "{\"scope\":\"$scope\",\"status\":\"active\",\"created\":\"$ts\",\"iteration\":\"iteration_01\",\"gh_issue\":\"$issue_num\"}"
+    fi
+  else
+    # Update existing entry with gh_issue
+    if command -v jq &>/dev/null; then
+      tracker_write_scope "$scope" "$(echo "$existing" | jq -c --arg n "$issue_num" '. + {gh_issue: $n}')"
+    fi
+  fi
+
+  events_log "$scope" "SCOPE_ASSOCIATE" "issue=$issue_num"
+
+  if [[ "$GH_ENABLED" != "true" ]]; then
+    echo "[gh-issues] GH disabled — association recorded locally for $scope → #$issue_num"
+    return 0
+  fi
+
+  # Verify issue exists
+  local view_output
+  if ! view_output=$(run_gh gh issue view "$issue_num" --repo "$REPO" --json state,title 2>/dev/null); then
+    echo "ERROR: Issue #$issue_num not found or inaccessible" >&2
+    return 1
+  fi
+
+  # Add ap:scope label
+  run_gh gh issue edit "$issue_num" --repo "$REPO" --add-label "ap:scope" >/dev/null 2>&1 || true
+
+  # Comment on issue
+  run_gh gh issue comment "$issue_num" --repo "$REPO" \
+    --body "Associated with AP scope: $scope" >/dev/null 2>&1 || true
+
+  generate_context_file "$scope" "$issue_num" ""
+  echo "[gh-issues] Associated scope $scope with issue #$issue_num"
+}
+
+do_set_status() {
+  local scope="$1"
+  local label="$2"
+  validate_scope_name "$scope" || return 1
+
+  if [[ -z "$label" ]]; then
+    echo "ERROR: Label required (e.g., status:planning, status:executing)" >&2
+    return 1
+  fi
+
+  events_log "$scope" "COMMENT" "message=status-change:$label"
+
+  if [[ "$GH_ENABLED" != "true" ]]; then
+    echo "[gh-issues] GH disabled — status change logged locally for $scope"
+    return 0
+  fi
+
+  local issue_num
+  issue_num=$(tracker_get_field "$scope" "gh_issue")
+  if [[ -z "$issue_num" ]]; then
+    echo "[gh-issues] WARNING: No gh_issue found for scope $scope" >&2
+    return 0
+  fi
+
+  # Remove existing status:* labels, then add the new one
+  # Get current labels
+  local current_labels
+  current_labels=$(run_gh gh issue view "$issue_num" --repo "$REPO" --json labels --jq '.[].name' 2>/dev/null) || current_labels=""
+
+  # Remove old status labels (best-effort)
+  for old_label in status:planning status:executing status:reviewing status:iterate status:active; do
+    if echo "$current_labels" | grep -q "^${old_label}$"; then
+      run_gh gh issue edit "$issue_num" --repo "$REPO" --remove-label "$old_label" >/dev/null 2>&1 || true
+    fi
+  done
+
+  # Add new label
+  run_gh gh issue edit "$issue_num" --repo "$REPO" --add-label "$label" >/dev/null 2>&1 || true
+
+  # Regenerate context file with new status
+  generate_context_file "$scope" "$issue_num" "$label"
+  echo "[gh-issues] Updated #$issue_num → $label"
 }
 
 do_set_iteration() {
@@ -474,6 +665,18 @@ case "$ACTION" in
     [[ -z "$SCOPE" ]] && { echo "Usage: github-issues-lifecycle.sh start <scope>" >&2; exit 1; }
     do_start "$SCOPE"
     ;;
+  associate)
+    SCOPE="${2:-}"
+    ISSUE_INPUT="${3:-}"
+    [[ -z "$SCOPE" || -z "$ISSUE_INPUT" ]] && { echo "Usage: github-issues-lifecycle.sh associate <scope> <issue_number_or_url>" >&2; exit 1; }
+    do_associate "$SCOPE" "$ISSUE_INPUT"
+    ;;
+  set-status)
+    SCOPE="${2:-}"
+    LABEL="${3:-}"
+    [[ -z "$SCOPE" || -z "$LABEL" ]] && { echo "Usage: github-issues-lifecycle.sh set-status <scope> <label>" >&2; exit 1; }
+    do_set_status "$SCOPE" "$LABEL"
+    ;;
   set-iteration)
     SCOPE="${2:-}"
     ITERATION="${3:-}"
@@ -518,7 +721,7 @@ case "$ACTION" in
     ;;
   *)
     echo "ERROR: Unknown action '$ACTION'" >&2
-    echo "Valid actions: health-check, start, set-iteration, get-iteration, task-create, task-update, close, verify, comment" >&2
+    echo "Valid actions: health-check, start, associate, set-status, set-iteration, get-iteration, task-create, task-update, close, verify, comment" >&2
     exit 1
     ;;
 esac
