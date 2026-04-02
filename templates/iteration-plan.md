@@ -27,7 +27,7 @@ No mid-iteration scope creep allowed.
 
 ## Known Patterns & Constraints
 
-*Populated from knowledge base (`.beads/knowledge/` or `.agent_process/knowledge/` fallback) — see `process/knowledge-base.md` for query instructions. Use `/prime` when metaswarm is available.*
+*Populated from knowledge base (`.agent_process/knowledge/`) — see `process/knowledge-base.md` for query instructions. Use `/prime` when metaswarm is available.*
 
 **From knowledge base:**
 - [List relevant entries as: **[type]** fact (confidence: X, source: provenance reference)]

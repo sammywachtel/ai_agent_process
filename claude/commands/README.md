@@ -81,7 +81,7 @@ This directory serves as a reference placeholder in the template structure.
 
 ## Dependencies
 
-These commands require **Claude Code** as the execution environment and **GitHub CLI (`gh`)** for PR operations. Optional features like BEADS, metaswarm, and design review gates are controlled via `quality-config.json`.
+These commands require **Claude Code** as the execution environment and **GitHub CLI (`gh`)** for PR and issue tracking operations. Optional features like GitHub Issues tracking, metaswarm, and design review gates are controlled via `quality-config.json`.
 
 ## Documentation
 

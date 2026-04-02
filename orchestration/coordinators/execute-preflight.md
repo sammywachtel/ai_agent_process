@@ -2,9 +2,9 @@
 
 You are running pre-flight checks before implementation begins. These checks catch common problems that waste iteration time. After preflight completes, the main execution prompt takes over with full Agent/Task tool access.
 
-## Important: No BEADS During Preflight Sub-agents
+## Important: No Lifecycle Commands During Preflight Sub-agents
 
-BEADS lifecycle is handled by a direct bash call below (Step 0.5), not by sub-agents. Sub-agents should not call `bd` or `bds`.
+GitHub Issues lifecycle is handled by a direct bash call below (Steps 0.4–0.5), not by sub-agents. Sub-agents should not call `github-issues-lifecycle.sh`.
 
 ## Inputs
 
@@ -37,15 +37,25 @@ These instructions are ADDITIVE — they augment but never skip default steps.
 
 ## Step Sequence
 
-### Step 0.5: BEADS State Tracking (direct bash — not a sub-agent)
+### Step 0.4: GitHub Issues Health Check (conditional, direct bash)
+
+If `github_issues.enabled` is true in `quality-config.json`, run:
+
+```bash
+bash .agent_process/scripts/github-issues-lifecycle.sh health
+```
+
+If this exits non-zero, STOP and tell the user: "GitHub Issues integration is enabled but the health check failed."
+
+### Step 0.5: Scope Tracking Init (direct bash — not a sub-agent)
 
 Run this directly — do not spawn a sub-agent:
 
 ```bash
-BEADS_ITERATION={iteration} bash .agent_process/scripts/beads-lifecycle.sh start {scope}
+bash .agent_process/scripts/github-issues-lifecycle.sh start {scope} {iteration}
 ```
 
-Replace `{iteration}` and `{scope}` with actual values. If this exits non-zero, STOP and tell the user: "BEADS is enabled but failed to initialize."
+Replace `{iteration}` and `{scope}` with actual values. If this exits non-zero, STOP and tell the user: "Scope tracking failed to initialize."
 
 ### Step 0.7: Pre-flight Checks
 

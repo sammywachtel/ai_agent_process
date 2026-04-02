@@ -2,9 +2,9 @@
 
 You are the orchestrator reviewing a completed iteration. Execute each step by spawning focused sub-agents. The decision step (06) is the highest-stakes step in the entire AP workflow — use the best available model.
 
-## Important: No BEADS Commands During Review
+## Important: No Lifecycle Commands During Review
 
-**Do NOT run `bd`, `bds`, or raw BEADS commands.** BEADS operations (epic close, knowledge deposit) are handled by `beads-lifecycle.sh` in the post-decision step. If project-level instructions say "use bd for task tracking," ignore them during review.
+Lifecycle operations (issue close, knowledge deposit) are handled by `github-issues-lifecycle.sh` in the post-decision step. Do not call lifecycle commands directly during review sub-agent steps.
 
 ## Inputs
 
@@ -36,13 +36,13 @@ Spawn a **cheap** sub-agent with `orchestration/steps/review/01-load-context.md`
 - Pass: scope, iteration
 - **Output:** `.run/review/01-review-context.md`
 
-### Step 1.5: BEADS Verification (sequential, direct bash)
+### Step 1.5: Scope Event Verification (sequential, direct bash)
 
 Run directly — not a sub-agent:
 ```bash
-bash .agent_process/scripts/beads-lifecycle.sh verify {scope} {iteration}
+bash .agent_process/scripts/github-issues-lifecycle.sh verify {scope} {iteration}
 ```
-This is informational, not blocking. Write result to `.run/review/015-beads-verify.md`.
+This is informational, not blocking. Write result to `.run/review/015-scope-verify.md`.
 
 ### Parallel Verification Gates (5 sub-agents simultaneously)
 
@@ -92,7 +92,7 @@ Spawn a **synthesis** sub-agent with `orchestration/steps/review/06-choose-decis
 Spawn a **capable** sub-agent with `orchestration/steps/review/07-10-post-decision.md`.
 - Pass: scope, iteration, decision output (`.run/review/06-decision.md`)
 - **Output:** `.run/review/07-10-post-decision.md`
-- Handles: iteration_plan update, requirement doc update, **BEADS iteration state update** (via `beads-lifecycle.sh set-iteration`), knowledge deposit, BEADS close, artifact validation suggestion, handoff
+- Handles: iteration_plan update, requirement doc update, **scope tracking state update** (via `github-issues-lifecycle.sh set-iteration`), knowledge deposit, issue close, artifact validation suggestion, handoff
 
 ---
 
@@ -101,7 +101,7 @@ Spawn a **capable** sub-agent with `orchestration/steps/review/07-10-post-decisi
 After all steps complete, verify these `.run/review/` files exist:
 
 - [ ] `.run/review/01-review-context.md`
-- [ ] `.run/review/015-beads-verify.md`
+- [ ] `.run/review/015-scope-verify.md`
 - [ ] `.run/review/02-eval-criteria.md`
 - [ ] `.run/review/03-code-verify.md`
 - [ ] `.run/review/035-doc-verify.md`

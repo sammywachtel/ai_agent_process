@@ -22,74 +22,6 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Ensure ~/.config/beads/credentials exists with header template
-ensure_beads_credentials() {
-  local creds_file="${HOME}/.config/beads/credentials"
-  mkdir -p "${HOME}/.config/beads"
-  if [[ ! -f "$creds_file" ]]; then
-    cat > "$creds_file" << 'CREDS_TEMPLATE'
-# BEADS Dolt Server Credentials
-#
-# Each section is [host:port] matching the beads.server config in a project's
-# quality-config.json. Projects only read the section matching their configured host.
-#
-# In Docker containers, 127.0.0.1/localhost are rewritten to host.docker.internal
-# automatically — the script checks both the rewritten and original keys.
-#
-# To add a new server:
-#   [hostname:port]
-#   password = your_password_here
-#
-# Examples:
-#   [127.0.0.1:3307]          — local Dolt (personal projects)
-#   [beads.company.com:3307]  — shared team server (work projects)
-#   [10.0.1.50:3307]          — office network server
-#
-# This file is chmod 600. Do not commit it to any repo.
-CREDS_TEMPLATE
-    chmod 600 "$creds_file"
-  fi
-}
-
-# Save a password to credentials file (idempotent, preserves header + existing entries)
-save_beads_credential() {
-  local host="$1" port="$2" password="$3"
-  ensure_beads_credentials
-  python3 -c "
-import os, re
-
-path = os.path.expanduser('~/.config/beads/credentials')
-content = open(path).read() if os.path.exists(path) else ''
-
-# Preserve comment header (everything before first [section])
-header = ''
-body = content
-first_section = re.search(r'^\[', content, re.MULTILINE)
-if first_section:
-    header = content[:first_section.start()]
-    body = content[first_section.start():]
-elif content.startswith('#'):
-    header = content
-    body = ''
-
-# Parse sections from body
-import configparser, io
-cp = configparser.ConfigParser()
-cp.read_string(body)
-
-section = '${host}:${port}'
-if not cp.has_section(section):
-    cp.add_section(section)
-cp.set(section, 'password', '${password}')
-
-# Write header + sections
-with open(path, 'w') as f:
-    f.write(header)
-    cp.write(f)
-os.chmod(path, 0o600)
-" 2>/dev/null
-}
-
 # Determine source directory (where this script lives)
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -170,44 +102,20 @@ else
   echo -e "${YELLOW}  ⊙${NC} Preserving existing .agent_process/work/ directory"
 fi
 
-# Knowledge base directory — .beads/knowledge/ when BEADS enabled, .agent_process/knowledge/ as fallback
-# Both are created; the orchestrator/agents pick the right one at runtime
+# Knowledge base directory — always .agent_process/knowledge/
 KB_FILES="patterns gotchas decisions anti-patterns"
 KB_FILES_EXTENDED="codebase-facts api-behaviors"  # metaswarm-compatible extras
 
-# Always ensure .agent_process/knowledge/ exists (fallback when BEADS disabled)
 if [[ ! -d "$AGENT_PROCESS_DIR/knowledge" ]]; then
   mkdir -p "$AGENT_PROCESS_DIR/knowledge"
-  for kb_file in $KB_FILES; do
+  for kb_file in $KB_FILES $KB_FILES_EXTENDED; do
     if [[ ! -f "$AGENT_PROCESS_DIR/knowledge/${kb_file}.jsonl" ]]; then
       echo "# Schema: ${kb_file}.jsonl — see process/knowledge-base.md for format" > "$AGENT_PROCESS_DIR/knowledge/${kb_file}.jsonl"
     fi
   done
-  echo -e "${GREEN}  ✓${NC} Created .agent_process/knowledge/ (fallback)"
+  echo -e "${GREEN}  ✓${NC} Created .agent_process/knowledge/"
 else
   echo -e "${YELLOW}  ⊙${NC} Preserving existing .agent_process/knowledge/"
-fi
-
-# Create .beads/knowledge/ for BEADS-managed knowledge (metaswarm-compatible)
-if [[ ! -d "$TARGET_DIR/.beads/knowledge" ]]; then
-  mkdir -p "$TARGET_DIR/.beads/knowledge"
-  for kb_file in $KB_FILES $KB_FILES_EXTENDED; do
-    if [[ ! -f "$TARGET_DIR/.beads/knowledge/${kb_file}.jsonl" ]]; then
-      echo "# Schema: ${kb_file}.jsonl — metaswarm-compatible. See process/knowledge-base.md" > "$TARGET_DIR/.beads/knowledge/${kb_file}.jsonl"
-    fi
-  done
-  echo -e "${GREEN}  ✓${NC} Created .beads/knowledge/ (primary, metaswarm-compatible)"
-else
-  echo -e "${YELLOW}  ⊙${NC} Preserving existing .beads/knowledge/"
-fi
-
-# Migrate legacy .agent_process/knowledge/ entries → .beads/knowledge/ (idempotent)
-# Uses scripts/migrate-knowledge.py — same script users can run manually
-if [[ -d "$AGENT_PROCESS_DIR/knowledge" && -d "$TARGET_DIR/.beads/knowledge" ]]; then
-  MIGRATED=$(python3 "$SOURCE_DIR/scripts/migrate-knowledge.py" --src "$AGENT_PROCESS_DIR/knowledge" --dst "$TARGET_DIR/.beads/knowledge" -q 2>/dev/null || echo "0")
-  if [[ "$MIGRATED" -gt 0 ]]; then
-    echo -e "${GREEN}  ✓${NC} Migrated ${MIGRATED} knowledge entries from .agent_process/knowledge/ → .beads/knowledge/"
-  fi
 fi
 
 # Ensure quality-config.json exists (seed from template if missing)
@@ -268,7 +176,7 @@ FEAT_KNOWLEDGE=$(prompt_feature "Knowledge base" "patterns, gotchas, decisions a
 FEAT_ADVERSARIAL=$(prompt_feature "Adversarial review" "fresh-agent criterion verification" "adversarial_review.enabled" "yes")
 FEAT_DECOMPOSITION=$(prompt_feature "Work unit decomposition" "DAG-based parallel execution for multi-domain scopes" "work_unit_decomposition.enabled" "yes")
 FEAT_DESIGN_REVIEW=$(prompt_feature "Design review gate" "multi-reviewer plan assessment for complex scopes" "design_review.enabled" "no")
-FEAT_BEADS=$(prompt_feature "BEADS" "git-native durable state tracking via Dolt" "beads.enabled" "yes")
+FEAT_GH=$(prompt_feature "GitHub Issues" "track work with GitHub Issues" "github_issues.enabled" "no")
 FEAT_PR_SHEPHERD=$(prompt_feature "PR shepherd" "post-PR agent monitoring CI and reviews" "pr_shepherd.enabled" "yes")
 FEAT_METASWARM=$(prompt_feature "Metaswarm integration" "brainstorming, design review, knowledge priming" "metaswarm.enabled" "no")
 
@@ -288,8 +196,8 @@ cfg.setdefault('knowledge_base', {})['enabled'] = to_bool('$FEAT_KNOWLEDGE')
 cfg.setdefault('adversarial_review', {})['enabled'] = to_bool('$FEAT_ADVERSARIAL')
 cfg.setdefault('work_unit_decomposition', {})['enabled'] = to_bool('$FEAT_DECOMPOSITION')
 cfg.setdefault('design_review', {})['enabled'] = to_bool('$FEAT_DESIGN_REVIEW')
-cfg.setdefault('beads', {})['enabled'] = to_bool('$FEAT_BEADS')
-cfg['beads']['_user_configured'] = True
+cfg.setdefault('github_issues', {})['enabled'] = to_bool('$FEAT_GH')
+cfg['github_issues']['_user_configured'] = True
 cfg.setdefault('pr_shepherd', {})['enabled'] = to_bool('$FEAT_PR_SHEPHERD')
 cfg.setdefault('metaswarm', {})['enabled'] = to_bool('$FEAT_METASWARM')
 cfg['metaswarm']['_user_configured'] = True
@@ -301,266 +209,168 @@ print('OK')
 echo ""
 echo -e "${GREEN}  ✓${NC} Feature configuration saved to quality-config.json"
 
-# ─── BEADS Setup (if enabled) ────────────────────────────────────────
-if [[ "$FEAT_BEADS" == "yes" ]]; then
+# ─── GitHub Issues Setup (if enabled) ────────────────────────────────
+if [[ "$FEAT_GH" == "yes" ]]; then
   echo ""
-  echo -e "${BLUE}▸${NC} BEADS durable state tracking..."
+  echo -e "${BLUE}▸${NC} GitHub Issues integration..."
 
-  # Check Dolt prerequisites — local binary, configured remote, or default port
-  DOLT_AVAILABLE=false
-  DOLT_HOST=""
-  DOLT_PORT="3307"
-  DOLT_USER="root"
+  GH_SETUP_OK=false
 
-  if command -v dolt &>/dev/null; then
-    DOLT_AVAILABLE=true
-    DOLT_HOST="127.0.0.1"
-    echo -e "${GREEN}  ✓${NC} Dolt installed locally"
-  else
-    # Check if a remote server is configured and reachable
-    REMOTE_HOST=$(python3 -c "
-import json
-try:
-    cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
-    print(cfg.get('beads', {}).get('server', {}).get('host', ''))
-except:
-    print('')
-" 2>/dev/null)
-    REMOTE_PORT=$(python3 -c "
-import json
-try:
-    cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
-    print(cfg.get('beads', {}).get('server', {}).get('port', '3307'))
-except:
-    print('3307')
-" 2>/dev/null)
-    REMOTE_USER=$(python3 -c "
-import json
-try:
-    cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
-    print(cfg.get('beads', {}).get('server', {}).get('user', 'root'))
-except:
-    print('root')
-" 2>/dev/null)
+  # Step 1: Check gh CLI installed
+  while true; do
+    if command -v gh &>/dev/null; then
+      break
+    else
+      echo -e "${YELLOW}  ⚠ GitHub CLI (gh) is not installed.${NC}"
+      echo -e "  Install it from: ${GREEN}https://cli.github.com/${NC}"
+      read -p "  Retry or skip GitHub Issues? [r/S]: " -n 1 -r
+      echo ""
+      if [[ "$REPLY" =~ ^[Rr]$ ]]; then
+        continue
+      else
+        echo -e "${YELLOW}  ⊙${NC} Skipping GitHub Issues setup"
+        FEAT_GH="no"
+        break
+      fi
+    fi
+  done
 
-    if [[ -n "$REMOTE_HOST" ]] && nc -z "$REMOTE_HOST" "$REMOTE_PORT" 2>/dev/null; then
-      DOLT_AVAILABLE=true
-      DOLT_HOST="$REMOTE_HOST"
-      DOLT_PORT="$REMOTE_PORT"
-      DOLT_USER="$REMOTE_USER"
-      echo -e "${GREEN}  ✓${NC} Dolt server reachable at ${DOLT_HOST}:${DOLT_PORT}"
-    elif nc -z 127.0.0.1 3307 2>/dev/null; then
-      # No dolt binary, no config, but something is listening on the default port
-      DOLT_AVAILABLE=true
-      DOLT_HOST="127.0.0.1"
-      echo -e "${GREEN}  ✓${NC} Dolt server detected on default port (127.0.0.1:3307)"
+  # Step 2: Check gh version >= 2.20.0
+  if [[ "$FEAT_GH" == "yes" ]]; then
+    GH_VERSION=$(gh --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "0.0.0")
+    GH_MAJOR=$(echo "$GH_VERSION" | cut -d. -f1)
+    GH_MINOR=$(echo "$GH_VERSION" | cut -d. -f2)
+    if [[ "$GH_MAJOR" -lt 2 ]] || [[ "$GH_MAJOR" -eq 2 && "$GH_MINOR" -lt 20 ]]; then
+      echo -e "${YELLOW}  ⚠ gh version $GH_VERSION is too old (need >= 2.20.0).${NC}"
+      echo -e "  Upgrade: ${GREEN}gh upgrade${NC} or ${GREEN}brew upgrade gh${NC}"
+      read -p "  Continue anyway or skip? [c/S]: " -n 1 -r
+      echo ""
+      if [[ ! "$REPLY" =~ ^[Cc]$ ]]; then
+        echo -e "${YELLOW}  ⊙${NC} Skipping GitHub Issues setup"
+        FEAT_GH="no"
+      fi
     fi
   fi
 
-  # Always write server config to quality-config.json when Dolt is available
-  # so the bd init section below can find it via env vars
-  if [[ "$DOLT_AVAILABLE" == true && -n "$DOLT_HOST" ]]; then
+  # Step 3: Check gh auth status
+  if [[ "$FEAT_GH" == "yes" ]]; then
+    while true; do
+      if gh auth status &>/dev/null; then
+        break
+      else
+        echo -e "${YELLOW}  ⚠ gh is not authenticated.${NC}"
+        echo -e "  Run: ${GREEN}gh auth login${NC}"
+        read -p "  Retry or skip? [r/S]: " -n 1 -r
+        echo ""
+        if [[ "$REPLY" =~ ^[Rr]$ ]]; then
+          continue
+        else
+          echo -e "${YELLOW}  ⊙${NC} Skipping GitHub Issues setup"
+          FEAT_GH="no"
+          break
+        fi
+      fi
+    done
+  fi
+
+  # Step 4: Detect repo
+  if [[ "$FEAT_GH" == "yes" ]]; then
+    GH_REPO=""
+    DETECTED_REPO=$(cd "$TARGET_DIR" && gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || echo "")
+    if [[ -n "$DETECTED_REPO" ]]; then
+      echo -e "  Detected repository: ${GREEN}$DETECTED_REPO${NC}"
+      read -p "  Use this repo? [Y/n]: " -n 1 -r
+      echo ""
+      if [[ -z "$REPLY" || "$REPLY" =~ ^[Yy]$ ]]; then
+        GH_REPO="$DETECTED_REPO"
+      fi
+    fi
+    if [[ -z "$GH_REPO" ]]; then
+      read -p "  Enter repository (owner/name): " GH_REPO
+    fi
+    if [[ -z "$GH_REPO" ]]; then
+      echo -e "${YELLOW}  ⊙${NC} No repository specified, skipping GitHub Issues setup"
+      FEAT_GH="no"
+    fi
+  fi
+
+  # Step 5: Create AP labels (idempotent)
+  if [[ "$FEAT_GH" == "yes" ]]; then
+    echo -e "  Creating labels in ${GREEN}$GH_REPO${NC}..."
+    AP_LABELS=(
+      "ap:scope:#0E8A16"
+      "ap:iteration:#1D76DB"
+      "status:planning:#FBCA04"
+      "status:executing:#D93F0B"
+      "status:blocked:#B60205"
+      "status:review:#6F42C1"
+      "status:done:#0E8A16"
+    )
+    LABELS_CREATED=0
+    for label_entry in "${AP_LABELS[@]}"; do
+      IFS=':' read -r prefix name color <<< "$label_entry"
+      label_name="${prefix}:${name}"
+      if gh label create "$label_name" --repo "$GH_REPO" --color "${color#\#}" --force 2>/dev/null; then
+        LABELS_CREATED=$((LABELS_CREATED + 1))
+      fi
+    done
+    echo -e "${GREEN}  ✓${NC} Labels ready ($LABELS_CREATED created/updated)"
+
+    # Write repo to config
     python3 -c "
 import json
 path = '$AGENT_PROCESS_DIR/quality-config.json'
 try:
     cfg = json.load(open(path))
-    existing = cfg.get('beads', {}).get('server', {})
-    if not existing.get('host'):
-        cfg.setdefault('beads', {})['server'] = {'host': '$DOLT_HOST', 'port': int('$DOLT_PORT'), 'user': '$DOLT_USER'}
-        json.dump(cfg, open(path, 'w'), indent=2)
 except:
-    pass
+    cfg = {}
+cfg.setdefault('github_issues', {})['repo'] = '$GH_REPO'
+json.dump(cfg, open(path, 'w'), indent=2)
 " 2>/dev/null
+
+    GH_SETUP_OK=true
+    echo -e "${GREEN}  ✓${NC} GitHub Issues configured for $GH_REPO"
   fi
 
-  if [[ "$DOLT_AVAILABLE" == false ]]; then
-    echo -e "${YELLOW}  ⚠ Dolt is not reachable.${NC} BEADS needs Dolt as its database backend."
-    echo -e "  Options:"
-    echo -e "    1) Start Dolt via Docker now"
-    echo -e "    2) Enter remote server connection details"
-    echo -e "    3) I'll install Dolt manually and re-run"
-    echo -e "    4) Skip BEADS for now (use file-based state)"
-    read -p "  Choose [1/2/3/4]: " -n 1 -r
-    echo ""
-    if [[ "$REPLY" == "1" ]]; then
-      if ! command -v docker &>/dev/null; then
-        echo -e "${RED}  Docker not found.${NC} Continuing without BEADS."
-      else
-        DOLT_DATA_DIR="${HOME}/.dolt-server/data"
-        DOLT_CFG_DIR="${HOME}/.dolt-server/config"
-        mkdir -p "$DOLT_DATA_DIR" "$DOLT_CFG_DIR"
-        DOLT_PASS=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 16)
-        echo -e "  Starting Dolt SQL server via Docker..."
-        docker run -d \
-          --name beads-dolt-server \
-          --restart unless-stopped \
-          -e DOLT_ROOT_HOST='%' \
-          -e DOLT_ROOT_PASSWORD="$DOLT_PASS" \
-          -p 3307:3306 \
-          -v "$DOLT_DATA_DIR":/var/lib/dolt \
-          -v "$DOLT_CFG_DIR":/etc/dolt/servercfg.d \
-          dolthub/dolt-sql-server:latest \
-          2>/dev/null
-        if [[ $? -eq 0 ]]; then
-          echo -e "${GREEN}  ✓${NC} Dolt server running in Docker (port 3307)"
-          DOLT_AVAILABLE=true
-          DOLT_HOST="127.0.0.1"
-          DOLT_PORT="3307"
-          DOLT_USER="root"
-          python3 -c "
+  # If user said yes but we bailed out, update the config to disabled
+  if [[ "$FEAT_GH" == "no" ]]; then
+    python3 -c "
 import json
 path = '$AGENT_PROCESS_DIR/quality-config.json'
 try:
     cfg = json.load(open(path))
-    cfg.setdefault('beads', {})['server'] = {'host': '127.0.0.1', 'port': 3307, 'user': 'root'}
-    json.dump(cfg, open(path, 'w'), indent=2)
 except:
-    pass
+    cfg = {}
+cfg.setdefault('github_issues', {})['enabled'] = False
+json.dump(cfg, open(path, 'w'), indent=2)
 " 2>/dev/null
-          save_beads_credential "127.0.0.1" "3307" "$DOLT_PASS"
-          echo -e "${GREEN}  ✓${NC} Credentials saved to ~/.config/beads/credentials"
-        else
-          echo -e "${YELLOW}  ⊙${NC} Docker failed. Continuing without BEADS."
-        fi
-      fi
-    elif [[ "$REPLY" == "2" ]]; then
-      read -p "  Dolt server host: " REMOTE_INPUT_HOST
-      read -p "  Dolt server port [3307]: " REMOTE_INPUT_PORT
-      REMOTE_INPUT_PORT="${REMOTE_INPUT_PORT:-3307}"
-      read -p "  Dolt user [root]: " REMOTE_INPUT_USER
-      REMOTE_INPUT_USER="${REMOTE_INPUT_USER:-root}"
-      if nc -z "$REMOTE_INPUT_HOST" "$REMOTE_INPUT_PORT" 2>/dev/null; then
-        echo -e "${GREEN}  ✓${NC} Connected to ${REMOTE_INPUT_HOST}:${REMOTE_INPUT_PORT}"
-        DOLT_AVAILABLE=true
-        DOLT_HOST="$REMOTE_INPUT_HOST"
-        DOLT_PORT="$REMOTE_INPUT_PORT"
-        DOLT_USER="$REMOTE_INPUT_USER"
-        python3 -c "
+  fi
+fi
+
+# ─── Legacy BEADS config migration ──────────────────────────────────
+# If upgrading from a project that had BEADS, clean up the old config key
+python3 -c "
 import json
 path = '$AGENT_PROCESS_DIR/quality-config.json'
 try:
     cfg = json.load(open(path))
-    cfg.setdefault('beads', {})['server'] = {
-        'host': '$REMOTE_INPUT_HOST',
-        'port': int('$REMOTE_INPUT_PORT'),
-        'user': '$REMOTE_INPUT_USER'
-    }
-    json.dump(cfg, open(path, 'w'), indent=2)
 except:
-    pass
-" 2>/dev/null
-      else
-        echo -e "${RED}  Cannot reach ${REMOTE_INPUT_HOST}:${REMOTE_INPUT_PORT}${NC}"
-      fi
-    elif [[ "$REPLY" == "3" ]]; then
-      echo -e "${YELLOW}  Installation paused.${NC} Install Dolt, then re-run:"
-      echo -e "    ${GREEN}brew install dolt && $0${NC}"
-      exit 0
-    fi
-    # Option 4 or failed options — continue without BEADS
-  fi
-
-  # Install BEADS CLI (bd) if Dolt is available but bd is not
-  if [[ "$DOLT_AVAILABLE" == true ]] && ! command -v bd &>/dev/null; then
-    echo -e "  Installing BEADS CLI (bd)..."
-    BEADS_INSTALLED=false
-    if command -v npm &>/dev/null && npm install -g @beads/bd 2>/dev/null; then
-      BEADS_INSTALLED=true
-      echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via npm"
-    elif command -v brew &>/dev/null && brew install beads 2>/dev/null; then
-      BEADS_INSTALLED=true
-      echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via Homebrew"
-    elif command -v curl &>/dev/null && curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash 2>/dev/null; then
-      BEADS_INSTALLED=true
-      echo -e "${GREEN}  ✓${NC} Installed BEADS CLI via installer script"
-    fi
-    if [[ "$BEADS_INSTALLED" == false ]]; then
-      echo -e "${YELLOW}  ⊙${NC} BEADS CLI install failed — install bd manually"
-    fi
-  elif [[ "$DOLT_AVAILABLE" == true ]]; then
-    echo -e "${GREEN}  ✓${NC} BEADS ready (Dolt + bd available)"
-  fi
-fi
-
-
-# Initialize BEADS database if bd is available and enabled.
-# Check for metadata.json (not just .beads/) since knowledge migration creates .beads/knowledge/ early.
-# Works with both local Dolt (command -v dolt) and remote/Docker Dolt (beads.server in config).
-if command -v bd &>/dev/null && [[ ! -f "${TARGET_DIR}/.beads/metadata.json" ]]; then
-  # Read config to check enabled + get server connection
-  BEADS_INIT_INFO=$(python3 -c "
+    cfg = {}
+if 'beads' in cfg:
+    print('LEGACY_BEADS_FOUND')
+" 2>/dev/null | grep -q LEGACY_BEADS_FOUND && {
+  echo ""
+  echo -e "${YELLOW}  Detected legacy BEADS configuration.${NC}"
+  echo -e "  Run ${GREEN}scripts/migrate-from-beads.sh${NC} to migrate your data."
+  python3 -c "
 import json
-try:
-    cfg = json.load(open('$AGENT_PROCESS_DIR/quality-config.json'))
-    b = cfg.get('beads', {})
-    if not b.get('enabled', False):
-        print('disabled')
-    else:
-        server = b.get('server', {})
-        host = server.get('host', '')
-        port = server.get('port', '')
-        user = server.get('user', '')
-        has_local_dolt = True  # will be checked in shell
-        print(f'enabled|{host}|{port}|{user}')
-except:
-    print('disabled')
-" 2>/dev/null)
-
-  if [[ "$BEADS_INIT_INFO" != "disabled" ]]; then
-    # Parse server config
-    IFS='|' read -r _ BHOST BPORT BUSER <<< "$BEADS_INIT_INFO"
-
-    # Export env vars so bd init can connect to the right server
-    [[ -n "$BHOST" ]] && export BEADS_DOLT_SERVER_HOST="$BHOST"
-    [[ -n "$BPORT" ]] && export BEADS_DOLT_SERVER_PORT="$BPORT"
-    [[ -n "$BUSER" ]] && export BEADS_DOLT_SERVER_USER="$BUSER"
-
-    # Load password from credentials file
-    CREDS_FILE="${HOME}/.config/beads/credentials"
-    if [[ -f "$CREDS_FILE" && -n "$BHOST" ]]; then
-      BPASS=$(python3 -c "
-import configparser, os
-cp = configparser.ConfigParser()
-cp.read(os.path.expanduser('~/.config/beads/credentials'))
-key = '${BHOST}:${BPORT:-3307}'
-if cp.has_section(key) and cp.has_option(key, 'password'):
-    print(cp.get(key, 'password'))
-" 2>/dev/null) || true
-      [[ -n "${BPASS:-}" ]] && export BEADS_DOLT_PASSWORD="$BPASS"
-    fi
-
-    # Check we can reach Dolt somehow (local binary OR remote server)
-    DOLT_REACHABLE=false
-    if [[ -n "$BHOST" ]]; then
-      # Remote server configured — check TCP connectivity
-      nc -z "$BHOST" "${BPORT:-3307}" 2>/dev/null && DOLT_REACHABLE=true
-    elif command -v dolt &>/dev/null; then
-      # Local Dolt binary
-      DOLT_REACHABLE=true
-    fi
-
-    if [[ "$DOLT_REACHABLE" == true ]]; then
-      if (cd "$TARGET_DIR" && bd init 2>/dev/null); then
-        echo -e "${GREEN}  ✓${NC} Initialized BEADS database (.beads/)"
-
-        # Write server config to bd's native storage so bd knows the connection
-        # without needing env vars or wrapper scripts at runtime.
-        if [[ -n "$BHOST" ]]; then
-          (cd "$TARGET_DIR" && bd dolt set host "$BHOST" 2>/dev/null) || true
-        fi
-        if [[ -n "${BPORT:-}" ]]; then
-          (cd "$TARGET_DIR" && bd dolt set port "$BPORT" 2>/dev/null) || true
-        fi
-        if [[ -n "${BUSER:-}" ]]; then
-          (cd "$TARGET_DIR" && bd dolt set user "$BUSER" 2>/dev/null) || true
-        fi
-      else
-        echo -e "${YELLOW}  ⊙${NC} BEADS database initialization failed (will retry at runtime)"
-      fi
-    fi
-  fi
-fi
+path = '$AGENT_PROCESS_DIR/quality-config.json'
+cfg = json.load(open(path))
+del cfg['beads']
+json.dump(cfg, open(path, 'w'), indent=2)
+" 2>/dev/null
+  echo -e "${GREEN}  ✓${NC} Removed legacy 'beads' key from quality-config.json"
+}
 
 # ─── Metaswarm Setup (if enabled) ─────────────────────────────────────
 if [[ "$FEAT_METASWARM" == "yes" ]]; then

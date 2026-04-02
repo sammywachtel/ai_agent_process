@@ -192,31 +192,31 @@ scan_real_artifacts() {
   echo ""
   echo "  iteration_plan.md: ${plan_pass} pass, ${plan_fail} fail, ${plan_warn} warnings"
 
-  # Scan .beads-state files
+  # Scan scope event logs
   echo ""
-  echo -e "${YELLOW}--- Scanning .beads-state files ---${NC}"
+  echo -e "${YELLOW}--- Scanning scope-events.log files ---${NC}"
   echo ""
-  local beads_pass=0
-  local beads_fail=0
+  local events_pass=0
+  local events_fail=0
   while IFS= read -r file; do
     rel_path="${file#$target_path/}"
     echo -e "${BLUE}  $rel_path${NC}"
 
-    output=$(bash test/contract/validate-beads-state.sh "$file" 2>&1)
+    output=$(bash test/contract/validate-scope-events.sh "$file" 2>&1)
     exit_code=$?
 
     if [[ $exit_code -eq 0 ]]; then
       echo -e "    ${GREEN}PASS${NC}"
-      ((beads_pass++))
+      ((events_pass++))
     else
       echo -e "    ${RED}FAIL${NC}"
       echo "$output" | grep "FAIL:" | sed 's/^/      /'
-      ((beads_fail++))
+      ((events_fail++))
     fi
-  done < <(find "$target_path" -name ".beads-state" | sort)
+  done < <(find "$target_path" -name "scope-events.log" | sort)
 
   echo ""
-  echo "  .beads-state: ${beads_pass} pass, ${beads_fail} fail"
+  echo "  scope-events.log: ${events_pass} pass, ${events_fail} fail"
 
   # Scan knowledge files
   echo ""
@@ -247,8 +247,8 @@ scan_real_artifacts() {
   # Summary
   echo ""
   header "Scan Summary"
-  local total_pass=$((results_pass + review_pass + plan_pass + beads_pass + knowledge_pass))
-  local total_fail=$((results_fail + review_fail + plan_fail + beads_fail + knowledge_fail))
+  local total_pass=$((results_pass + review_pass + plan_pass + events_pass + knowledge_pass))
+  local total_fail=$((results_fail + review_fail + plan_fail + events_fail + knowledge_fail))
   echo "  Total artifacts scanned: $((total_pass + total_fail))"
   echo -e "  ${GREEN}Pass: ${total_pass}${NC}"
   echo -e "  ${RED}Fail: ${total_fail}${NC}"

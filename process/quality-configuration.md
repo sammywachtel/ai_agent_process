@@ -69,35 +69,25 @@ Controls the multi-reviewer design review gate (Phase 3).
 | `min_reviewers` | number | `2` | Minimum specialist reviewers per design review. |
 | `max_reviewers` | number | `4` | Maximum specialist reviewers per design review. |
 
-### `beads`
+### `github_issues`
 
-Controls BEADS durable state integration (Phase 3).
+Controls GitHub Issues integration for scope and work unit tracking.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `enabled` | boolean | `true` | Master switch. When `false`, BEADS is fully ignored even if `bd` is on the PATH. |
-| `auto_install` | boolean | `true` | Whether to attempt installing `bd` CLI if not found. Set `false` for air-gapped environments. |
-| `server` | object | `null` | Remote Dolt server connection. When present, `bd` connects here instead of requiring local Dolt. |
-| `server.host` | string | — | Dolt server hostname or IP. Examples: `"127.0.0.1"` (local), `"beads.company.com"` (shared). |
-| `server.port` | number | `3307` | Dolt server port. |
-| `server.user` | string | `"root"` | Dolt database user. |
-
-**Password** is set via the `BEADS_DOLT_PASSWORD` environment variable — never in config files. Use `direnv` (`.envrc`) or shell profile for per-project passwords.
-
-**Per-project routing:** Each project's `quality-config.json` can point at a different server. Personal projects use local Dolt; company projects use a shared instance.
+| `enabled` | boolean | `false` | Master switch. When `false`, all GitHub Issues operations are skipped and file-based tracking is used exclusively. |
+| `_user_configured` | boolean | `false` | Set by `install.sh` after user makes a choice. Prevents re-prompting on reinstall. |
+| `repo` | string | — | Repository in `owner/name` format. Used as `--repo` flag for all `gh` commands. Auto-detected from git remote during install if not set. |
 
 ```json
-// Personal project — local Dolt on your laptop
-{ "beads": { "enabled": true } }
+// GitHub Issues enabled — tracks scopes as issues, work units as sub-issues
+{ "github_issues": { "enabled": true, "repo": "myorg/myproject", "_user_configured": true } }
 
-// Company project — shared GCE server
-{ "beads": { "enabled": true, "server": { "host": "34.x.x.x", "port": 3307, "user": "beads" } } }
-
-// No BEADS — file-based state only
-{ "beads": { "enabled": false } }
+// No GitHub Issues — file-based state only (scope-tracker.jsonl, scope-events.log)
+{ "github_issues": { "enabled": false, "_user_configured": true } }
 ```
 
-When `server` is present, local Dolt installation is not required — `bd` connects to the remote instance directly. Server config is written to `bd`'s native storage during `install.sh` (via `bd dolt set host/port/user`), and `bd` reads credentials from `~/.config/beads/credentials`. The `beads-lifecycle.sh` script handles BEADS lifecycle during execution (Step 0.5).
+When enabled, `install.sh` verifies `gh` CLI is installed and authenticated, creates AP labels on the repo, and writes the config. The `github-issues-lifecycle.sh` script handles issue lifecycle during execution (Steps 0.4–0.5).
 
 ### `pr_shepherd`
 
@@ -167,9 +157,9 @@ Or in prompt instructions, the agent reads the file and checks the relevant sect
 { "design_review": { "enabled": true } }
 ```
 
-**Disable BEADS auto-installation (air-gapped):**
+**Disable GitHub Issues tracking:**
 ```json
-{ "beads": { "auto_install": false } }
+{ "github_issues": { "enabled": false } }
 ```
 
 **Minimal config (everything defaults):**
@@ -187,7 +177,7 @@ Or in prompt instructions, the agent reads the file and checks the relevant sect
 | `ap_exec` Step 1.25 | `work_unit_decomposition.enabled` and thresholds |
 | `ap_exec` Step 2.5 | `knowledge_base.enabled` and `query_during_planning` |
 | `ap_exec` Step 4.5 | `adversarial_review.enabled` and `skip_for_trivial` |
-| `ap_exec` BEADS init | `beads.enabled` and `beads.auto_install` |
+| `ap_exec` Steps 0.4–0.5 | `github_issues.enabled` |
 | `orchestration/coordinators/plan-scope.md (coordinator) + orchestration/steps/planning/ (step files)` | `design_review.enabled` and settings |
 | `orchestration/coordinators/review-iteration.md + steps/review/` Step 3.7 | `adversarial_review.enabled` |
 | `orchestration/coordinators/review-iteration.md + steps/review/` Step 9.5 | `knowledge_base.deposit_on_approve` |

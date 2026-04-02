@@ -45,12 +45,9 @@ That's it. The framework handles planning, validation, adversarial review, and k
 
 | Dependency | Purpose | When You Need It | Install |
 |------------|---------|------------------|---------|
-| **BEADS CLI** | Durable state tracking across sessions (epic/task model) | Multi-session work, session recovery | Auto-installed at runtime if `beads.enabled: true` in `quality-config.json` |
-| **Dolt SQL Server** | Centralized BEADS state for teams | Multi-developer coordination | See `deploy/beads-server/README.md` |
 | **Metaswarm** (Claude Code plugin) | Multi-agent brainstorming, design review gates, PR shepherd, self-reflection | Enhanced ideation and review quality | [marketplace plugin](https://github.com/dsifry/metaswarm) — enable via `quality-config.json` |
 | **Docker** | Containerized dev environment with bypass permissions | Safe experimentation, CI parity | See `.docker-dev/README.md` |
-| **Python 3** | Knowledge migration script, BEADS credential management | Only during `install.sh` for BEADS credential setup | Pre-installed on most systems |
-| **`gcloud` CLI** | Deploying a BEADS Dolt server on GCE | Only if self-hosting BEADS server | [cloud.google.com/sdk](https://cloud.google.com/sdk) |
+| **Python 3** | Knowledge migration, quality config management | Only during `install.sh` | Pre-installed on most systems |
 
 ---
 
@@ -99,7 +96,7 @@ The AI Agent Process solves a common problem: AI-assisted development often beco
 | **PR Shepherd** | Post-PR agent monitoring CI, reviews, and merge-readiness |
 | **Design Review Gate** | Multi-reviewer plan assessment for complex scopes (opt-in) |
 | **Quality Configuration** | Centralized feature control via `quality-config.json` |
-| **BEADS Integration** | Optional durable state tracking for work units across sessions |
+| **GitHub Issues Integration** | Optional scope and work unit tracking via GitHub Issues |
 | **Metaswarm Integration** | Optional multi-agent brainstorming, design review, PR automation (opt-in) |
 
 ---
@@ -213,7 +210,8 @@ The complete lifecycle from idea to acceptance, with all optional features enabl
 │                                  ▼                                    │
 │  ┌─── EXECUTION (/ap_exec) ─────────────────────────────────────────┐ │
 │  │                                                                  │ │
-│  │  Step 0.5:  BEADS epic tracking (breadcrumbs for orchestrator)   │ │
+│  │  Step 0.4:  GitHub Issues health check (if enabled)              │ │
+│  │  Step 0.5:  Scope tracking init (issue creation + events)        │ │
 │  │  Step 0.7:  Pre-flight checks                                    │ │
 │  │    • Session recovery — detect interrupted work                  │ │
 │  │    • Working tree check — uncommitted changes in scope?          │ │
@@ -234,7 +232,7 @@ The complete lifecycle from idea to acceptance, with all optional features enabl
 │  ┌─── REVIEW (Orchestrator) ────────────────────────────────────────┐ │
 │  │                                                                  │ │
 │  │  Step 1:   Load context (plan, results, test output)             │ │
-│  │  Step 1.5: BEADS verification (check breadcrumbs)                │ │
+│  │  Step 1.5: Scope event verification (check tracking state)        │ │
 │  │  Step 2:   Evaluate against frozen criteria (version-aware)      │ │
 │  │  Step 3:   Code verification (read actual files, not claims)     │ │
 │  │  Step 3.5: Documentation verification gate                       │ │
@@ -364,7 +362,7 @@ knowledge/
 - **BLOCK/PIVOT decisions** deposit 0-2 process observations (agent behavior, scope structure issues)
 - Starts empty, grows organically — no manual population needed
 - Entries are JSONL (one JSON object per line) for easy grep/search
-- When BEADS is enabled, knowledge lives in `.beads/knowledge/` as the primary store
+- Knowledge always lives in `.agent_process/knowledge/` as the canonical store
 
 See `process/knowledge-base.md` for full documentation.
 
@@ -422,17 +420,17 @@ All reviewers must APPROVE. REQUEST_CHANGES triggers plan revision (max 2 cycles
 
 See `process/design-review-gate.md` for the full how-to guide.
 
-### BEADS Durable State
+### GitHub Issues Integration
 
-Optional state tracking using the [BEADS CLI](https://github.com/steveyegge/beads). When available, work unit state persists across session interruptions:
+Optional scope and work unit tracking via GitHub Issues. When enabled, the framework creates and manages issues automatically:
 
-- **Epic per scope** — Created on first `/ap_exec`, closed on APPROVE
-- **Task per work unit** — Labels track `in-progress`, `complete`, `blocked`
-- **Session recovery** — New session loads BEADS state and continues from last completed unit
+- **Issue per scope** — Created on first `/ap_exec`, closed on APPROVE
+- **Sub-issues per work unit** — Labels track `status:executing`, `status:reviewing`, etc.
+- **Session recovery** — `scope-tracker.jsonl` + `scope-events.log` provide authoritative state
 
-BEADS is installed on demand (prompted during `install.sh`, auto-installed at runtime if enabled). Falls back silently to file-based state when not available.
+Configured during `install.sh` (prompts for opt-in). File-based tracking (`scope-tracker.jsonl`, `scope-events.log`) always works regardless of GitHub Issues setting.
 
-See `process/beads-integration.md` for the full how-to guide.
+See `process/github-issues-integration.md` for the full how-to guide.
 
 ### Scoped Validation
 
@@ -552,7 +550,7 @@ Initializes CHANGELOG.md from git history for projects not yet tracking releases
   "adversarial_review":      { "enabled": true, "skip_for_trivial": true, "trivial_threshold_files": 2 },
   "work_unit_decomposition": { "enabled": true, "trigger_threshold_files": 3, "trigger_threshold_layers": 2 },
   "design_review":           { "enabled": false, "trigger": "complexity:complex", "max_revision_cycles": 2 },
-  "beads":                   { "enabled": true, "auto_install": true },
+  "github_issues":           { "enabled": false, "repo": "owner/name" },
   "pr_shepherd":             { "enabled": true },
   "metaswarm":               { "enabled": false, "features": { "brainstorm": true, "design_review": true, "prime": true, "pr_shepherd": true, "self_reflect": true } }
 }
@@ -615,7 +613,7 @@ your-project/
     │   ├── pr-shepherd.md
     │   ├── design-review-gate.md
     │   ├── quality-configuration.md
-    │   ├── beads-integration.md
+    │   ├── github-issues-integration.md
     │   ├── metaswarm-integration.md
     │   ├── local_environment_instructions.md
     │   └── ...
@@ -630,7 +628,7 @@ your-project/
     │
     ├── scripts/
     │   ├── after_edit/     # Scoped validation scripts (auto-generated)
-    │   ├── beads-lifecycle.sh
+    │   ├── github-issues-lifecycle.sh
     │   ├── evaluate-scope.sh
     │   └── hook_after_edit.sh
     │
@@ -664,7 +662,7 @@ your-project/
 ./install.sh /path/to/your/project
 ```
 
-The installer copies slash commands to `.claude/commands/` and sets up the `.agent_process/` directory. It prompts about optional BEADS installation.
+The installer copies slash commands to `.claude/commands/` and sets up the `.agent_process/` directory. It prompts about optional GitHub Issues integration.
 
 ### 2. Initialize Project Management
 
@@ -788,7 +786,7 @@ For teams using this framework across multiple projects, you can configure centr
 | PR Shepherd | `process/pr-shepherd.md` | Post-PR CI monitoring and review response |
 | Design Review Gate | `process/design-review-gate.md` | Multi-reviewer plan assessment for complex scopes |
 | Quality Configuration | `process/quality-configuration.md` | `quality-config.json` schema reference |
-| BEADS Integration | `process/beads-integration.md` | Optional durable state tracking setup and usage |
+| GitHub Issues Integration | `process/github-issues-integration.md` | Optional issue tracking setup and usage |
 | Metaswarm Integration | `process/metaswarm-integration.md` | Multi-agent brainstorming and review gates |
 | Local Environment | `process/local_environment_instructions.md` | Project-specific customization |
 | Roadmap Schema | `process/roadmap_schema.md` | Roadmap file format |

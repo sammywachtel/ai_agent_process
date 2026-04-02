@@ -51,12 +51,12 @@ Once you've loaded context, follow the coordinator from its first step.
 
 The coordinator breaks review into focused steps:
 - **Step 01:** Load context and determine iteration state
-- **Step 1.5:** BEADS verification (direct bash)
+- **Step 1.5:** Scope event verification (direct bash)
 - **Parallel Gates:** 5 verification gates run simultaneously:
   - Criteria evaluation, code verification, doc verification, integration verification, adversarial review
 - **Step 04-05:** Aggregate gates + count attempts
 - **Step 06:** HIGH STAKES decision (APPROVE/ITERATE/BLOCK/PIVOT) — uses best model
-- **Steps 07-10:** Post-decision actions (artifacts, knowledge, BEADS, handoff)
+- **Steps 07-10:** Post-decision actions (artifacts, knowledge, issue lifecycle, handoff)
 
 Each step writes output to `.agent_process/work/{scope}/.run/` so subsequent steps can read it.
 
@@ -66,7 +66,7 @@ Each step writes output to `.agent_process/work/{scope}/.run/` so subsequent ste
 
 - **Read**: Load context, artifacts, and actual code files
 - **Write**: Create follow-up artifacts if ITERATE decision
-- **Bash**: Create directories, run BEADS lifecycle commands
+- **Bash**: Create directories, run `github-issues-lifecycle.sh` commands
 - **Grep/Glob**: Search code patterns during verification gates
 - **Agent/Task**: Spawn focused sub-agents for each step (Claude Code)
 

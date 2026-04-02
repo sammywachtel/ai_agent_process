@@ -2,7 +2,7 @@
 # evaluate-scope.sh — Validate all artifacts in a scope's work folder
 #
 # Runs contract validators against results.md, adversarial-review.md,
-# iteration_plan.md, .beads-state, and knowledge JSONL files.
+# iteration_plan.md, scope-events.log, and knowledge JSONL files.
 #
 # Usage:
 #   bash .agent_process/scripts/evaluate-scope.sh .agent_process/work/<scope>
@@ -107,10 +107,10 @@ while IFS= read -r file; do
   run_validator "validate-adversarial-review.sh" "$file" "Review"
 done < <(find "$SCOPE_PATH" -name "adversarial-review.md" 2>/dev/null | sort)
 
-# --- BEADS state files ---
+# --- Scope event logs ---
 while IFS= read -r file; do
-  run_validator "validate-beads-state.sh" "$file" "BEADS"
-done < <(find "$SCOPE_PATH" -name ".beads-state" 2>/dev/null | sort)
+  run_validator "validate-scope-events.sh" "$file" "ScopeEvents"
+done < <(find "$SCOPE_PATH" -name "scope-events.log" 2>/dev/null | sort)
 
 # --- Knowledge files (at project level, not scope level) ---
 KNOWLEDGE_DIR=""

@@ -27,7 +27,7 @@
 - Reviews results with 4-choice framework
 - Enforces iteration budget (cannot create iteration_01_d)
 - Escalates blockers immediately (no silent failures)
-- **Does NOT run `bd`, `bds`, or BEADS commands.** BEADS lifecycle is managed by the execution phase (`ap_exec` Step 0.5 via `beads-lifecycle.sh`). If project-level instructions say "use bd for task tracking," that applies to the implementation agent, not the orchestrator. Ignore those instructions during planning and review.
+- **Does NOT run `github-issues-lifecycle.sh` directly.** Lifecycle tracking is managed by the execution phase (`ap_exec` Step 0.5 via `github-issues-lifecycle.sh`). The orchestrator coordinates planning and review — lifecycle state changes happen in execution.
 
 ### Implementation Session
 - Implements changes via `/ap_exec <scope> <iteration>`
@@ -279,7 +279,7 @@ npm test -- --testPathPattern="ScopeTests"
 - **Planning:** `orchestration/coordinators/plan-scope.md (coordinator) + orchestration/steps/planning/ (step files)`
 - **Reviewing:** `orchestration/coordinators/review-iteration.md`
 - **Validation:** `../process/validation-playbook.md`
-- **Knowledge Base:** `../process/knowledge-base.md`
+- **Knowledge Base:** `../process/knowledge-base.md` — query, deposit, and curate project knowledge (includes ad-hoc deposit workflow and evaluation criteria)
 - **Work Unit Execution:** `../process/work-unit-execution.md`
 - **PR Shepherd:** `../process/pr-shepherd.md`
 - **Scope sizing:** `.local_docs/process/scope-sizing-quick-reference.md`

@@ -298,11 +298,14 @@ else
   echo "Quality gates: using built-in defaults (no quality-config.json)"
 fi
 
-# BEADS
-if command -v bd &>/dev/null; then
-  echo "BEADS CLI: installed ($(bd --version 2>/dev/null || echo 'unknown version'))"
-else
-  echo "BEADS CLI: not installed (file-based state will be used)"
+# GitHub Issues
+if [ -f .agent_process/quality-config.json ]; then
+  gh_enabled=$(python3 -c "import json; print(json.load(open('.agent_process/quality-config.json')).get('github_issues',{}).get('enabled',False))" 2>/dev/null || echo "False")
+  if [ "$gh_enabled" = "True" ]; then
+    echo "GitHub Issues: enabled"
+  else
+    echo "GitHub Issues: disabled (file-based tracking only)"
+  fi
 fi
 ```
 
@@ -471,7 +474,7 @@ fi
 **Quality Gates:**
 - Knowledge base: enabled | Adversarial review: enabled
 - Work unit decomposition: enabled (3+ files, 2+ layers)
-- Design review gate: disabled | BEADS: enabled
+- Design review gate: disabled | GitHub Issues: enabled/disabled
 - PR shepherd: enabled
 ```
 
@@ -627,23 +630,6 @@ PYEOF
 4. `latest_iter_name` - Most recent iteration directory name (e.g., iteration_01_b)
 5. `mtime` - Last modified date of results.md (YYYY-MM-DD)
 
-### Step 2.5: BEADS State Supplement (if available)
-
-**Check `quality-config.json`:** If `beads.enabled` is `false` or `bd` is not on PATH, skip this step.
-
-If BEADS is available, query it for additional execution state that the file-based scan may miss (e.g., work unit progress within an in-progress scope):
-
-```bash
-# List all BEADS epics with their status
-bd list --type epic 2>/dev/null
-```
-
-For each epic that maps to a work scope:
-- Cross-reference BEADS task states with the file-based status from Step 2
-- If BEADS shows tasks in-progress or blocked that the file scan didn't catch, note the discrepancy
-- Include BEADS task counts in the roadmap output (e.g., "3/5 work units complete")
-
-**This is supplementary.** File-based state (results.md, iteration_plan.md) remains authoritative. BEADS adds granularity, not authority.
 6. `approval_decision` - Orchestrator decision from iteration_plan.md: APPROVE, ITERATE, PIVOT, BLOCK, or PENDING
 
 **State determination logic:**
@@ -951,9 +937,6 @@ PYEOF
 - Dependencies as a `## Dependency Graph` section (list format or ASCII DAG if few enough)
 - File scope overlaps as warnings under affected requirements
 - Complexity suggestions as actionable notes
-
-**Include in BEADS** (if available):
-- Create dependency relationships: `bd dep add {blocked} {blocking}` for each `depends_on` entry
 
 ### Step 4: Aggregate Status
 

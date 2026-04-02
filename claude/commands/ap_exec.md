@@ -23,7 +23,7 @@ If this file exists and contains instructions beyond the default placeholder, fo
 cat .agent_process/quality-config.json 2>/dev/null
 ```
 
-Key settings: `pre_flight.enabled`, `adversarial_review.enabled`, `work_unit_decomposition.enabled`, `beads.enabled`.
+Key settings: `pre_flight.enabled`, `adversarial_review.enabled`, `work_unit_decomposition.enabled`, `github_issues.enabled`.
 
 ---
 
@@ -50,7 +50,8 @@ Read and follow the preflight coordinator:
 ```
 
 This runs:
-- **Step 0.5:** BEADS state tracking (direct bash call)
+- **Step 0.4:** GitHub Issues health check (conditional)
+- **Step 0.5:** Scope tracking init (direct bash call)
 - **Step 0.7:** Pre-flight checks — session recovery, working tree, branch, git context (4 parallel sub-agents)
 - **Step 1:** Load context from iteration plan (capable sub-agent)
 - **Step 1.25:** Assess work unit decomposition (capable sub-agent)
@@ -86,7 +87,8 @@ The main prompt reads all preflight outputs from `.run/` — it does not repeat 
 ap_exec {scope} {iteration}
   │
   ├── Preflight (sub-agents)
-  │   ├── BEADS lifecycle (bash)
+  │   ├── GH Issues health check (bash)
+  │   ├── Scope tracking init (bash)
   │   ├── 4 parallel checks (cheap)
   │   ├── Load context (capable)
   │   ├── Decomposition assessment (capable)

@@ -95,7 +95,7 @@ run_install() {
 import json
 with open('$TARGET_DIR/.agent_process/quality-config.json') as f:
     cfg = json.load(f)
-cfg['beads'] = {'enabled': True, '_user_configured': True, 'server': {'host': '10.0.0.5'}}
+cfg['github_issues'] = {'enabled': True, '_user_configured': True, 'repo': 'myorg/myproject'}
 with open('$TARGET_DIR/.agent_process/quality-config.json', 'w') as f:
     json.dump(cfg, f, indent=2)
 "
@@ -105,7 +105,7 @@ with open('$TARGET_DIR/.agent_process/quality-config.json', 'w') as f:
   python3 -c "
 import json
 cfg = json.load(open('$TARGET_DIR/.agent_process/quality-config.json'))
-assert cfg['beads']['enabled'] == True, 'BEADS should still be enabled'
-assert cfg['beads']['server']['host'] == '10.0.0.5', 'Server host should be preserved'
+assert cfg['github_issues']['enabled'] == True, 'GitHub Issues should still be enabled'
+assert cfg['github_issues']['repo'] == 'myorg/myproject', 'Repo should be preserved'
 "
 }
