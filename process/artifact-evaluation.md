@@ -34,7 +34,7 @@ bash test/run-tests.sh scan .agent_process/work
 | `iteration_plan.md` | `validate-iteration-plan.sh` | Required sections, frozen criteria markers, checkboxes, technical assessment, knowledge integration |
 | `results.md` | `validate-results.sh` | Status field (must be COMPLETE/NEEDS REVISION/BLOCKED), required sections, acceptance criteria checkboxes, date field |
 | `adversarial-review.md` | `validate-adversarial-review.sh` | Binary verdicts only (PASS/FAIL), no qualified passes, file:line evidence, summary with X/Y count |
-| `.beads-state` | `validate-beads-state.sh` | Valid breadcrumb format, lifecycle events (EPIC_START, TASK_CREATE, etc.) |
+| `scope-events.log` | `validate-scope-events.sh` | Valid event format, lifecycle events (SCOPE_START, TASK_CREATE, etc.) |
 | `knowledge/*.jsonl` | `validate-knowledge-entry.sh` | Valid JSON, required fields (fact, recommendation for metaswarm schema; scope, content for legacy), type matches filename |
 
 ## Reading the Output
