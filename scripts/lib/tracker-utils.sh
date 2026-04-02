@@ -143,7 +143,7 @@ events_log() {
   fi
 
   # Validate event type — reject typos early
-  local valid_types="SCOPE_START SCOPE_ADOPT SCOPE_ASSOCIATE ITERATION_START ITERATION_CLOSE WU_CREATE WU_UPDATE SCOPE_CLOSE COMMENT ERROR"
+  local valid_types="SCOPE_START SCOPE_ADOPT SCOPE_ASSOCIATE SCOPE_SPLIT ITERATION_START ITERATION_CLOSE WU_CREATE WU_UPDATE SCOPE_CLOSE COMMENT ERROR"
   local type_ok=false
   for vt in $valid_types; do
     if [[ "$event_type" == "$vt" ]]; then
