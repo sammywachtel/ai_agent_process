@@ -178,7 +178,7 @@ FEAT_DECOMPOSITION=$(prompt_feature "Work unit decomposition" "DAG-based paralle
 FEAT_DESIGN_REVIEW=$(prompt_feature "Design review gate" "multi-reviewer plan assessment for complex scopes" "design_review.enabled" "no")
 FEAT_GH=$(prompt_feature "GitHub Issues" "track work with GitHub Issues" "github_issues.enabled" "no")
 FEAT_PR_SHEPHERD=$(prompt_feature "PR shepherd" "post-PR agent monitoring CI and reviews" "pr_shepherd.enabled" "yes")
-FEAT_METASWARM=$(prompt_feature "Metaswarm integration" "brainstorming, design review, knowledge priming" "metaswarm.enabled" "no")
+# Metaswarm is always disabled — AP has its own orchestration. No user prompt.
 
 # Write all selections to quality-config.json
 python3 -c "
@@ -199,7 +199,8 @@ cfg.setdefault('design_review', {})['enabled'] = to_bool('$FEAT_DESIGN_REVIEW')
 cfg.setdefault('github_issues', {})['enabled'] = to_bool('$FEAT_GH')
 cfg['github_issues']['_user_configured'] = True
 cfg.setdefault('pr_shepherd', {})['enabled'] = to_bool('$FEAT_PR_SHEPHERD')
-cfg.setdefault('metaswarm', {})['enabled'] = to_bool('$FEAT_METASWARM')
+# Metaswarm always disabled — AP has its own orchestration
+cfg.setdefault('metaswarm', {})['enabled'] = False
 cfg['metaswarm']['_user_configured'] = True
 
 json.dump(cfg, open(path, 'w'), indent=2)
@@ -372,33 +373,6 @@ json.dump(cfg, open(path, 'w'), indent=2)
 " 2>/dev/null
   echo -e "${GREEN}  ✓${NC} Removed legacy 'beads' key from quality-config.json"
 }
-
-# ─── Metaswarm Setup (if enabled) ─────────────────────────────────────
-if [[ "$FEAT_METASWARM" == "yes" ]]; then
-  echo ""
-  echo -e "${BLUE}▸${NC} Metaswarm integration..."
-  if ls ~/.claude/commands/brainstorm.md &>/dev/null 2>&1 || ls .claude/commands/brainstorm.md &>/dev/null 2>&1; then
-    echo -e "${GREEN}  ✓${NC} Metaswarm commands detected"
-  else
-    echo -e "  Installing metaswarm..."
-    if command -v claude &>/dev/null; then
-      # Add marketplace source first, then install the plugin
-      claude plugin marketplace add dsifry/metaswarm-marketplace 2>/dev/null
-      if claude plugin install metaswarm 2>/dev/null; then
-        echo -e "${GREEN}  ✓${NC} Metaswarm installed"
-      else
-        echo -e "${YELLOW}  ⊙${NC} Auto-install failed. Install manually:"
-        echo -e "    ${GREEN}claude plugin marketplace add dsifry/metaswarm-marketplace${NC}"
-        echo -e "    ${GREEN}claude plugin install metaswarm${NC}"
-      fi
-    else
-      echo -e "${YELLOW}  ⊙${NC} Claude CLI not found. Install metaswarm manually:"
-      echo -e "    ${GREEN}claude plugin marketplace add dsifry/metaswarm-marketplace${NC}"
-      echo -e "    ${GREEN}claude plugin install metaswarm${NC}"
-    fi
-  fi
-fi
-
 
 # Install .claude/commands/ (Claude Code command scripts)
 echo ""
