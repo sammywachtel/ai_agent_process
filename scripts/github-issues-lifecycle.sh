@@ -23,6 +23,12 @@
 # Config: reads .agent_process/quality-config.json
 #   github_issues.enabled = true/false
 #   github_issues.repo = "owner/repo"
+#
+# Authentication:
+#   Option 1: gh auth login (interactive)
+#   Option 2: Set GH_TOKEN or GITHUB_TOKEN environment variable
+#
+# The gh CLI automatically uses GH_TOKEN/GITHUB_TOKEN if set.
 
 set -uo pipefail
 
@@ -274,7 +280,7 @@ do_health_check() {
   rm -f "$auth_tmp" "$repo_tmp"
 
   if [[ "$auth_ok" == false ]]; then
-    echo "ERROR: gh not authenticated. Run: gh auth login" >&2
+    echo "ERROR: gh not authenticated. Run: gh auth login, or set GH_TOKEN/GITHUB_TOKEN" >&2
     return 1
   fi
 
