@@ -49,6 +49,29 @@ That's it. The framework handles planning, validation, adversarial review, and k
 | **Docker** | Containerized dev environment with bypass permissions | Safe experimentation, CI parity | See `.docker-dev/README.md` |
 | **Python 3** | Knowledge migration, quality config management | Only during `install.sh` | Pre-installed on most systems |
 
+### A Note on BEADS
+
+**The AI Agent Process does not use BEADS.** BEADS is a separate state-tracking system bundled with metaswarm. AP has its own state management (`scope-tracker.jsonl`, `scope-events.log`, GitHub Issues integration) and does not leverage BEADS for anything.
+
+However, if you have metaswarm installed and the `bd` CLI on your PATH, metaswarm's session hooks will run `bd prime` at the start of each conversation. This is harmless but can cause confusion:
+
+- **Side effect 1:** "ran bd prime" appears in session output during AP orchestration
+- **Side effect 2:** If BEADS/Dolt is misconfigured, you may see connection errors (which don't affect AP)
+- **Side effect 3:** Slight startup latency while `bd prime` runs
+
+**To stop `bd prime` from running**, remove the `bd` CLI:
+```bash
+# Find how it was installed
+which bd
+
+# Remove it (platform-dependent)
+brew uninstall beads        # If installed via Homebrew
+npm uninstall -g @beads/bd  # If installed via npm
+rm $(which bd)              # Manual removal
+```
+
+This does not affect metaswarm's other features (brainstorming, design review, etc.) — only the BEADS knowledge-priming hook.
+
 ---
 
 ## Table of Contents
