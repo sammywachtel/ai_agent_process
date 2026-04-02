@@ -13,11 +13,7 @@ Search the project's knowledge base for entries relevant to this scope. The know
 
 ## Find the Knowledge Directory
 
-Check in order:
-1. `.beads/knowledge/` (BEADS-enabled projects)
-2. `.agent_process/knowledge/` (fallback)
-
-If neither exists, write "No knowledge base found" to the output and stop.
+The knowledge base lives in `.agent_process/knowledge/`. If the directory doesn't exist, write "No knowledge base found" to the output and stop.
 
 ## Extract Search Terms
 
@@ -29,6 +25,8 @@ From the requirement file, extract:
 ## Search
 
 ```bash
+KB_DIR=".agent_process/knowledge"
+
 # Search by tags/keywords
 grep -i "<keyword1>\|<keyword2>" "$KB_DIR"/*.jsonl
 
@@ -36,7 +34,7 @@ grep -i "<keyword1>\|<keyword2>" "$KB_DIR"/*.jsonl
 grep -i "<filename_pattern>" "$KB_DIR"/*.jsonl
 ```
 
-**Note:** `bd prime` outputs generic workflow context, not knowledge queries. Grep is the correct tool for searching knowledge entries. Metaswarm's `/metaswarm:prime` skill adds keyword/file filtering if available, but this step uses grep as the universal method.
+**Note:** Metaswarm's `/metaswarm:prime` skill adds keyword/file filtering if available, but this step uses grep as the universal method.
 
 ## Output Format
 

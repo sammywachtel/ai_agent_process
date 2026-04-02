@@ -24,8 +24,7 @@ Collect context that grounds the brainstorm in this specific project.
    ```
 4. **Query knowledge base** for related patterns/gotchas:
    ```bash
-   KB_DIR=".beads/knowledge"
-   [ ! -d "$KB_DIR" ] && KB_DIR=".agent_process/knowledge"
+   KB_DIR=".agent_process/knowledge"
    grep -i "relevant_keywords" "$KB_DIR"/*.jsonl 2>/dev/null
    ```
 

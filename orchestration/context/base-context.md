@@ -279,7 +279,7 @@ npm test -- --testPathPattern="ScopeTests"
 - **Planning:** `orchestration/coordinators/plan-scope.md (coordinator) + orchestration/steps/planning/ (step files)`
 - **Reviewing:** `orchestration/coordinators/review-iteration.md`
 - **Validation:** `../process/validation-playbook.md`
-- **Knowledge Base:** `../process/knowledge-base.md`
+- **Knowledge Base:** `../process/knowledge-base.md` — query, deposit, and curate project knowledge (includes ad-hoc deposit workflow and evaluation criteria)
 - **Work Unit Execution:** `../process/work-unit-execution.md`
 - **PR Shepherd:** `../process/pr-shepherd.md`
 - **Scope sizing:** `.local_docs/process/scope-sizing-quick-reference.md`

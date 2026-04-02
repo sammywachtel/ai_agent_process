@@ -11,18 +11,10 @@ The knowledge base is a set of JSONL files that accumulate project wisdom over t
 
 ### Storage Location
 
-Knowledge lives in **`.beads/knowledge/`** when BEADS is enabled. This is the same location metaswarm uses, creating a shared knowledge store accessible to both AP orchestration and metaswarm.
+Knowledge lives in **`.agent_process/knowledge/`** — the single canonical location for all project knowledge. This directory is shared with metaswarm's `/prime` command when available.
 
-When BEADS is disabled, knowledge falls back to **`.agent_process/knowledge/`**.
-
-**How to find the right directory:**
 ```bash
-# Check BEADS-managed knowledge first, fall back to AP-managed
-if [ -d ".beads/knowledge" ]; then
-  KB_DIR=".beads/knowledge"
-elif [ -d ".agent_process/knowledge" ]; then
-  KB_DIR=".agent_process/knowledge"
-fi
+KB_DIR=".agent_process/knowledge"
 ```
 
 ---
@@ -38,15 +30,13 @@ fi
 | `codebase-facts.jsonl` | Facts about how code works | "Thread model stores drafts only, not threads" |
 | `api-behaviors.jsonl` | External API quirks and behaviors | "API returns 429 after ~100 req/min" |
 
-The first four files are core AP files. The last two (`codebase-facts`, `api-behaviors`) are metaswarm-compatible extensions — use them when BEADS is enabled and the distinction is helpful.
+All six files use the same schema. The last two (`codebase-facts`, `api-behaviors`) are metaswarm-compatible extensions — use them when the distinction is helpful.
 
 ---
 
 ## Entry Schema
 
-AP uses the metaswarm-compatible knowledge schema so entries are shared between AP and metaswarm.
-
-### Full Schema (BEADS-managed)
+All entries use the metaswarm-compatible schema, ensuring knowledge is shared between AP orchestration and metaswarm.
 
 ```json
 {
@@ -69,23 +59,6 @@ AP uses the metaswarm-compatible knowledge schema so entries are shared between 
 }
 ```
 
-### Minimal Schema (fallback, no BEADS)
-
-When BEADS is disabled, a simpler schema works:
-
-```json
-{
-  "id": "unique_snake_case_id",
-  "type": "pattern|gotcha|decision|anti_pattern",
-  "fact": "Clear description of the knowledge",
-  "recommendation": "What to do about it",
-  "confidence": "high|medium|low",
-  "tags": ["auth"],
-  "source_iteration": "scope_name/iteration_XX",
-  "date": "YYYY-MM-DD"
-}
-```
-
 ### Field Reference
 
 | Field | Required | Description |
@@ -95,11 +68,9 @@ When BEADS is disabled, a simpler schema works:
 | `fact` | Yes | Clear description — scannable in under 5 seconds |
 | `recommendation` | Yes | Actionable guidance — what to do with this knowledge |
 | `confidence` | Recommended | `high` (verified multiple times), `medium` (observed once), `low` (suspected) |
-| `provenance` | BEADS only | Source chain: who discovered it, where, when |
+| `provenance` | Yes | Source chain: who discovered it, where, when |
 | `tags` | Recommended | Search keywords for filtered queries |
-| `affectedFiles` | BEADS only | Glob patterns for files this applies to |
-| `source_iteration` | Fallback only | Shorthand for provenance when BEADS unavailable |
-| `date` | Fallback only | Shorthand for provenance date |
+| `affectedFiles` | Recommended | Glob patterns for files this applies to |
 
 **Rules:**
 - `id` must be unique within its file
@@ -111,32 +82,21 @@ When BEADS is disabled, a simpler schema works:
 
 ## How to Query (Planning Phase)
 
-The orchestrator queries the knowledge base before creating `iteration_plan.md`. Two methods, depending on what's available:
+The orchestrator queries the knowledge base before creating `iteration_plan.md`.
 
-### Method 1: `bd prime` (BEADS workflow context)
-
-`bd prime` outputs generic BEADS workflow context (session close protocol, command reference). It does **not** query or filter knowledge entries — it's a context dump, not a knowledge search tool.
+### grep (primary query method)
 
 ```bash
-bd prime        # Generic workflow context
-bd prime --full # Force full CLI output
-```
-
-**Note:** Metaswarm's `/metaswarm:prime` skill wraps `bd prime` with additional intelligence, but those filtering capabilities (`--keywords`, `--work-type`, `--files`) are metaswarm features, not `bd` features. If you see documentation referencing those flags on `bd prime` directly, it's incorrect.
-
-### Method 2: grep (primary query method)
-
-```bash
-# Find the knowledge directory
-KB_DIR=".beads/knowledge"
-[ ! -d "$KB_DIR" ] && KB_DIR=".agent_process/knowledge"
+KB_DIR=".agent_process/knowledge"
 
 # Search by keyword across all files
 grep -i "auth\|session\|jwt" "$KB_DIR"/*.jsonl
 
-# Search by affected files (BEADS schema)
+# Search by affected files
 grep -i "middleware\|auth.ts" "$KB_DIR"/*.jsonl
 ```
+
+**Note:** Metaswarm's `/metaswarm:prime` skill can also query knowledge with keyword/file filtering when available, but grep is the universal method that always works.
 
 ### Include Findings in Plan
 
@@ -154,19 +114,20 @@ Add matches to `## Known Patterns & Constraints`:
 **No matches found for:** [list keywords that returned nothing]
 ```
 
-If no entries exist (common early on), note it — the knowledge base grows with each APPROVE (code learnings) and BLOCK/PIVOT (process observations).
+If no entries exist (common early on), note it — the knowledge base grows with each APPROVE (code learnings), BLOCK/PIVOT (process observations), ITERATE (conditional process observations), and ad-hoc deposits.
 
 ---
 
 ## How to Deposit (Review Phase)
 
-The knowledge base accepts two types of deposits at different decision points:
+The knowledge base accepts deposits at several decision points:
 
 | Decision | What to deposit | Why it's safe |
 |----------|----------------|---------------|
 | **APPROVE** | Code patterns, gotchas, decisions, anti-patterns (0-3 entries) | Code is verified — learnings are grounded in working implementation |
 | **BLOCK/PIVOT** | Process observations only (0-2 entries) | Process patterns don't depend on code correctness |
-| **ITERATE** | Nothing | Code isn't verified and criteria haven't changed — too early to generalize |
+| **ITERATE** | Process observations only (0-2 entries, conditional) | Only when the reviewer spots a generalizable lesson about process, scope structure, or agent behavior — not code patterns |
+| **Ad-hoc** | Any type (user-initiated, requires consent) | Human judgment gates the deposit — user decides what's worth preserving |
 
 ### Code Knowledge Deposit (APPROVE)
 
@@ -175,8 +136,7 @@ After an APPROVE decision, the orchestrator extracts 0-3 learnings.
 ### Step 1: Find the Knowledge Directory
 
 ```bash
-KB_DIR=".beads/knowledge"
-[ ! -d "$KB_DIR" ] && KB_DIR=".agent_process/knowledge"
+KB_DIR=".agent_process/knowledge"
 ```
 
 ### Step 2: Reflect on the Iteration
@@ -234,6 +194,41 @@ After a BLOCK or PIVOT decision, the orchestrator may extract 0-2 *process obser
 
 Most BLOCKs and PIVOTs won't produce process learnings — that's fine. Only deposit when you see something likely to repeat.
 
+### Process Knowledge Deposit (ITERATE)
+
+ITERATE deposits are **conditional** — most ITERATEs won't produce learnings. The reviewer deposits 0-2 process observations only when they spot a generalizable lesson:
+
+#### What Qualifies
+- Scope structure that predictably led to iteration (e.g., missing integration test in criteria)
+- Agent behavior pattern that future planners should anticipate
+- Review process insight (e.g., certain criteria types always need clarification)
+
+#### What Does NOT Qualify
+- Code patterns or architectural decisions → wait for APPROVE
+- The specific fixes requested in this ITERATE → those belong in the sub-iteration plan
+- One-off issues unlikely to recur
+
+### Ad-Hoc Knowledge Deposit
+
+Users can request knowledge deposits at any time outside the formal review cycle. The agent assists with formatting and appending, but the user gates the decision.
+
+**Workflow:**
+1. User identifies something worth preserving (pattern, gotcha, decision)
+2. Agent drafts the entry using the standard schema
+3. User reviews and approves the entry
+4. Agent appends to the appropriate `.jsonl` file in `.agent_process/knowledge/`
+
+---
+
+## Ad-Hoc Knowledge Evaluation Criteria
+
+Before depositing ad-hoc knowledge, evaluate the candidate entry against these criteria:
+
+1. **Is this specific to this scope or generalizable?** — Knowledge should help future scopes, not just document the current one. If it only applies here, it belongs in `results.md`, not the knowledge base.
+2. **Would a future agent benefit from knowing this?** — If the answer is "only if they're working on exactly this feature," it's too narrow. Good entries inform decisions across the project.
+3. **Is there a concrete recommendation (not just "be careful")?** — Every entry needs an actionable `recommendation` field. "Auth is tricky" doesn't cut it; "Apply auth middleware in app.ts before route registration" does.
+4. **Does this duplicate existing knowledge? (Check before adding)** — Search the knowledge base first. If a similar entry exists, update it rather than creating a duplicate.
+
 ---
 
 ## How to Curate (Manual Maintenance)
@@ -270,11 +265,12 @@ Over time, the knowledge base may need cleanup. This is a manual process — do 
 |-------|--------|------|
 | Planning (Step 2.5) | Query knowledge via grep | `orchestration/steps/planning/025-knowledge-query.md` |
 | Planning output | Include findings in `## Known Patterns & Constraints` | `templates/iteration-plan.md` |
-| Review (APPROVE, Step 9.5) | Extract 0-3 code learnings → `$KB_DIR/*.jsonl` | `orchestration/steps/review/07-10-post-decision.md` |
-| Review (BLOCK/PIVOT, Step 9.6) | Extract 0-2 process observations → `$KB_DIR/*.jsonl` | `orchestration/steps/review/07-10-post-decision.md` |
-| `bd prime` | Generic BEADS workflow context (not knowledge search) | Reads `.beads/` metadata |
-| Metaswarm `/metaswarm:prime` | Wraps `bd prime` with keyword/file filtering | Reads `$KB_DIR/*.jsonl` |
-| Metaswarm `/metaswarm:self-reflect` | Mines PR comments + conversation history → knowledge | Writes `$KB_DIR/*.jsonl` |
+| Review (APPROVE, Step 9.5) | Extract 0-3 code learnings → `.agent_process/knowledge/*.jsonl` | `orchestration/steps/review/07-10-post-decision.md` |
+| Review (BLOCK/PIVOT, Step 9.6) | Extract 0-2 process observations → `.agent_process/knowledge/*.jsonl` | `orchestration/steps/review/07-10-post-decision.md` |
+| Review (ITERATE, Step 9.7) | Extract 0-2 process observations (conditional) → `.agent_process/knowledge/*.jsonl` | `orchestration/steps/review/07-10-post-decision.md` |
+| Ad-hoc | User-initiated deposit (requires consent) → `.agent_process/knowledge/*.jsonl` | `process/knowledge-base.md` (this file) |
+| Metaswarm `/metaswarm:prime` | Keyword/file-filtered knowledge queries | Reads `.agent_process/knowledge/*.jsonl` |
+| Metaswarm `/metaswarm:self-reflect` | Mines PR comments + conversation history → knowledge | Writes `.agent_process/knowledge/*.jsonl` |
 
 ---
 
