@@ -214,16 +214,28 @@ This prevents creating children that will immediately fail when planned. The bre
 
 ### Validation (Parallel Sub-Agents)
 
-Spawn **cheap** sub-agents in parallel — one per child — to run scope-check simultaneously:
+Spawn **cheap** sub-agents in parallel — one per child — to run scope-check simultaneously.
+
+**IMPORTANT:** Validators must read `orchestration/scope-sizing-rules.md` for current thresholds. Do not hardcode values — the rules file is the source of truth.
 
 1. **Spawn parallel validators:**
    ```
    For each child ({id}-01, {id}-02, {id}-03, ...):
      Spawn cheap sub-agent with:
-       - Input: child requirement file path
+       - Input: 
+         - Child requirement file path
+         - `orchestration/scope-sizing-rules.md` (for thresholds)
        - Task: Run scope-check logic from `orchestration/steps/planning/01-scope-check.md`
-       - Output: PASS/FAIL + metrics (criteria count, file count, subsystem count)
+       - Check for `scope_override: true` in child frontmatter — if present, use Warning thresholds only
+       - Output: PASS/FAIL/WARN + metrics (criteria count, file count, subsystem count)
    ```
+   
+   **Threshold reference (from scope-sizing-rules.md):**
+   - Criteria: Target 3–7, Warning 8–10, Fail >10
+   - Files: Target 4–10, Warning 11–15, Fail >15
+   - Subsystems: Target 1–3, Warning 4, Fail >4
+   
+   **Override behavior:** If a child has `scope_override: true`, shift Fail thresholds to Warning (still flag but don't block).
 
 2. **Wait for all to complete, then aggregate:**
    ```markdown
