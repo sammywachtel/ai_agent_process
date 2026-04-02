@@ -14,6 +14,13 @@
 
 This step runs ONLY when Step 01 (scope-check) returns `VERDICT: FAIL`. The orchestrator should offer to run this automated breakdown process.
 
+## Important: No Parent Work Folder
+
+Do NOT create `.agent_process/work/{parent_scope}/`. The parent scope is being broken down — it will never be executed directly. Only create:
+- Child requirement files in `requirements_docs/`
+- Parent breakdown file (`{id}-breakdown.md`) in `requirements_docs/`
+- Child work folders are created later when each child is planned via `plan-scope`
+
 ---
 
 ## Naming Convention (CRITICAL)
