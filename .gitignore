@@ -73,9 +73,6 @@ Thumbs.db
 # Agent process runtime data (created by install.sh in destination projects)
 .agent_process/
 
-# BEADS server deployment (contains server details)
-deploy/beads-server/.beads-server-info
-
 # Work in progress (optional - remove if you want to track iterations)
 # work/*/iteration_*/
 

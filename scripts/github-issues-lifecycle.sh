@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # github-issues-lifecycle.sh — GitHub Issues state management for AP scopes
 #
-# Replaces beads-lifecycle.sh. Handles all GitHub Issues operations when
+# Handles all GitHub Issues operations when
 # enabled, and ALWAYS writes local state (scope-tracker.jsonl + scope-events.log)
 # regardless of whether GH is enabled.
 #

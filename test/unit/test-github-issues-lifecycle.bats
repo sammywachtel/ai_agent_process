@@ -3,7 +3,7 @@
 #
 # Mock strategy: PATH override — a fake `gh` in $TEST_DIR/bin/ logs every call
 # to gh_calls.log and returns configurable output based on command patterns.
-# Same approach as test-beads-lifecycle.bats with its bd mock.
+# Uses a gh mock to test lifecycle operations without real GitHub API calls.
 
 SCRIPT="scripts/github-issues-lifecycle.sh"
 
