@@ -300,11 +300,14 @@ if [[ "$FEAT_GH" == "yes" ]]; then
     AP_LABELS=(
       "ap:scope:#0E8A16"
       "ap:iteration:#1D76DB"
+      "status:active:#1D76DB"
       "status:planning:#FBCA04"
       "status:executing:#D93F0B"
+      "status:reviewing:#6F42C1"
+      "status:iterate:#FBCA04"
+      "status:approved:#0E8A16"
+      "status:complete:#0E8A16"
       "status:blocked:#B60205"
-      "status:review:#6F42C1"
-      "status:done:#0E8A16"
       "status:split:#D93F0B"
     )
     LABELS_CREATED=0
