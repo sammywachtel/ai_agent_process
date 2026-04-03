@@ -1147,6 +1147,16 @@ ${created_children[*]}
 This issue is now closed. Track progress on the child issues above."
 
     run_gh gh issue comment "$parent_issue" --repo "$REPO" --body "$split_comment" >/dev/null 2>&1 || true
+
+    # Remove all other status:* labels — split parent has no progression status
+    local parent_labels
+    parent_labels=$(run_gh gh issue view "$parent_issue" --repo "$REPO" --json labels --jq '.labels[].name' 2>/dev/null) || parent_labels=""
+    for old_label in status:planning status:executing status:reviewing status:iterate status:active status:blocked; do
+      if echo "$parent_labels" | grep -q "^${old_label}$"; then
+        run_gh gh issue edit "$parent_issue" --repo "$REPO" --remove-label "$old_label" >/dev/null 2>&1 || true
+      fi
+    done
+
     run_gh gh issue edit "$parent_issue" --repo "$REPO" --add-label "status:split" >/dev/null 2>&1 || true
     run_gh gh issue close "$parent_issue" --repo "$REPO" >/dev/null 2>&1 || true
 
