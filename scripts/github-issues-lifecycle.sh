@@ -11,6 +11,8 @@
 #   bash scripts/github-issues-lifecycle.sh start <scope>
 #   bash scripts/github-issues-lifecycle.sh associate <scope> <issue_number_or_url>
 #   bash scripts/github-issues-lifecycle.sh set-status <scope> <label>
+#   bash scripts/github-issues-lifecycle.sh retitle <scope> <new_title>
+#   bash scripts/github-issues-lifecycle.sh sync-body <scope>
 #   bash scripts/github-issues-lifecycle.sh set-priority <scope> <priority:P0-P4>
 #   bash scripts/github-issues-lifecycle.sh set-iteration <scope> <iteration>
 #   bash scripts/github-issues-lifecycle.sh get-iteration <scope>
@@ -40,7 +42,7 @@ source "${SCRIPT_DIR}/lib/tracker-utils.sh"
 # --- Parse action ---
 ACTION="${1:-}"
 if [[ -z "$ACTION" ]]; then
-  echo "Usage: github-issues-lifecycle.sh <health-check|create-labels|start|associate|set-status|set-priority|set-iteration|get-iteration|task-create|task-update|close|verify|comment|split> [args...]" >&2
+  echo "Usage: github-issues-lifecycle.sh <health-check|create-labels|start|associate|set-status|retitle|sync-body|set-priority|set-iteration|get-iteration|task-create|task-update|close|verify|comment|split> [args...]" >&2
   exit 1
 fi
 
@@ -265,6 +267,9 @@ generate_context_file() {
   iteration=$(tracker_get_field "$scope" "iteration")
   iteration="${iteration:-iteration_01}"
 
+  local branch_name
+  branch_name="issue/${issue_num}-${scope}"
+
   cat > "${scope_dir}/gh-issue-context.md" << CTXEOF
 ## GitHub Issue Context
 - Issue: #${issue_num}
@@ -272,9 +277,12 @@ generate_context_file() {
 - Current Status: ${status_label:-unknown}
 - Scope: ${scope}
 - Iteration: ${iteration}
+- Suggested Branch: ${branch_name}
 
 ## Available Actions
 - Update status: \`bash .agent_process/scripts/github-issues-lifecycle.sh set-status ${scope} <label>\`
+- Retitle issue: \`bash .agent_process/scripts/github-issues-lifecycle.sh retitle ${scope} "new title"\`
+- Sync issue body: \`bash .agent_process/scripts/github-issues-lifecycle.sh sync-body ${scope}\`
 - Set iteration: \`bash .agent_process/scripts/github-issues-lifecycle.sh set-iteration ${scope} ${iteration}\`
 - Add note: \`bash .agent_process/scripts/github-issues-lifecycle.sh comment ${scope} "your message"\`
 - Create work unit: \`bash .agent_process/scripts/github-issues-lifecycle.sh task-create ${scope} WU-001 "description"\`
@@ -425,6 +433,9 @@ do_start() {
     if command -v jq &>/dev/null && [[ -n "$current" ]]; then
       tracker_write_scope "$scope" "$(echo "$current" | jq -c --arg n "$issue_num" '. + {gh_issue: $n}')"
     else
+      # No jq fallback — scope_start already created the entry, just need to add gh_issue
+      local ts
+      ts=$(_timestamp)
       tracker_write_scope "$scope" "{\"scope\":\"$scope\",\"status\":\"active\",\"created\":\"$ts\",\"iteration\":\"iteration_01\",\"gh_issue\":\"$issue_num\"}"
     fi
 
@@ -543,6 +554,212 @@ do_set_status() {
   # Regenerate context file with new status
   generate_context_file "$scope" "$issue_num" "$label"
   echo "[gh-issues] Updated #$issue_num → $label"
+}
+
+do_retitle() {
+  local scope="$1"
+  local new_title="$2"
+  validate_scope_name "$scope" || return 1
+
+  if [[ -z "$new_title" ]]; then
+    echo "ERROR: New title required" >&2
+    return 1
+  fi
+
+  local issue_num
+  issue_num=$(tracker_get_field "$scope" "gh_issue")
+  if [[ -z "$issue_num" ]]; then
+    echo "ERROR: No gh_issue recorded for scope '$scope'" >&2
+    return 1
+  fi
+
+  events_log "$scope" "SCOPE_RETITLE" "issue=$issue_num title=$new_title"
+
+  if [[ "$GH_ENABLED" != "true" ]]; then
+    echo "[gh-issues] GH disabled — retitle logged locally for $scope"
+    return 0
+  fi
+
+  if ! run_gh gh issue edit "$issue_num" --repo "$REPO" --title "$new_title" >/dev/null; then
+    return 1
+  fi
+
+  local status_label
+  status_label=$(tracker_get_field "$scope" "status")
+  generate_context_file "$scope" "$issue_num" "$status_label"
+  echo "[gh-issues] Retitled #$issue_num → $new_title"
+}
+
+find_requirement_doc() {
+  local scope="$1"
+  python3 - "$scope" <<'PYEOF'
+from pathlib import Path
+import sys
+
+scope = sys.argv[1]
+root = Path(".agent_process/requirements_docs")
+for path in sorted(root.rglob("*.md")):
+    try:
+        text = path.read_text()
+    except Exception:
+        continue
+    if not text.startswith("---"):
+        continue
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        continue
+    frontmatter = parts[1]
+    for line in frontmatter.splitlines():
+        if line.strip() == f"id: {scope}":
+            print(path)
+            sys.exit(0)
+sys.exit(1)
+PYEOF
+}
+
+render_issue_body() {
+  local scope="$1"
+  local req_path="$2"
+
+  python3 - "$scope" "$req_path" <<'PYEOF'
+from pathlib import Path
+import sys
+
+scope = sys.argv[1]
+req_path = Path(sys.argv[2])
+text = req_path.read_text()
+
+frontmatter = {}
+body = text
+if text.startswith("---"):
+    parts = text.split("---", 2)
+    if len(parts) >= 3:
+        fm = parts[1]
+        body = parts[2]
+        current_key = None
+        current_list = None
+        for raw_line in fm.splitlines():
+            line = raw_line.rstrip()
+            if not line.strip():
+                continue
+            if line.startswith("  - ") and current_key:
+                frontmatter.setdefault(current_key, [])
+                frontmatter[current_key].append(line[4:].strip())
+                continue
+            if ":" not in line:
+                continue
+            key, value = line.split(":", 1)
+            key = key.strip()
+            value = value.strip()
+            if value == "":
+                frontmatter[key] = []
+                current_key = key
+                continue
+            current_key = key
+            frontmatter[key] = value
+
+lines = [line.rstrip() for line in body.splitlines()]
+title = ""
+sections = {}
+current = None
+for line in lines:
+    if line.startswith("# "):
+        title = line[2:].strip()
+        continue
+    if line.startswith("## "):
+        current = line[3:].strip()
+        sections[current] = []
+        continue
+    if current is not None:
+        sections[current].append(line)
+
+def clean_section(name):
+    content = sections.get(name, [])
+    while content and not content[0].strip():
+        content.pop(0)
+    while content and not content[-1].strip():
+        content.pop()
+    return "\n".join(content).strip()
+
+objective = clean_section("Objective") or "_Not specified._"
+background = clean_section("Background") or "_Not specified._"
+technical = clean_section("Technical Requirements") or "_Not specified._"
+success = clean_section("Success Criteria") or "_Not specified._"
+out_of_scope = clean_section("Out of Scope") or "_Not specified._"
+
+depends_on = frontmatter.get("depends_on", [])
+if isinstance(depends_on, str):
+    depends_on = [depends_on] if depends_on else []
+
+status = frontmatter.get("status", "unknown")
+priority = frontmatter.get("priority", "unknown")
+complexity = frontmatter.get("complexity", "unknown")
+category = frontmatter.get("category", "unknown")
+split_from = frontmatter.get("split_from", "")
+source = frontmatter.get("source", "")
+work_plan = Path(f".agent_process/work/{scope}/iteration_plan.md")
+
+parts = []
+parts.append(f"## Scope Summary\n- Scope: `{scope}`\n- Category: `{category}`\n- Status: `{status}`\n- Priority: `{priority}`\n- Complexity: `{complexity}`")
+if split_from:
+    parts[-1] += f"\n- Split from: `{split_from}`"
+if source:
+    parts[-1] += f"\n- Source: `{source}`"
+
+parts.append(f"## Objective\n{objective}")
+parts.append(f"## Background\n{background}")
+parts.append(f"## Acceptance Criteria\n{success}")
+parts.append(f"## Technical Requirements\n{technical}")
+if depends_on:
+    parts.append("## Dependencies\n" + "\n".join(f"- `{item}`" for item in depends_on))
+parts.append(f"## Out of Scope\n{out_of_scope}")
+parts.append(f"## Requirement Source\n- `{req_path}`")
+if work_plan.exists():
+    parts[-1] += f"\n- `.agent_process/work/{scope}/iteration_plan.md`"
+
+print("\n\n".join(parts).strip() + "\n")
+PYEOF
+}
+
+do_sync_body() {
+  local scope="$1"
+  validate_scope_name "$scope" || return 1
+
+  local issue_num
+  issue_num=$(tracker_get_field "$scope" "gh_issue")
+  if [[ -z "$issue_num" ]]; then
+    echo "ERROR: No gh_issue recorded for scope '$scope'" >&2
+    return 1
+  fi
+
+  local req_path
+  if ! req_path=$(find_requirement_doc "$scope"); then
+    echo "ERROR: Could not find requirement doc for scope '$scope'" >&2
+    return 1
+  fi
+
+  local body_file
+  body_file=$(mktemp)
+  render_issue_body "$scope" "$req_path" > "$body_file"
+
+  if [[ "$GH_ENABLED" != "true" ]]; then
+    events_log "$scope" "COMMENT" "message=sync-body:local-only"
+    rm -f "$body_file"
+    echo "[gh-issues] GH disabled — body sync rendered locally for $scope"
+    return 0
+  fi
+
+  if ! run_gh gh issue edit "$issue_num" --repo "$REPO" --body-file "$body_file" >/dev/null; then
+    rm -f "$body_file"
+    return 1
+  fi
+
+  rm -f "$body_file"
+  events_log "$scope" "COMMENT" "message=sync-body:issue=$issue_num"
+  local status_label
+  status_label=$(tracker_get_field "$scope" "status")
+  generate_context_file "$scope" "$issue_num" "$status_label"
+  echo "[gh-issues] Synced body for #$issue_num ($scope)"
 }
 
 do_set_priority() {
@@ -965,6 +1182,17 @@ case "$ACTION" in
     [[ -z "$SCOPE" || -z "$LABEL" ]] && { echo "Usage: github-issues-lifecycle.sh set-status <scope> <label>" >&2; exit 1; }
     do_set_status "$SCOPE" "$LABEL"
     ;;
+  retitle)
+    SCOPE="${2:-}"
+    NEW_TITLE="${3:-}"
+    [[ -z "$SCOPE" || -z "$NEW_TITLE" ]] && { echo "Usage: github-issues-lifecycle.sh retitle <scope> <new_title>" >&2; exit 1; }
+    do_retitle "$SCOPE" "$NEW_TITLE"
+    ;;
+  sync-body)
+    SCOPE="${2:-}"
+    [[ -z "$SCOPE" ]] && { echo "Usage: github-issues-lifecycle.sh sync-body <scope>" >&2; exit 1; }
+    do_sync_body "$SCOPE"
+    ;;
   set-priority)
     SCOPE="${2:-}"
     PRIORITY="${3:-}"
@@ -1022,7 +1250,7 @@ case "$ACTION" in
     ;;
   *)
     echo "ERROR: Unknown action '$ACTION'" >&2
-    echo "Valid actions: health-check, create-labels, start, associate, set-status, set-priority, set-iteration, get-iteration, task-create, task-update, close, verify, comment, split" >&2
+    echo "Valid actions: health-check, create-labels, start, associate, set-status, retitle, sync-body, set-priority, set-iteration, get-iteration, task-create, task-update, close, verify, comment, split" >&2
     exit 1
     ;;
 esac

@@ -277,3 +277,153 @@ EOF
   [ "$status" -eq 1 ]
   echo "$output" | grep -q "after SCOPE_CLOSE"
 }
+
+# ─────────────────────────────────────────────
+# High-level scope operations
+# ─────────────────────────────────────────────
+
+@test "scope_start creates new scope in tracker" {
+  run scope_start "new_scope"
+  [ "$status" -eq 0 ]
+
+  # Should have created tracker entry
+  run tracker_read_scope "new_scope"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q '"scope":"new_scope"'
+  echo "$output" | grep -q '"status":"active"'
+  echo "$output" | grep -q '"iteration":"iteration_01"'
+
+  # Should have logged SCOPE_START event
+  local log_file="${EVENTS_DIR}/new_scope/scope-events.log"
+  [ -f "$log_file" ]
+  grep -q "SCOPE_START" "$log_file"
+}
+
+@test "scope_start adopts existing scope" {
+  # Create a scope first
+  local json='{"scope":"existing_scope","status":"planning","iteration":"iteration_02","created":"2026-04-01T10:00:00Z"}'
+  tracker_write_scope "existing_scope" "$json"
+
+  # scope_start should adopt it, return existing iteration
+  run scope_start "existing_scope"
+  [ "$status" -eq 0 ]
+  [ "$output" = "iteration_02" ]
+
+  # Should have logged SCOPE_ADOPT event
+  local log_file="${EVENTS_DIR}/existing_scope/scope-events.log"
+  [ -f "$log_file" ]
+  grep -q "SCOPE_ADOPT" "$log_file"
+}
+
+@test "scope_start updates current_iteration.conf" {
+  scope_start "conf_test"
+
+  local conf_file="${EVENTS_DIR}/current_iteration.conf"
+  [ -f "$conf_file" ]
+  grep -q "SCOPE=conf_test" "$conf_file"
+  grep -q "ITERATION=iteration_01" "$conf_file"
+}
+
+@test "scope_set_status updates tracker" {
+  # Create scope first
+  scope_start "status_test" >/dev/null
+
+  # Set status
+  run scope_set_status "status_test" "executing"
+  [ "$status" -eq 0 ]
+
+  # Verify tracker updated
+  run tracker_get_field "status_test" "status"
+  [ "$output" = "executing" ]
+}
+
+@test "scope_set_status strips status: prefix" {
+  scope_start "prefix_test" >/dev/null
+
+  # Pass with prefix
+  scope_set_status "prefix_test" "status:reviewing"
+
+  # Should store without prefix
+  run tracker_get_field "prefix_test" "status"
+  [ "$output" = "reviewing" ]
+}
+
+@test "scope_set_status logs event" {
+  scope_start "event_test" >/dev/null
+  scope_set_status "event_test" "planning"
+
+  local log_file="${EVENTS_DIR}/event_test/scope-events.log"
+  grep -q "status-change:status:planning" "$log_file"
+}
+
+@test "scope_set_status fails for nonexistent scope" {
+  run scope_set_status "ghost" "active"
+  [ "$status" -eq 1 ]
+  echo "$output" | grep -q "not found"
+}
+
+@test "scope_set_iteration updates tracker and conf" {
+  scope_start "iter_test" >/dev/null
+
+  run scope_set_iteration "iter_test" "iteration_02"
+  [ "$status" -eq 0 ]
+
+  # Tracker updated
+  run tracker_get_field "iter_test" "iteration"
+  [ "$output" = "iteration_02" ]
+
+  # current_iteration.conf updated
+  local conf_file="${EVENTS_DIR}/current_iteration.conf"
+  grep -q "SCOPE=iter_test" "$conf_file"
+  grep -q "ITERATION=iteration_02" "$conf_file"
+}
+
+@test "scope_set_iteration logs ITERATION_START event" {
+  scope_start "iter_log_test" >/dev/null
+  scope_set_iteration "iter_log_test" "iteration_01_a"
+
+  local log_file="${EVENTS_DIR}/iter_log_test/scope-events.log"
+  grep -q "ITERATION_START" "$log_file"
+  grep -q "iteration=iteration_01_a" "$log_file"
+}
+
+@test "scope_close marks scope as closed with decision" {
+  scope_start "close_test" >/dev/null
+
+  run scope_close "close_test" "approved"
+  [ "$status" -eq 0 ]
+
+  # Status should be "closed"
+  run tracker_get_field "close_test" "status"
+  [ "$output" = "closed" ]
+
+  # Decision should be recorded
+  run tracker_get_field "close_test" "decision"
+  [ "$output" = "approved" ]
+}
+
+@test "scope_close logs SCOPE_CLOSE event" {
+  scope_start "close_event_test" >/dev/null
+  scope_close "close_event_test" "blocked"
+
+  local log_file="${EVENTS_DIR}/close_event_test/scope-events.log"
+  grep -q "SCOPE_CLOSE" "$log_file"
+  grep -q "decision=blocked" "$log_file"
+}
+
+@test "set_current_scope writes conf file" {
+  set_current_scope "manual_scope" "iteration_03"
+
+  local conf_file="${EVENTS_DIR}/current_iteration.conf"
+  [ -f "$conf_file" ]
+  grep -q "SCOPE=manual_scope" "$conf_file"
+  grep -q "ITERATION=iteration_03" "$conf_file"
+}
+
+@test "get_current_scope reads conf file" {
+  set_current_scope "read_test" "iteration_05"
+
+  run get_current_scope
+  [ "$status" -eq 0 ]
+  [ "$output" = "read_test iteration_05" ]
+}
