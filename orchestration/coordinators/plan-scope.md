@@ -2,9 +2,18 @@
 
 You are orchestrating the scope planning workflow. Execute each step by spawning a focused sub-agent with ONLY that step's prompt file. Never embed step logic inline — the whole point is each sub-agent sees only its ~40-80 lines.
 
-## Important: No Lifecycle Commands During Planning
+## GitHub Issues: Create or Adopt at Planning Time
 
-**Do NOT run `github-issues-lifecycle.sh` during planning.** Lifecycle tracking is managed by the execution phase (`ap_exec` Step 0.5). Planning only produces the iteration plan and supporting artifacts — lifecycle state is initialized when execution begins.
+**GitHub Issues:** Follow `process/github-issues-handling.md` for all issue operations.
+
+If GH issues are enabled, the issue should exist by the time planning starts. Step 0.5 below handles creation/adoption — this ensures the issue is available for the entire pipeline, not deferred to execution.
+
+## Prohibitions
+
+- **Do NOT commit** during planning — artifacts are created but not committed
+- **Do NOT push** to remote
+- **Do NOT modify application code** — only create process artifacts in `.agent_process/`
+- The user decides when to commit planning artifacts
 
 ## Inputs
 
@@ -42,16 +51,44 @@ Read `.agent_process/process/local_environment_instructions.md` before starting 
 
 ## Step Sequence
 
-### Step 01: Scope Check (HARD GATE)
+### Step 01: Scope Check (HARD GATE — runs FIRST)
+
+**This step runs before any folder creation.** The scope check only reads the requirement file.
 
 Read `orchestration/steps/planning/01-scope-check.md`.
 
 Spawn a **cheap** sub-agent with that prompt. Pass the requirement file path as context.
 
-- **Output:** `.run/planning/01-scope-check.md`
-- **Gate logic:** If output contains `VERDICT: FAIL` → **STOP**. Tell the user the scope must be split. Offer to run the automated breakdown process (see the step file for details). Do NOT proceed to Step 02.
+- **Output:** Write result inline or to a temp file — do NOT create `.run/planning/` yet
+- **Gate logic:** If output contains `VERDICT: FAIL` → **STOP NORMAL PLANNING**. Offer the user two options:
+  1. **Run automated breakdown** → Proceed to Step 01b (which creates CHILD work folders)
+  2. **Add scope_override to requirement** → User manually edits, then re-run Step 01
 
-### Step 02: Derive Folder Name
+Do NOT proceed to Step 0.5 or Step 02 until scope check passes.
+
+### Step 01b: Scope Breakdown (CONDITIONAL — only if Step 01 FAIL)
+
+Read `orchestration/steps/planning/01b-scope-breakdown.md`.
+
+This step runs the full breakdown process:
+1. **Architectural review** — 2-3 capable reviewers analyze the entire requirement before splitting
+2. **Dependency mapping** — Identify internal dependencies and execution order
+3. **Create children** — Generate `{id}-01.md`, `{id}-02.md`, etc. (preserving original name)
+4. **Create breakdown file** — Rename original to `{id}-breakdown.md`
+5. **GitHub Issues** — Call `lifecycle.sh split` if enabled
+
+**Naming rule (CRITICAL):** Children use sequential suffixes, NOT descriptive names:
+- CORRECT: `phase_07_user_log-01.md`, `phase_07_user_log-02.md`
+- WRONG: `phase_07_user_log_entity_linking.md`, `phase_07_user_log_review_ux.md`
+
+- **Output:** Child requirement files in `requirements_docs/` (no work folder for parent)
+- **After completion:** Each child can be planned via a separate `plan-scope` invocation. Do NOT continue to Step 02 for the original scope — it no longer exists as a plannable unit.
+
+---
+
+**If Step 01 PASSED, continue below:**
+
+### Step 02: Derive Folder Name + Create Work Directory
 
 Read `orchestration/steps/planning/02-derive-folder.md`.
 
@@ -62,6 +99,22 @@ Spawn a **cheap** sub-agent. Pass the requirement file path.
   ```bash
   mkdir -p .agent_process/work/{folder_name}/.run/planning
   ```
+- **Then:** Copy the scope check result to `.run/planning/01-scope-check.md`
+
+### Step 02.5: GitHub Issues Check (conditional)
+
+**Only runs after folder exists.** Check `quality-config.json` for `github_issues.enabled`:
+
+**If GH enabled:**
+
+Spawn a **cheap** sub-agent with `process/github-issues-handling.md` as input:
+- **Task:** "Check GH issue for scope {scope}. If `gh_issue` exists in tracker, run `lifecycle.sh start {scope}` to adopt. If not, run `lifecycle.sh start {scope}` to create. Then run `lifecycle.sh set-status {scope} status:planning`. Return the updated `.run/gh-issue-context.md`."
+- **Input:** `process/github-issues-handling.md` + `.run/gh-issue-context.md` (if exists)
+- **Output:** `.agent_process/work/{scope}/.run/gh-issue-context.md`
+
+If the sub-agent reports failure (issue creation failed, HALT), log a warning but **do not block planning**. Planning can proceed without a GH issue — execution will pick it up later.
+
+**If GH disabled:** Skip entirely.
 
 ### Parallel Group A: Knowledge Query + Code Review
 
@@ -173,7 +226,7 @@ After all steps complete, provide the handoff summary to the user:
 
 ## Verification Checklist
 
-Before presenting the handoff, verify all `.run/planning/` output files exist:
+**If scope check PASSED** — verify all `.run/planning/` output files exist:
 
 - [ ] `.run/planning/01-scope-check.md`
 - [ ] `.run/planning/02-folder-name.txt`
@@ -188,3 +241,9 @@ Before presenting the handoff, verify all `.run/planning/` output files exist:
 - [ ] `.run/planning/09-12-finalize.md`
 
 If any are missing, a step was silently skipped. Investigate before proceeding.
+
+**If scope check FAILED and breakdown ran** — no work folder exists for the parent scope. Instead verify:
+
+- [ ] Child requirement files created in `requirements_docs/` with `-01`, `-02` suffixes
+- [ ] Parent requirement renamed to `{id}-breakdown.md`
+- [ ] GitHub issues: parent closed with `status:split`, child issues created (if GH enabled)

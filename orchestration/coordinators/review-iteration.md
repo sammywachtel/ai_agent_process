@@ -2,9 +2,18 @@
 
 You are the orchestrator reviewing a completed iteration. Execute each step by spawning focused sub-agents. The decision step (06) is the highest-stakes step in the entire AP workflow — use the best available model.
 
-## Important: No Lifecycle Commands During Review
+## Prohibitions
 
-Lifecycle operations (issue close, knowledge deposit) are handled by `github-issues-lifecycle.sh` in the post-decision step. Do not call lifecycle commands directly during review sub-agent steps.
+- **Do NOT commit** during review — artifacts are created but not committed
+- **Do NOT push** to remote
+- **Do NOT modify application code** — only create review artifacts in `.agent_process/`
+- The user decides when to commit review artifacts
+
+## GitHub Issues: Verify and Transition
+
+**GitHub Issues:** Follow `process/github-issues-handling.md` for all issue operations.
+
+Issue verification happens in Step 1.5. Post-decision label transitions and issue close happen in Steps 07-10. Review sub-agents do NOT call lifecycle commands directly.
 
 ## Inputs
 
@@ -36,13 +45,21 @@ Spawn a **cheap** sub-agent with `orchestration/steps/review/01-load-context.md`
 - Pass: scope, iteration
 - **Output:** `.run/review/01-review-context.md`
 
-### Step 1.5: Scope Event Verification (sequential, direct bash)
+### Step 1.5: Scope Event Verification + GH Issue Check (sequential)
 
 Run directly — not a sub-agent:
 ```bash
-bash .agent_process/scripts/github-issues-lifecycle.sh verify {scope} {iteration}
+bash .agent_process/scripts/github-issues-lifecycle.sh verify {scope}
 ```
 This is informational, not blocking. Write result to `.run/review/015-scope-verify.md`.
+
+**GitHub Issues status update (if enabled):**
+
+Spawn a **cheap** sub-agent with `process/github-issues-handling.md`:
+- **Task:** "If GH issue exists for scope {scope}, update status to `status:reviewing`. If no issue exists, log a warning but do not block review."
+- **Input:** `process/github-issues-handling.md` + `.run/gh-issue-context.md` (if exists)
+
+The review is about the code, not the issue — a missing issue should never block review.
 
 ### Parallel Verification Gates (5 sub-agents simultaneously)
 
@@ -92,7 +109,17 @@ Spawn a **synthesis** sub-agent with `orchestration/steps/review/06-choose-decis
 Spawn a **capable** sub-agent with `orchestration/steps/review/07-10-post-decision.md`.
 - Pass: scope, iteration, decision output (`.run/review/06-decision.md`)
 - **Output:** `.run/review/07-10-post-decision.md`
-- Handles: iteration_plan update, requirement doc update, **scope tracking state update** (via `github-issues-lifecycle.sh set-iteration`), knowledge deposit, issue close, artifact validation suggestion, handoff
+- Handles: iteration_plan update, requirement doc update, **scope tracking state update** (via `github-issues-lifecycle.sh set-iteration`), knowledge deposit, artifact validation suggestion, handoff
+
+**GitHub Issues post-decision (if enabled):**
+
+After the post-decision sub-agent completes, spawn a **cheap** sub-agent with `process/github-issues-handling.md`:
+- **Task based on decision:**
+  - **APPROVE:** `lifecycle.sh set-status {scope} status:approved` then `lifecycle.sh close {scope} approved`
+  - **ITERATE:** `lifecycle.sh set-status {scope} status:iterate` and `lifecycle.sh comment {scope} "Iteration decision: {brief reason}"`
+  - **BLOCK:** `lifecycle.sh set-status {scope} status:blocked` then `lifecycle.sh close {scope} blocked`
+  - **PIVOT:** `lifecycle.sh comment {scope} "Scope pivoted: {brief reason}"` (no close — new scope takes over)
+- **Input:** `process/github-issues-handling.md` + `.run/gh-issue-context.md` + `.run/review/06-decision.md`
 
 ---
 

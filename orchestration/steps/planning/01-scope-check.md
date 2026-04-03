@@ -3,7 +3,18 @@
 **Model tier:** cheap
 **Tools needed:** Read
 **Input:** Requirement file path (provided by coordinator)
-**Output:** `.run/planning/01-scope-check.md`
+**Output:** Return result to coordinator (do NOT create folders or write to `.run/`)
+
+---
+
+## Important: No Folder Creation
+
+This step runs BEFORE the work folder exists. Do NOT:
+- Create `.agent_process/work/{scope}/`
+- Write to `.run/planning/`
+- Create any GitHub issues
+
+Simply evaluate the requirement and return the result. The coordinator will handle folder creation if the check passes, or run breakdown if it fails.
 
 ---
 

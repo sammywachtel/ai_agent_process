@@ -7,9 +7,10 @@
 #   3. Regression tests (known-bad artifacts)
 #
 # Usage:
-#   bash test/run-tests.sh              # Run all tests
+#   bash test/run-tests.sh              # Run all tests (unit + contract)
 #   bash test/run-tests.sh unit         # Run only unit tests
 #   bash test/run-tests.sh contract     # Run only contract tests
+#   bash test/run-tests.sh integration  # Run GitHub integration tests (requires repo access)
 #   bash test/run-tests.sh scan <path>  # Scan real artifacts at path
 #
 # Dependencies: bats-core (brew install bats-core)
@@ -82,7 +83,39 @@ run_contract_tests() {
   done
 }
 
-# --- Layer 3: Scan Real Artifacts ---
+# --- Layer 3: Integration Tests ---
+run_integration_tests() {
+  header "Layer 3: Integration Tests (GitHub API)"
+
+  local repo="${1:-}"
+  local test_script="test/integration/test-github-lifecycle-integration.sh"
+
+  if [[ ! -f "$test_script" ]]; then
+    echo -e "${RED}Integration test script not found: $test_script${NC}"
+    ((TOTAL_FAIL++))
+    return 1
+  fi
+
+  echo -e "${YELLOW}Running: GitHub lifecycle integration tests${NC}"
+  echo -e "${YELLOW}Note: Creates real issues in the target repo${NC}"
+  echo ""
+
+  if [[ -n "$repo" ]]; then
+    if bash "$test_script" "$repo"; then
+      ((TOTAL_PASS++))
+    else
+      ((TOTAL_FAIL++))
+    fi
+  else
+    if bash "$test_script"; then
+      ((TOTAL_PASS++))
+    else
+      ((TOTAL_FAIL++))
+    fi
+  fi
+}
+
+# --- Layer 4: Scan Real Artifacts ---
 scan_real_artifacts() {
   local target_path="$1"
   header "Layer 3: Real Artifact Scan"
@@ -274,6 +307,9 @@ case "$LAYER" in
   contract)
     run_contract_tests
     ;;
+  integration)
+    run_integration_tests "${2:-}"
+    ;;
   scan)
     if [[ -z "$SCAN_PATH" ]]; then
       echo "Usage: run-tests.sh scan <path-to-.agent_process>"
@@ -283,7 +319,7 @@ case "$LAYER" in
     scan_real_artifacts "$SCAN_PATH"
     ;;
   *)
-    echo "Usage: run-tests.sh [all|unit|contract|scan <path>]"
+    echo "Usage: run-tests.sh [all|unit|contract|integration [repo]|scan <path>]"
     exit 1
     ;;
 esac

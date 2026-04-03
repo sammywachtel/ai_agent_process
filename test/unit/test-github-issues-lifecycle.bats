@@ -253,6 +253,86 @@ esac
 exit 0
 EOF
       ;;
+
+    issue-open)
+      # issue view returns OPEN state
+      cat >> "$TEST_DIR/bin/gh" << 'EOF'
+case "$*" in
+  *"--version"*)
+    echo "gh version 2.50.0 (2024-05-01)" ;;
+  *"auth status"*)
+    echo "Logged in to github.com as testuser" ;;
+  *"issue view"*)
+    echo '{"state":"OPEN","title":"my-scope","labels":[{"name":"ap:scope"}]}' ;;
+  *"issue edit"*)
+    echo "Issue edited" ;;
+  *"issue comment"*)
+    echo "Comment added" ;;
+  *"issue list"*)
+    echo '[]' ;;
+  *"issue create"*)
+    echo "https://github.com/test-owner/test-repo/issues/42" ;;
+  *"label list"*)
+    echo "ap:scope" ;;
+  *"label create"*)
+    echo "Label created" ;;
+  *"repo view"*)
+    echo '{"name":"test-repo"}' ;;
+  *)
+    echo "mock-gh-ok" ;;
+esac
+exit 0
+EOF
+      ;;
+
+    issue-closed)
+      # issue view returns CLOSED state
+      cat >> "$TEST_DIR/bin/gh" << 'EOF'
+case "$*" in
+  *"--version"*)
+    echo "gh version 2.50.0 (2024-05-01)" ;;
+  *"auth status"*)
+    echo "Logged in to github.com as testuser" ;;
+  *"issue view"*)
+    echo '{"state":"CLOSED","title":"my-scope","labels":[{"name":"ap:scope"}]}' ;;
+  *"issue edit"*)
+    echo "Issue edited" ;;
+  *"label list"*)
+    echo "ap:scope" ;;
+  *"label create"*)
+    echo "Label created" ;;
+  *"repo view"*)
+    echo '{"name":"test-repo"}' ;;
+  *)
+    echo "mock-gh-ok" ;;
+esac
+exit 0
+EOF
+      ;;
+
+    issue-not-found)
+      # issue view fails (not found)
+      cat >> "$TEST_DIR/bin/gh" << 'EOF'
+case "$*" in
+  *"--version"*)
+    echo "gh version 2.50.0 (2024-05-01)" ;;
+  *"auth status"*)
+    echo "Logged in to github.com as testuser" ;;
+  *"issue view"*)
+    echo "Could not resolve to an issue" >&2
+    exit 1 ;;
+  *"label list"*)
+    echo "ap:scope" ;;
+  *"label create"*)
+    echo "Label created" ;;
+  *"repo view"*)
+    echo '{"name":"test-repo"}' ;;
+  *)
+    echo "mock-gh-ok" ;;
+esac
+exit 0
+EOF
+      ;;
   esac
 
   chmod +x "$TEST_DIR/bin/gh"
@@ -265,6 +345,19 @@ _gh_call_count() {
   else
     echo "0"
   fi
+}
+
+# Helper: seed the tracker with an existing scope+gh_issue
+_seed_tracker() {
+  local scope="$1"
+  local issue_num="${2:-}"
+  mkdir -p "$(dirname "$TRACKER_FILE")"
+  local json="{\"scope\":\"$scope\",\"status\":\"active\",\"created\":\"2026-01-01T00:00:00Z\",\"iteration\":\"iteration_01\""
+  if [[ -n "$issue_num" ]]; then
+    json="${json},\"gh_issue\":\"$issue_num\""
+  fi
+  json="${json}}"
+  echo "$json" >> "$TRACKER_FILE"
 }
 
 # Helper: check if a specific gh subcommand was called
@@ -799,4 +892,223 @@ EOF
     # All other gh commands must have --repo
     [[ "$line" == *"--repo"* ]] || fail "gh command missing --repo: $line"
   done < "$GH_CALLS_LOG"
+}
+
+# ============================================================
+#  associate tests
+# ============================================================
+
+@test "associate: valid issue → writes tracker + labels + comments" {
+  _write_mock_gh "issue-open"
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  run bash scripts/github-issues-lifecycle.sh associate my-scope 43
+  [ "$status" -eq 0 ]
+
+  # Tracker should have gh_issue
+  grep -q '"gh_issue":"43"' "$TRACKER_FILE"
+
+  # Should have called issue view to verify
+  _gh_was_called_with "issue view"
+
+  # Should have added label
+  _gh_was_called_with "issue edit"
+
+  # Should have commented
+  _gh_was_called_with "issue comment"
+
+  # Events log should have SCOPE_ASSOCIATE
+  local events_file="$EVENTS_DIR/my-scope/scope-events.log"
+  grep -q "SCOPE_ASSOCIATE" "$events_file"
+}
+
+@test "associate: accepts #N format" {
+  _write_mock_gh "issue-open"
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  run bash scripts/github-issues-lifecycle.sh associate my-scope "#43"
+  [ "$status" -eq 0 ]
+  grep -q '"gh_issue":"43"' "$TRACKER_FILE"
+}
+
+@test "associate: accepts full URL format" {
+  _write_mock_gh "issue-open"
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  run bash scripts/github-issues-lifecycle.sh associate my-scope "https://github.com/test-owner/test-repo/issues/99"
+  [ "$status" -eq 0 ]
+  grep -q '"gh_issue":"99"' "$TRACKER_FILE"
+}
+
+@test "associate: invalid issue number → error" {
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  run bash scripts/github-issues-lifecycle.sh associate my-scope "not-a-number"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Cannot parse issue number"* ]]
+}
+
+@test "associate: issue not found → error" {
+  _write_mock_gh "issue-not-found"
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  run bash scripts/github-issues-lifecycle.sh associate my-scope 999
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"not found"* ]] || [[ "$output" == *"HALT"* ]]
+}
+
+@test "associate: already associated with same issue → idempotent" {
+  _write_mock_gh "issue-open"
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  # Seed tracker with gh_issue already set
+  _seed_tracker "my-scope" "43"
+
+  run bash scripts/github-issues-lifecycle.sh associate my-scope 43
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"already associated"* ]]
+
+  # No gh calls needed for idempotent case
+  [ "$(_gh_call_count)" -eq 0 ]
+}
+
+@test "associate: GH disabled → records locally, no gh calls" {
+  cat > "$TEST_DIR/.agent_process/quality-config.json" << 'EOF'
+{"github_issues": {"enabled": false, "repo": "test-owner/test-repo"}}
+EOF
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  run bash scripts/github-issues-lifecycle.sh associate my-scope 43
+  [ "$status" -eq 0 ]
+
+  # Tracker should have gh_issue
+  grep -q '"gh_issue":"43"' "$TRACKER_FILE"
+
+  # No gh calls
+  [ "$(_gh_call_count)" -eq 0 ]
+
+  # Events log should still record
+  local events_file="$EVENTS_DIR/my-scope/scope-events.log"
+  grep -q "SCOPE_ASSOCIATE" "$events_file"
+}
+
+# ============================================================
+#  adopt path in start tests
+# ============================================================
+
+@test "start adopt: gh_issue in tracker → verifies and adopts, no new issue" {
+  _write_mock_gh "issue-open"
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  # Seed tracker with an existing gh_issue
+  _seed_tracker "my-scope" "17"
+
+  run bash scripts/github-issues-lifecycle.sh start my-scope
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Adopted"* ]]
+
+  # Should have called issue view to verify
+  _gh_was_called_with "issue view"
+
+  # Should NOT have called issue create
+  ! _gh_was_called_with "issue create"
+
+  # Events log should have SCOPE_ADOPT
+  local events_file="$EVENTS_DIR/my-scope/scope-events.log"
+  grep -q "SCOPE_ADOPT" "$events_file"
+}
+
+@test "start adopt: gh_issue in tracker but closed → error" {
+  _write_mock_gh "issue-closed"
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  # Seed tracker with a closed issue
+  _seed_tracker "my-scope" "17"
+
+  run bash scripts/github-issues-lifecycle.sh start my-scope
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"closed"* ]] || [[ "$output" == *"CLOSED"* ]] || [[ "$output" == *"Reopen"* ]]
+}
+
+@test "start adopt: no gh_issue in tracker → falls through to create" {
+  _write_mock_gh "default"
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  # Seed tracker without gh_issue
+  _seed_tracker "my-scope"
+
+  run bash scripts/github-issues-lifecycle.sh start my-scope
+  [ "$status" -eq 0 ]
+
+  # Should have gone through to create since no gh_issue was set
+  _gh_was_called_with "issue create"
+  grep -q '"gh_issue"' "$TRACKER_FILE"
+}
+
+# ============================================================
+#  Context file generation tests
+# ============================================================
+
+@test "context file: generated on start with new issue" {
+  _write_mock_gh "default"
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  run bash scripts/github-issues-lifecycle.sh start my-scope
+  [ "$status" -eq 0 ]
+
+  # Context file should exist
+  local ctx_file="$TEST_DIR/.agent_process/work/my-scope/.run/gh-issue-context.md"
+  [ -f "$ctx_file" ]
+
+  # Should contain issue number
+  grep -q "Issue:" "$ctx_file"
+
+  # Should contain repo
+  grep -q "test-owner/test-repo" "$ctx_file"
+
+  # Should contain scope
+  grep -q "my-scope" "$ctx_file"
+
+  # Should reference the handling doc
+  grep -q "github-issues-handling.md" "$ctx_file"
+}
+
+@test "context file: generated on associate" {
+  _write_mock_gh "issue-open"
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  run bash scripts/github-issues-lifecycle.sh associate my-scope 43
+  [ "$status" -eq 0 ]
+
+  local ctx_file="$TEST_DIR/.agent_process/work/my-scope/.run/gh-issue-context.md"
+  [ -f "$ctx_file" ]
+  grep -q "#43" "$ctx_file"
+  grep -q "my-scope" "$ctx_file"
+}
+
+@test "context file: generated on adopt" {
+  _write_mock_gh "issue-open"
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  _seed_tracker "my-scope" "17"
+
+  run bash scripts/github-issues-lifecycle.sh start my-scope
+  [ "$status" -eq 0 ]
+
+  local ctx_file="$TEST_DIR/.agent_process/work/my-scope/.run/gh-issue-context.md"
+  [ -f "$ctx_file" ]
+  grep -q "#17" "$ctx_file"
+}
+
+@test "context file: not generated when GH disabled" {
+  cat > "$TEST_DIR/.agent_process/quality-config.json" << 'EOF'
+{"github_issues": {"enabled": false}}
+EOF
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  run bash scripts/github-issues-lifecycle.sh start my-scope
+  [ "$status" -eq 0 ]
+
+  local ctx_file="$TEST_DIR/.agent_process/work/my-scope/.run/gh-issue-context.md"
+  [ ! -f "$ctx_file" ]
 }

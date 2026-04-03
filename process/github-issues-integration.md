@@ -69,13 +69,17 @@ bash .agent_process/scripts/github-issues-lifecycle.sh create-labels
 
 | Pipeline Step | What Happens |
 |--------------|-------------|
+| `/ap_brainstorm #43` | Reads issue for context, brainstorms, creates requirement, associates scope |
+| `/ap_requirements add #43` | Reads issue for context, creates requirement, associates scope |
+| `plan-scope` (Step 0.5) | Creates issue if none exists yet, sets `status:planning` |
+| `plan-scope` scope-check FAIL | Calls `split` — closes parent with `status:split`, creates child issues |
 | `/ap_exec` preflight (Step 0.4) | Health check — verifies `gh` works and repo is accessible |
-| `/ap_exec` preflight (Step 0.5) | Creates scope issue (or adopts existing), logs to `scope-tracker.jsonl` |
-| During execution | Work unit sub-issues created, status labels updated |
-| Orchestrator review | Status labels transition (`status:reviewing`) |
-| APPROVE decision | Issue closed, knowledge deposited |
-| ITERATE decision | New iteration noted, labels updated |
-| BLOCK decision | Issue closed with `status:blocked` label |
+| `/ap_exec` preflight (Step 0.5) | Verifies issue exists; if not, **asks user** for number, 'create', or 'skip' |
+| During execution | Work unit sub-issues created, `status:executing` label |
+| Orchestrator review | Label transitions to `status:reviewing` |
+| APPROVE decision | `status:approved`, issue closed |
+| ITERATE decision | `status:iterate` label, comment with reason |
+| BLOCK decision | `status:blocked`, issue closed |
 
 ### Labels
 
@@ -88,6 +92,7 @@ bash .agent_process/scripts/github-issues-lifecycle.sh create-labels
 | `status:approved` | Scope approved (issue closed) |
 | `status:iterate` | Needs another iteration |
 | `status:blocked` | Scope blocked (issue closed) |
+| `status:split` | Scope was too large, split into children (issue closed) |
 
 ### File-Based State (Always Active)
 
@@ -115,18 +120,48 @@ For projects where the AP framework lives in a different repo than the code:
 
 The `repo` field is passed as `--repo` to every `gh` command, so issues are created in the correct repository regardless of which repo you're working in.
 
+### Nested Repos (Monorepo with Sub-repos)
+
+If your project has nested git repositories (e.g., a root repo containing multiple sub-repos), the lifecycle script automatically handles this:
+
+1. **AP Root Detection** — If you run commands from a sub-repo, the script traverses up to find `.agent_process/` and operates from there.
+
+2. **Git Remote Info** — If the current git remote differs from the configured `github_issues.repo`, the script logs an informational message but continues. This is expected in polyrepo setups where issues are tracked in a central repo.
+
+**Example structure:**
+```
+stratum-root/           ← AP installed here, issues tracked in stratum-root repo
+├── .agent_process/
+├── stratum/            ← nested git repo (different remote)
+├── stratum-clin/       ← nested git repo (different remote)
+└── ai-lab/             ← nested git repo (different remote)
+```
+
+Running `lifecycle.sh` from `stratum-root/stratum/` will:
+1. Detect no `.agent_process/` in cwd
+2. Find AP root at `stratum-root/`
+3. Change to that directory
+4. Log: "Not at AP root. Changing to: /path/to/stratum-root"
+5. Continue with the command
+
 ---
 
 ## The Lifecycle Script
 
-All GitHub Issues operations go through `github-issues-lifecycle.sh`. Agents and coordinators never run raw `gh` commands.
+All GitHub Issues operations go through `github-issues-lifecycle.sh`. Agents and coordinators never run raw `gh` commands. For detailed sub-agent instructions, see `process/github-issues-handling.md`.
 
 ```bash
 # Health check
-bash .agent_process/scripts/github-issues-lifecycle.sh health
+bash .agent_process/scripts/github-issues-lifecycle.sh health-check
 
-# Start/create scope issue
-bash .agent_process/scripts/github-issues-lifecycle.sh start <scope> <iteration>
+# Start/create/adopt scope issue
+bash .agent_process/scripts/github-issues-lifecycle.sh start <scope>
+
+# Associate existing issue with scope
+bash .agent_process/scripts/github-issues-lifecycle.sh associate <scope> <issue_number_or_url>
+
+# Update status label (removes old status:* labels first)
+bash .agent_process/scripts/github-issues-lifecycle.sh set-status <scope> <label>
 
 # Close scope
 bash .agent_process/scripts/github-issues-lifecycle.sh close <scope> [decision]
@@ -135,16 +170,19 @@ bash .agent_process/scripts/github-issues-lifecycle.sh close <scope> [decision]
 bash .agent_process/scripts/github-issues-lifecycle.sh set-iteration <scope> <iteration>
 
 # Verify scope state
-bash .agent_process/scripts/github-issues-lifecycle.sh verify <scope> <iteration>
+bash .agent_process/scripts/github-issues-lifecycle.sh verify <scope>
+
+# Add comment
+bash .agent_process/scripts/github-issues-lifecycle.sh comment <scope> <message>
+
+# Split scope into children (when scope-check fails)
+bash .agent_process/scripts/github-issues-lifecycle.sh split <parent_scope> <child1> <child2> [child3...]
 
 # Create work unit sub-issue
 bash .agent_process/scripts/github-issues-lifecycle.sh task-create <scope> <wu_id> <description>
 
 # Update work unit status
 bash .agent_process/scripts/github-issues-lifecycle.sh task-update <scope> <wu_id> <status>
-
-# Create labels on repo
-bash .agent_process/scripts/github-issues-lifecycle.sh create-labels
 ```
 
 ---

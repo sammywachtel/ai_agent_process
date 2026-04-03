@@ -305,6 +305,7 @@ if [[ "$FEAT_GH" == "yes" ]]; then
       "status:blocked:#B60205"
       "status:review:#6F42C1"
       "status:done:#0E8A16"
+      "status:split:#D93F0B"
     )
     LABELS_CREATED=0
     for label_entry in "${AP_LABELS[@]}"; do
@@ -330,6 +331,65 @@ json.dump(cfg, open(path, 'w'), indent=2)
 
     GH_SETUP_OK=true
     echo -e "${GREEN}  ✓${NC} GitHub Issues configured for $GH_REPO"
+
+    # Priority labels config (only prompt if GH was successfully configured)
+    echo ""
+    echo -e "${BLUE}▸${NC} Priority labels (priority:P0-P4) help triage scope urgency"
+    read -p "  Enable priority labels? [Y/n]: " ENABLE_PRIORITY
+    ENABLE_PRIORITY="${ENABLE_PRIORITY:-Y}"
+
+    if [[ "$ENABLE_PRIORITY" =~ ^[Yy] ]]; then
+      read -p "  Default priority [priority:P2]: " DEFAULT_PRIORITY
+      DEFAULT_PRIORITY="${DEFAULT_PRIORITY:-priority:P2}"
+
+      # Create priority labels in GitHub
+      echo -e "  Creating priority labels..."
+      PRIORITY_LABELS=(
+        "priority:P0:#B60205:Critical - drop everything"
+        "priority:P1:#D93F0B:High - this sprint"
+        "priority:P2:#FBCA04:Medium - default priority"
+        "priority:P3:#0E8A16:Low - when time permits"
+        "priority:P4:#C5DEF5:Minimal - nice to have"
+      )
+      PRIO_CREATED=0
+      for entry in "${PRIORITY_LABELS[@]}"; do
+        IFS=':' read -r prefix level color desc <<< "$entry"
+        label_name="${prefix}:${level}"
+        if gh label create "$label_name" --repo "$GH_REPO" --color "${color#\#}" --description "$desc" --force 2>/dev/null; then
+          PRIO_CREATED=$((PRIO_CREATED + 1))
+        fi
+      done
+
+      python3 -c "
+import json
+path = '$AGENT_PROCESS_DIR/quality-config.json'
+try:
+    cfg = json.load(open(path))
+except:
+    cfg = {}
+cfg['priority_labels'] = {
+    'enabled': True,
+    'default': '$DEFAULT_PRIORITY'
+}
+json.dump(cfg, open(path, 'w'), indent=2)
+" 2>/dev/null
+      echo -e "${GREEN}  ✓${NC} Priority labels enabled ($PRIO_CREATED created, default: $DEFAULT_PRIORITY)"
+    else
+      python3 -c "
+import json
+path = '$AGENT_PROCESS_DIR/quality-config.json'
+try:
+    cfg = json.load(open(path))
+except:
+    cfg = {}
+cfg['priority_labels'] = {
+    'enabled': False,
+    'default': 'priority:P2'
+}
+json.dump(cfg, open(path, 'w'), indent=2)
+" 2>/dev/null
+      echo -e "${YELLOW}  ○${NC} Priority labels disabled"
+    fi
   fi
 
   # If user said yes but we bailed out, update the config to disabled
@@ -371,6 +431,37 @@ json.dump(cfg, open(path, 'w'), indent=2)
 " 2>/dev/null
   echo -e "${GREEN}  ✓${NC} Removed legacy 'beads' key from quality-config.json"
 }
+
+# ─── Remove BEADS-related files ───────────────────────────────────────
+# AP doesn't use BEADS. Remove any BEADS artifacts to prevent agents from
+# running bd commands during orchestration.
+
+# Remove AGENTS.md if it contains BEADS instructions
+if [[ -f "$TARGET_DIR/AGENTS.md" ]]; then
+  if grep -q "BEADS INTEGRATION\|bd prime\|bd onboard\|beads.*issue" "$TARGET_DIR/AGENTS.md" 2>/dev/null; then
+    rm -f "$TARGET_DIR/AGENTS.md"
+    echo -e "${GREEN}  ✓${NC} Removed AGENTS.md (contained BEADS instructions)"
+  fi
+fi
+
+# Remove beads-integration.md from process directory (legacy file)
+if [[ -f "$AGENT_PROCESS_DIR/process/beads-integration.md" ]]; then
+  rm -f "$AGENT_PROCESS_DIR/process/beads-integration.md"
+  echo -e "${GREEN}  ✓${NC} Removed legacy beads-integration.md"
+fi
+
+# Remove BEADS scripts from scripts directory (legacy files)
+for beads_script in "beads-lifecycle.sh" "validate-beads-state.sh" "migrate-knowledge.py"; do
+  if [[ -f "$AGENT_PROCESS_DIR/scripts/$beads_script" ]]; then
+    rm -f "$AGENT_PROCESS_DIR/scripts/$beads_script"
+    echo -e "${GREEN}  ✓${NC} Removed legacy $beads_script"
+  fi
+done
+
+# Remove .beads directory if it exists
+if [[ -d "$TARGET_DIR/.beads" ]]; then
+  echo -e "${YELLOW}  ⊙${NC} Found .beads/ directory — run ${GREEN}scripts/migrate-from-beads.sh${NC} to clean up"
+fi
 
 # ─── Metaswarm Setup (if enabled) ─────────────────────────────────────
 if [[ "$FEAT_METASWARM" == "yes" ]]; then
