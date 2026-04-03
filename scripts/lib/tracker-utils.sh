@@ -53,7 +53,9 @@ tracker_read_scope() {
   fi
 
   if _has_jq; then
-    jq -c --arg s "$scope" 'select(.scope==$s)' "$TRACKER_FILE" 2>/dev/null
+    # Note: jq processes line-by-line so select can match multiple lines
+    # if the file has duplicates. head -1 ensures we return only one.
+    jq -c --arg s "$scope" 'select(.scope==$s)' "$TRACKER_FILE" 2>/dev/null | head -1
   else
     # Fallback: grep for the scope name, anchored to prevent prefix collisions
     grep "\"scope\":\"${scope}\"[,}]" "$TRACKER_FILE" 2>/dev/null | head -1

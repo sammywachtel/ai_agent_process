@@ -116,6 +116,28 @@ teardown() {
   [ -z "$output" ]
 }
 
+@test "duplicate scope entries return single value" {
+  # Manually create a tracker file with duplicate scope entries (simulating corruption)
+  cat > "$TRACKER_FILE" << 'EOF'
+{"scope":"dup_scope","status":"planning","gh_issue":"135"}
+{"scope":"dup_scope","status":"executing","gh_issue":"135"}
+EOF
+
+  # tracker_read_scope should return only ONE line, not both
+  run tracker_read_scope "dup_scope"
+  [ "$status" -eq 0 ]
+  local line_count
+  line_count=$(echo "$output" | wc -l | tr -d ' ')
+  [ "$line_count" -eq 1 ]
+
+  # tracker_get_field should return a clean single value, not "135\n135"
+  run tracker_get_field "dup_scope" "gh_issue"
+  [ "$status" -eq 0 ]
+  [ "$output" = "135" ]
+  # Verify no embedded newlines
+  [[ "$output" != *$'\n'* ]]
+}
+
 # ─────────────────────────────────────────────
 # Atomic write behavior
 # ─────────────────────────────────────────────
