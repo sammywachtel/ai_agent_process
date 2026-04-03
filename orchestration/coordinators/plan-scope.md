@@ -82,7 +82,7 @@ This step runs the full breakdown process:
 - WRONG: `phase_07_user_log_entity_linking.md`, `phase_07_user_log_review_ux.md`
 
 - **Output:** Child requirement files in `requirements_docs/` (no work folder for parent)
-- **After completion:** Each child can be planned via a separate `plan-scope` invocation. Do NOT continue to Step 02 for the original scope — it no longer exists as a plannable unit.
+- **After completion:** Each child can be planned in a separate orchestrator session (load `orchestration/plan-scope.md` with the child scope). Do NOT continue to Step 02 for the original scope — it no longer exists as a plannable unit. **There is no `/plan-scope` command** — do not suggest one.
 
 ---
 

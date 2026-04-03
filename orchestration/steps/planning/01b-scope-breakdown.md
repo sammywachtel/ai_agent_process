@@ -19,7 +19,7 @@ This step runs ONLY when Step 01 (scope-check) returns `VERDICT: FAIL`. The orch
 Do NOT create `.agent_process/work/{parent_scope}/`. The parent scope is being broken down — it will never be executed directly. Only create:
 - Child requirement files in `requirements_docs/`
 - Parent breakdown file (`{id}-breakdown.md`) in `requirements_docs/`
-- Child work folders are created later when each child is planned via `plan-scope`
+- Child work folders are created later when each child is planned (via `orchestration/plan-scope.md`)
 
 ---
 
@@ -424,7 +424,12 @@ Write to `.run/planning/01b-breakdown.md`:
 
 ## Next Steps
 
-Each child can now be planned independently via `plan-scope`.
+Each child can now be planned independently. To plan a child:
+1. Start a new orchestrator session (typically in Codex)
+2. Load `orchestration/plan-scope.md` with the child scope name
+
+**There is no `/plan-scope` command.** Planning is done by loading `orchestration/plan-scope.md` in a fresh orchestrator session. Do not suggest `/plan-scope`.
+
 Recommended execution order: {list}
 ```
 
