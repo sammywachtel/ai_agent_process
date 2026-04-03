@@ -396,6 +396,8 @@ _gh_was_called_with() {
 @test "health-check: gh not authenticated → exit 1 with auth hint" {
   _write_mock_gh "auth-fail"
   export PATH="$TEST_DIR/bin:$PATH"
+  # Unset token env vars so the script uses interactive auth path
+  unset GH_TOKEN GITHUB_TOKEN
   run bash scripts/github-issues-lifecycle.sh health-check
   [ "$status" -eq 1 ]
   [[ "$output" == *"auth"* ]]
