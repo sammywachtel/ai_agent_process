@@ -18,8 +18,8 @@ Issue verification happens in Step 1.5. Post-decision label transitions and issu
 ## Inputs (Flexible)
 
 The user can provide ANY of these input formats:
-- **GitHub issue number:** `#165`, `165`, or full URL
-- **Scope name:** `transcript_pipeline_poc2-01`
+- **GitHub issue number:** `#123`, `123`, or full URL (`https://github.com/owner/repo/issues/123`)
+- **Scope name:** `my_feature_scope`
 
 **Step 0.0: Resolve Input**
 
@@ -32,9 +32,9 @@ bash .agent_process/scripts/github-issues-lifecycle.sh resolve-input "{{input}}"
 This returns JSON:
 ```json
 {
-  "scope": "transcript_pipeline_poc2-01",
-  "requirement_path": ".agent_process/requirements_docs/...",
-  "gh_issue": "165",
+  "scope": "my_feature_scope",
+  "requirement_path": ".agent_process/requirements_docs/category/my_feature_scope.md",
+  "gh_issue": "123",
   "input_type": "issue"
 }
 ```

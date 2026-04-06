@@ -18,9 +18,9 @@ If GH issues are enabled, the issue should exist by the time planning starts. St
 ## Inputs (Flexible)
 
 The user can provide ANY of these input formats:
-- **GitHub issue number:** `#165`, `165`, or full URL
-- **Scope name:** `transcript_pipeline_poc2-01`
-- **Requirement path:** `architecture-refactor/transcript_pipeline_poc2-01.md`
+- **GitHub issue number:** `#123`, `123`, or full URL (`https://github.com/owner/repo/issues/123`)
+- **Scope name:** `my_feature_scope`
+- **Requirement path:** `category/my_feature_scope.md`
 
 **Step 0.0: Resolve Input**
 
@@ -33,9 +33,9 @@ bash .agent_process/scripts/github-issues-lifecycle.sh resolve-input "{{input}}"
 This returns JSON:
 ```json
 {
-  "scope": "transcript_pipeline_poc2-01",
-  "requirement_path": ".agent_process/requirements_docs/architecture-refactor/transcript_pipeline_poc2-01.md",
-  "gh_issue": "165",
+  "scope": "my_feature_scope",
+  "requirement_path": ".agent_process/requirements_docs/category/my_feature_scope.md",
+  "gh_issue": "123",
   "input_type": "issue"
 }
 ```

@@ -54,21 +54,21 @@ The script handles `--repo`, retries, label management, and tracker updates inte
 The `resolve-input` command accepts any of these formats and returns structured JSON:
 
 **Input formats:**
-- GitHub issue number: `#165`, `165`, or full URL
-- Scope name: `transcript_pipeline_poc2-01`
-- Requirement path: `architecture-refactor/my_scope.md`
+- GitHub issue number: `#123`, `123`, or full URL
+- Scope name: `my_feature_scope`
+- Requirement path: `category/my_feature_scope.md`
 
 **Example:**
 ```bash
-bash .agent_process/scripts/github-issues-lifecycle.sh resolve-input 165
+bash .agent_process/scripts/github-issues-lifecycle.sh resolve-input 123
 ```
 
 **Output:**
 ```json
 {
-  "scope": "transcript_pipeline_poc2-01",
-  "requirement_path": ".agent_process/requirements_docs/architecture-refactor/transcript_pipeline_poc2-01.md",
-  "gh_issue": "165",
+  "scope": "my_feature_scope",
+  "requirement_path": ".agent_process/requirements_docs/category/my_feature_scope.md",
+  "gh_issue": "123",
   "input_type": "issue"
 }
 ```
