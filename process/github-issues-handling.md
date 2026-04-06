@@ -27,9 +27,10 @@ bash .agent_process/scripts/github-issues-lifecycle.sh search-issue <scope>   # 
 bash .agent_process/scripts/github-issues-lifecycle.sh list-issues            # All open ap:scope issues (JSON)
 bash .agent_process/scripts/github-issues-lifecycle.sh audit                  # Compare tracker vs GH, report mismatches
 bash .agent_process/scripts/github-issues-lifecycle.sh verify <scope>         # Full verification report for one scope
+bash .agent_process/scripts/github-issues-lifecycle.sh resolve-input <input>  # Resolve issue#/scope/path → JSON
 
 # Core actions
-bash .agent_process/scripts/github-issues-lifecycle.sh start <scope>
+bash .agent_process/scripts/github-issues-lifecycle.sh start <scope>          # Creates issue + auto-syncs body from requirement doc
 bash .agent_process/scripts/github-issues-lifecycle.sh associate <scope> <issue_number_or_url>
 bash .agent_process/scripts/github-issues-lifecycle.sh set-status <scope> <label>
 bash .agent_process/scripts/github-issues-lifecycle.sh set-priority <scope> <priority:P0-P4>
@@ -47,6 +48,52 @@ bash .agent_process/scripts/github-issues-lifecycle.sh task-update <scope> <wu-i
 ```
 
 The script handles `--repo`, retries, label management, and tracker updates internally. You don't need to worry about any of that.
+
+## 2.1. Flexible Input Resolution
+
+The `resolve-input` command accepts any of these formats and returns structured JSON:
+
+**Input formats:**
+- GitHub issue number: `#165`, `165`, or full URL
+- Scope name: `transcript_pipeline_poc2-01`
+- Requirement path: `architecture-refactor/my_scope.md`
+
+**Example:**
+```bash
+bash .agent_process/scripts/github-issues-lifecycle.sh resolve-input 165
+```
+
+**Output:**
+```json
+{
+  "scope": "transcript_pipeline_poc2-01",
+  "requirement_path": ".agent_process/requirements_docs/architecture-refactor/transcript_pipeline_poc2-01.md",
+  "gh_issue": "165",
+  "input_type": "issue"
+}
+```
+
+This enables `plan-scope` and `review-iteration` to accept any input format. The coordinator resolves it to structured values before proceeding.
+
+## 2.2. Rich Issue Bodies
+
+When `start` creates a new issue, it automatically syncs the issue body with content from the requirement document (if found). The body includes:
+
+- **Scope Summary:** Status, priority, complexity, category
+- **Objective:** What this scope achieves
+- **Background:** Context and motivation
+- **Acceptance Criteria:** Success conditions
+- **Technical Requirements:** Implementation details
+- **Dependencies:** What this scope depends on
+- **Out of Scope:** What's explicitly excluded
+- **Requirement Source:** Path to the requirement document
+
+To manually sync the body later (e.g., after updating the requirement doc):
+```bash
+bash .agent_process/scripts/github-issues-lifecycle.sh sync-body <scope>
+```
+
+This makes GitHub issues readable by product managers and stakeholders, not just developers.
 
 ## 3. Status Label Taxonomy
 

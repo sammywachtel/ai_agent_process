@@ -20,6 +20,7 @@
 #   bash scripts/github-issues-lifecycle.sh search-issue <scope>
 #   bash scripts/github-issues-lifecycle.sh list-issues
 #   bash scripts/github-issues-lifecycle.sh audit
+#   bash scripts/github-issues-lifecycle.sh resolve-input <issue#|scope|requirement_path>
 #   bash scripts/github-issues-lifecycle.sh task-create <scope> <wu-id> <description>
 #   bash scripts/github-issues-lifecycle.sh task-update <scope> <wu-id> <status>
 #   bash scripts/github-issues-lifecycle.sh close <scope> <decision>
@@ -46,7 +47,7 @@ source "${SCRIPT_DIR}/lib/tracker-utils.sh"
 # --- Parse action ---
 ACTION="${1:-}"
 if [[ -z "$ACTION" ]]; then
-  echo "Usage: github-issues-lifecycle.sh <health-check|create-labels|start|associate|set-status|retitle|sync-body|set-priority|set-iteration|get-iteration|get-issue|search-issue|list-issues|audit|task-create|task-update|close|verify|comment|split> [args...]" >&2
+  echo "Usage: github-issues-lifecycle.sh <health-check|create-labels|start|associate|set-status|retitle|sync-body|set-priority|set-iteration|get-iteration|get-issue|search-issue|list-issues|audit|resolve-input|task-create|task-update|close|verify|comment|split> [args...]" >&2
   exit 1
 fi
 
@@ -451,6 +452,13 @@ do_start() {
     fi
 
     generate_context_file "$scope" "$issue_num" "status:active"
+
+    # Auto-sync issue body with requirement doc content (if requirement doc exists)
+    local req_path
+    if req_path=$(find_requirement_doc "$scope" 2>/dev/null); then
+      echo "[gh-issues] Syncing issue body with requirement doc..."
+      do_sync_body "$scope" >/dev/null 2>&1 || true
+    fi
   fi
 }
 
@@ -624,6 +632,102 @@ for path in sorted(root.rglob("*.md")):
             print(path)
             sys.exit(0)
 sys.exit(1)
+PYEOF
+}
+
+do_resolve_input() {
+  # Resolve flexible input to structured scope info.
+  # Input can be: GitHub issue number (#123, 123, URL), scope name, or requirement path
+  # Output: JSON with scope, requirement_path, gh_issue (any may be empty if not found)
+  #
+  # This enables plan-scope and review-iteration to accept any of these inputs.
+
+  local input="$1"
+  if [[ -z "$input" ]]; then
+    echo '{"error":"No input provided"}' >&2
+    return 1
+  fi
+
+  local scope="" req_path="" gh_issue="" input_type=""
+
+  # --- Try to parse as issue number ---
+  local parsed_issue=""
+  if [[ "$input" =~ ^#?[0-9]+$ ]] || [[ "$input" =~ /issues/([0-9]+) ]]; then
+    parsed_issue=$(parse_issue_number "$input" 2>/dev/null) || parsed_issue=""
+  fi
+
+  if [[ -n "$parsed_issue" ]]; then
+    input_type="issue"
+    gh_issue="$parsed_issue"
+
+    # Look up issue title from GitHub (should be the scope name)
+    if [[ "$GH_ENABLED" == "true" ]]; then
+      local issue_data
+      issue_data=$(gh issue view "$gh_issue" --repo "$REPO" --json title,state 2>/dev/null)
+      if [[ -n "$issue_data" ]]; then
+        scope=$(echo "$issue_data" | jq -r '.title // empty' 2>/dev/null)
+      fi
+    fi
+
+    # If we got a scope, try to find the requirement doc
+    if [[ -n "$scope" ]]; then
+      req_path=$(find_requirement_doc "$scope" 2>/dev/null) || req_path=""
+    fi
+
+  # --- Try to parse as requirement path ---
+  elif [[ "$input" == *.md ]] && [[ -f "$input" || -f ".agent_process/requirements_docs/$input" ]]; then
+    input_type="requirement_path"
+
+    # Normalize path
+    if [[ -f "$input" ]]; then
+      req_path="$input"
+    else
+      req_path=".agent_process/requirements_docs/$input"
+    fi
+
+    # Extract scope from frontmatter id:
+    scope=$(python3 - "$req_path" <<'PYEOF'
+from pathlib import Path
+import sys
+text = Path(sys.argv[1]).read_text()
+if text.startswith("---"):
+    parts = text.split("---", 2)
+    if len(parts) >= 3:
+        for line in parts[1].splitlines():
+            if line.strip().startswith("id:"):
+                print(line.split(":", 1)[1].strip())
+                sys.exit(0)
+sys.exit(1)
+PYEOF
+) || scope=""
+
+    # Check if scope has linked issue
+    if [[ -n "$scope" ]]; then
+      gh_issue=$(tracker_get_field "$scope" "gh_issue" 2>/dev/null) || gh_issue=""
+    fi
+
+  # --- Try to parse as scope name ---
+  else
+    input_type="scope"
+    scope="$input"
+
+    # Check tracker for linked issue
+    gh_issue=$(tracker_get_field "$scope" "gh_issue" 2>/dev/null) || gh_issue=""
+
+    # Try to find requirement doc
+    req_path=$(find_requirement_doc "$scope" 2>/dev/null) || req_path=""
+  fi
+
+  # Output JSON
+  python3 - "$scope" "$req_path" "$gh_issue" "$input_type" <<'PYEOF'
+import json
+import sys
+print(json.dumps({
+    "scope": sys.argv[1] or None,
+    "requirement_path": sys.argv[2] or None,
+    "gh_issue": sys.argv[3] or None,
+    "input_type": sys.argv[4]
+}, indent=2))
 PYEOF
 }
 
@@ -1428,6 +1532,11 @@ case "$ACTION" in
   audit)
     do_audit
     ;;
+  resolve-input)
+    INPUT="${2:-}"
+    [[ -z "$INPUT" ]] && { echo "Usage: github-issues-lifecycle.sh resolve-input <issue#|scope|requirement_path>" >&2; exit 1; }
+    do_resolve_input "$INPUT"
+    ;;
   task-create)
     SCOPE="${2:-}"
     WU_ID="${3:-}"
@@ -1468,7 +1577,7 @@ case "$ACTION" in
     ;;
   *)
     echo "ERROR: Unknown action '$ACTION'" >&2
-    echo "Valid actions: health-check, create-labels, start, associate, set-status, retitle, sync-body, set-priority, set-iteration, get-iteration, get-issue, search-issue, list-issues, audit, task-create, task-update, close, verify, comment, split" >&2
+    echo "Valid actions: health-check, create-labels, start, associate, set-status, retitle, sync-body, set-priority, set-iteration, get-iteration, get-issue, search-issue, list-issues, audit, resolve-input, task-create, task-update, close, verify, comment, split" >&2
     exit 1
     ;;
 esac

@@ -38,10 +38,32 @@ Once you've loaded context, follow the coordinator from its first step.
 
 ---
 
+## Input (Flexible)
+
+You can receive ANY of these input formats:
+- **GitHub issue number:** `#165`, `165`, or full URL
+- **Scope name:** `transcript_pipeline_poc2-01`
+
+**Step 0.1: Resolve Input**
+
+Run this command to resolve the input to structured scope info:
+
+```bash
+bash .agent_process/scripts/github-issues-lifecycle.sh resolve-input "{{input}}"
+```
+
+This returns JSON with:
+- `scope`: The scope name (used for work folder)
+- `requirement_path`: Path to requirement doc
+- `gh_issue`: Linked GitHub issue number (may be null)
+- `input_type`: What you provided (issue or scope)
+
+Use the `scope` from this output for all subsequent operations.
+
 ## Iteration to Review
 
-**Scope:** {scope_name}
-**Iteration:** iteration_01
+**Scope:** {scope_name} (from resolve-input)
+**Iteration:** iteration_01 (or as specified)
 **Notes:** See QA results in results.md
 
 ---

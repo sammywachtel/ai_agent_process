@@ -15,10 +15,33 @@ You are the orchestrator reviewing a completed iteration. Execute each step by s
 
 Issue verification happens in Step 1.5. Post-decision label transitions and issue close happen in Steps 07-10. Review sub-agents do NOT call lifecycle commands directly.
 
-## Inputs
+## Inputs (Flexible)
 
-- **Scope:** provided by the prompt template
-- **Iteration:** provided by the prompt template (e.g., `iteration_01`, `iteration_01_a`)
+The user can provide ANY of these input formats:
+- **GitHub issue number:** `#165`, `165`, or full URL
+- **Scope name:** `transcript_pipeline_poc2-01`
+
+**Step 0.0: Resolve Input**
+
+Run this command FIRST to resolve the input to structured scope info:
+
+```bash
+bash .agent_process/scripts/github-issues-lifecycle.sh resolve-input "{{input}}"
+```
+
+This returns JSON:
+```json
+{
+  "scope": "transcript_pipeline_poc2-01",
+  "requirement_path": ".agent_process/requirements_docs/...",
+  "gh_issue": "165",
+  "input_type": "issue"
+}
+```
+
+Use these values:
+- **Scope:** Use `scope` from the JSON
+- **Iteration:** provided separately (e.g., `iteration_01`, `iteration_01_a`)
 - **Run directory:** `.agent_process/work/{scope}/.run/review/`
 
 ## Model Tiers

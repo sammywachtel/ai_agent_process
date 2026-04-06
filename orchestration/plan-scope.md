@@ -40,11 +40,28 @@ Once you've loaded context, follow the coordinator from its first step.
 
 ---
 
-## Requirements Document
+## Input (Flexible)
 
-**Location:** `.agent_process/requirements_docs/{{requirements_path}}`
+You can receive ANY of these input formats:
+- **GitHub issue number:** `#165`, `165`, or full URL
+- **Scope name:** `transcript_pipeline_poc2-01`
+- **Requirement path:** `architecture-refactor/transcript_pipeline_poc2-01.md`
 
-The coordinator will tell you how to derive the work folder name from the requirement's frontmatter `id:`.
+**Step 0.1: Resolve Input**
+
+Run this command to resolve the input to structured scope info:
+
+```bash
+bash .agent_process/scripts/github-issues-lifecycle.sh resolve-input "{{input}}"
+```
+
+This returns JSON with:
+- `scope`: The scope name (used for work folder)
+- `requirement_path`: Path to requirement doc
+- `gh_issue`: Linked GitHub issue number (may be null)
+- `input_type`: What you provided (issue, scope, or requirement_path)
+
+Use the `requirement_path` from this output to load the requirement doc.
 
 ---
 

@@ -15,13 +15,39 @@ If GH issues are enabled, the issue should exist by the time planning starts. St
 - **Do NOT modify application code** — only create process artifacts in `.agent_process/`
 - The user decides when to commit planning artifacts
 
-## Inputs
+## Inputs (Flexible)
 
-- **Requirement path:** provided by the prompt template (e.g., `decomposition/decomp_scope_01_planning.md`)
-- **Requirement file:** `.agent_process/requirements_docs/{requirement_path}`
+The user can provide ANY of these input formats:
+- **GitHub issue number:** `#165`, `165`, or full URL
+- **Scope name:** `transcript_pipeline_poc2-01`
+- **Requirement path:** `architecture-refactor/transcript_pipeline_poc2-01.md`
+
+**Step 0.0: Resolve Input**
+
+Run this command FIRST to resolve the input to structured scope info:
+
+```bash
+bash .agent_process/scripts/github-issues-lifecycle.sh resolve-input "{{input}}"
+```
+
+This returns JSON:
+```json
+{
+  "scope": "transcript_pipeline_poc2-01",
+  "requirement_path": ".agent_process/requirements_docs/architecture-refactor/transcript_pipeline_poc2-01.md",
+  "gh_issue": "165",
+  "input_type": "issue"
+}
+```
+
+Use these values:
+- **Requirement file:** Use `requirement_path` from the JSON
+- **Scope name:** Use `scope` from the JSON
 - **Run directory:** `.agent_process/work/{scope}/.run/planning/` — created in Step 02
 
-Read the requirement file now. Extract the `id:` from frontmatter — that's the scope name.
+If `requirement_path` is null, the user provided a scope/issue without a requirement doc — ask them for the requirement path.
+
+Read the requirement file now.
 
 ## Model Tiers
 
