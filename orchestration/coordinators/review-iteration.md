@@ -15,11 +15,14 @@ You are the orchestrator reviewing a completed iteration. Execute each step by s
 
 Issue verification happens in Step 1.5. Post-decision label transitions and issue close happen in Steps 07-10. Review sub-agents do NOT call lifecycle commands directly.
 
-## Inputs (Flexible)
+## Scope Reference (Flexible Input)
 
-The user can provide ANY of these input formats:
-- **GitHub issue number:** `#123`, `123`, or full URL (`https://github.com/owner/repo/issues/123`)
-- **Scope name:** `my_feature_scope`
+The user specifies which scope to review using any of these formats:
+
+- **Scope name:** `my_feature_scope` — the work folder name under `.agent_process/work/`
+- **GitHub issue number:** `#123`, `123`, or full URL — issue title should match the scope name
+
+The scope must have completed iteration work to review.
 
 **Step 0.0: Resolve Input**
 

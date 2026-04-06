@@ -40,12 +40,15 @@ Once you've loaded context, follow the coordinator from its first step.
 
 ---
 
-## Input (Flexible)
+## Scope Reference (Flexible Input)
 
-You can receive ANY of these input formats:
-- **GitHub issue number:** `#123`, `123`, or full URL (`https://github.com/owner/repo/issues/123`)
-- **Scope name:** `my_feature_scope`
-- **Requirement path:** `category/my_feature_scope.md`
+Specify which scope to plan. You can provide any of these formats:
+
+- **Requirement path:** `category/my_feature_scope.md` — direct path to the requirement doc
+- **Scope name:** `my_feature_scope` — matches the `id:` field in a requirement doc's frontmatter
+- **GitHub issue number:** `#123`, `123`, or full URL — the issue title must match a scope name, or the issue description must reference the requirement path
+
+If using a GitHub issue number, a requirement document must exist with a matching scope name or be referenced in the issue. The requirement doc is the source of truth for acceptance criteria and scope boundaries.
 
 **Step 0.1: Resolve Input**
 

@@ -38,11 +38,14 @@ Once you've loaded context, follow the coordinator from its first step.
 
 ---
 
-## Input (Flexible)
+## Scope Reference (Flexible Input)
 
-You can receive ANY of these input formats:
-- **GitHub issue number:** `#123`, `123`, or full URL (`https://github.com/owner/repo/issues/123`)
-- **Scope name:** `my_feature_scope`
+Specify which scope to review. You can provide any of these formats:
+
+- **Scope name:** `my_feature_scope` — the work folder name under `.agent_process/work/`
+- **GitHub issue number:** `#123`, `123`, or full URL — the issue title should match the scope name
+
+The scope must have completed iteration work (a `results.md` file) to review.
 
 **Step 0.1: Resolve Input**
 

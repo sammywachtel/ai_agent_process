@@ -15,12 +15,15 @@ If GH issues are enabled, the issue should exist by the time planning starts. St
 - **Do NOT modify application code** — only create process artifacts in `.agent_process/`
 - The user decides when to commit planning artifacts
 
-## Inputs (Flexible)
+## Scope Reference (Flexible Input)
 
-The user can provide ANY of these input formats:
-- **GitHub issue number:** `#123`, `123`, or full URL (`https://github.com/owner/repo/issues/123`)
-- **Scope name:** `my_feature_scope`
-- **Requirement path:** `category/my_feature_scope.md`
+The user specifies which scope to plan using any of these formats:
+
+- **Requirement path:** `category/my_feature_scope.md` — direct path to the requirement doc
+- **Scope name:** `my_feature_scope` — matches the `id:` field in a requirement doc's frontmatter
+- **GitHub issue number:** `#123`, `123`, or full URL — issue title must match a scope name
+
+If using a GitHub issue, a requirement document must exist with a matching scope name. The requirement doc is the source of truth.
 
 **Step 0.0: Resolve Input**
 
