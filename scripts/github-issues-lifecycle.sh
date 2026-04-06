@@ -396,7 +396,10 @@ do_start() {
       fi
 
       # Adopt: ensure ap:scope label is present
-      run_gh gh issue edit "$tracked_issue" --repo "$REPO" --add-label "ap:scope" >/dev/null 2>&1 || true
+      local adopt_error
+      if ! adopt_error=$(run_gh gh issue edit "$tracked_issue" --repo "$REPO" --add-label "ap:scope" 2>&1); then
+        echo "[gh-issues] WARNING: Could not add ap:scope label to #$tracked_issue: $adopt_error" >&2
+      fi
 
       events_log "$scope" "SCOPE_ADOPT" "issue=$tracked_issue"
       generate_context_file "$scope" "$tracked_issue" "status:active"
@@ -446,9 +449,11 @@ do_start() {
 
     # Apply default priority label if priority labels are enabled
     if priority_labels_enabled; then
-      local default_priority
+      local default_priority priority_error
       default_priority=$(get_default_priority)
-      run_gh gh issue edit "$issue_num" --repo "$REPO" --add-label "$default_priority" >/dev/null 2>&1 || true
+      if ! priority_error=$(run_gh gh issue edit "$issue_num" --repo "$REPO" --add-label "$default_priority" 2>&1); then
+        echo "[gh-issues] WARNING: Could not set default priority '$default_priority' on #$issue_num: $priority_error" >&2
+      fi
     fi
 
     generate_context_file "$scope" "$issue_num" "status:active"
@@ -457,7 +462,10 @@ do_start() {
     local req_path
     if req_path=$(find_requirement_doc "$scope" 2>/dev/null); then
       echo "[gh-issues] Syncing issue body with requirement doc..."
-      do_sync_body "$scope" >/dev/null 2>&1 || true
+      local sync_error
+      if ! sync_error=$(do_sync_body "$scope" 2>&1); then
+        echo "[gh-issues] WARNING: Could not sync issue body: $sync_error" >&2
+      fi
     fi
   fi
 }
@@ -513,11 +521,16 @@ do_associate() {
   fi
 
   # Add ap:scope label
-  run_gh gh issue edit "$issue_num" --repo "$REPO" --add-label "ap:scope" >/dev/null 2>&1 || true
+  local label_error
+  if ! label_error=$(run_gh gh issue edit "$issue_num" --repo "$REPO" --add-label "ap:scope" 2>&1); then
+    echo "[gh-issues] WARNING: Could not add ap:scope label to #$issue_num: $label_error" >&2
+  fi
 
   # Comment on issue
-  run_gh gh issue comment "$issue_num" --repo "$REPO" \
-    --body "Associated with AP scope: $scope" >/dev/null 2>&1 || true
+  local comment_error
+  if ! comment_error=$(run_gh gh issue comment "$issue_num" --repo "$REPO" --body "Associated with AP scope: $scope" 2>&1); then
+    echo "[gh-issues] WARNING: Could not add association comment to #$issue_num: $comment_error" >&2
+  fi
 
   generate_context_file "$scope" "$issue_num" ""
   echo "[gh-issues] Associated scope $scope with issue #$issue_num"
@@ -559,19 +572,26 @@ do_set_status() {
     return 0
   fi
 
-  # Remove old status labels (best-effort)
+  # Remove old status labels (best-effort — failure is OK, label might not exist)
   for old_label in status:planning status:executing status:reviewing status:iterate status:active; do
     if echo "$current_labels" | grep -q "^${old_label}$"; then
       run_gh gh issue edit "$issue_num" --repo "$REPO" --remove-label "$old_label" >/dev/null 2>&1 || true
     fi
   done
 
-  # Add new label
-  run_gh gh issue edit "$issue_num" --repo "$REPO" --add-label "$label" >/dev/null 2>&1 || true
-
-  # Regenerate context file with new status
-  generate_context_file "$scope" "$issue_num" "$label"
-  echo "[gh-issues] Updated #$issue_num → $label"
+  # Add new label — capture result to report honestly
+  local add_error
+  if add_error=$(run_gh gh issue edit "$issue_num" --repo "$REPO" --add-label "$label" 2>&1); then
+    generate_context_file "$scope" "$issue_num" "$label"
+    echo "[gh-issues] Updated #$issue_num → $label"
+  else
+    echo "[gh-issues] WARNING: Failed to add label '$label' to #$issue_num" >&2
+    echo "[gh-issues]   Error: $add_error" >&2
+    echo "[gh-issues]   Local state updated, but GitHub label not set" >&2
+    # Still regenerate context with intended status (local state is source of truth)
+    generate_context_file "$scope" "$issue_num" "$label"
+    return 0  # Don't fail — local state is updated, GH sync is best-effort
+  fi
 }
 
 do_retitle() {
@@ -923,10 +943,14 @@ do_set_priority() {
     fi
   done
 
-  # Add new priority label
-  run_gh gh issue edit "$issue_num" --repo "$REPO" --add-label "$new_priority" >/dev/null 2>&1 || true
-
-  echo "[gh-issues] Updated #$issue_num → $new_priority"
+  # Add new priority label — report honestly
+  local add_error
+  if add_error=$(run_gh gh issue edit "$issue_num" --repo "$REPO" --add-label "$new_priority" 2>&1); then
+    echo "[gh-issues] Updated #$issue_num → $new_priority"
+  else
+    echo "[gh-issues] WARNING: Failed to set priority '$new_priority' on #$issue_num" >&2
+    echo "[gh-issues]   Error: $add_error" >&2
+  fi
 }
 
 do_set_iteration() {
@@ -942,8 +966,10 @@ do_set_iteration() {
     local issue_num
     issue_num=$(tracker_get_field "$scope" "gh_issue")
     if [[ -n "$issue_num" ]]; then
-      run_gh gh issue comment "$issue_num" --repo "$REPO" \
-        --body "Iteration updated: $iteration" >/dev/null 2>&1 || true
+      local iter_error
+      if ! iter_error=$(run_gh gh issue comment "$issue_num" --repo "$REPO" --body "Iteration updated: $iteration" 2>&1); then
+        echo "[gh-issues] WARNING: Could not add iteration comment to #$issue_num: $iter_error" >&2
+      fi
     fi
   fi
 
@@ -1030,11 +1056,12 @@ do_task_create() {
   # Link as sub-issue via API
   # Note: The API requires the issue ID (large integer), not the issue number
   if [[ -n "$child_num" ]]; then
-    local child_id
+    local child_id link_error
     child_id=$(run_gh gh api "repos/$OWNER/$REPONAME/issues/$child_num" --jq '.id' 2>/dev/null)
     if [[ -n "$child_id" ]]; then
-      run_gh gh api "repos/$OWNER/$REPONAME/issues/$parent_num/sub_issues" \
-        -F sub_issue_id="$child_id" >/dev/null 2>&1 || true
+      if ! link_error=$(run_gh gh api "repos/$OWNER/$REPONAME/issues/$parent_num/sub_issues" -F sub_issue_id="$child_id" 2>&1); then
+        echo "[gh-issues] WARNING: Could not link #$child_num as sub-issue of #$parent_num: $link_error" >&2
+      fi
     fi
     echo "[gh-issues] Created sub-issue #$child_num ($wu_id) under #$parent_num"
   fi
@@ -1067,18 +1094,28 @@ do_task_update() {
     return 0
   fi
 
+  local task_error
   case "$status" in
     complete)
-      run_gh gh issue close "$wu_issue_num" --repo "$REPO" >/dev/null 2>&1 || true
-      echo "[gh-issues] Closed sub-issue #$wu_issue_num ($wu_id)"
+      if task_error=$(run_gh gh issue close "$wu_issue_num" --repo "$REPO" 2>&1); then
+        echo "[gh-issues] Closed sub-issue #$wu_issue_num ($wu_id)"
+      else
+        echo "[gh-issues] WARNING: Could not close #$wu_issue_num ($wu_id): $task_error" >&2
+      fi
       ;;
     blocked)
-      run_gh gh issue edit "$wu_issue_num" --repo "$REPO" --add-label "status:blocked" >/dev/null 2>&1 || true
-      echo "[gh-issues] Labeled #$wu_issue_num ($wu_id) as status:blocked"
+      if task_error=$(run_gh gh issue edit "$wu_issue_num" --repo "$REPO" --add-label "status:blocked" 2>&1); then
+        echo "[gh-issues] Labeled #$wu_issue_num ($wu_id) as status:blocked"
+      else
+        echo "[gh-issues] WARNING: Could not add blocked label to #$wu_issue_num ($wu_id): $task_error" >&2
+      fi
       ;;
     *)
-      run_gh gh issue edit "$wu_issue_num" --repo "$REPO" --add-label "status:$status" >/dev/null 2>&1 || true
-      echo "[gh-issues] Updated #$wu_issue_num ($wu_id) → $status"
+      if task_error=$(run_gh gh issue edit "$wu_issue_num" --repo "$REPO" --add-label "status:$status" 2>&1); then
+        echo "[gh-issues] Updated #$wu_issue_num ($wu_id) → $status"
+      else
+        echo "[gh-issues] WARNING: Could not update #$wu_issue_num ($wu_id) → $status: $task_error" >&2
+      fi
       ;;
   esac
 }
@@ -1103,11 +1140,25 @@ do_close() {
     return 0
   fi
 
-  # Add decision label and close
-  run_gh gh issue edit "$issue_num" --repo "$REPO" --add-label "status:$decision" >/dev/null 2>&1 || true
-  run_gh gh issue close "$issue_num" --repo "$REPO" >/dev/null 2>&1 || true
+  # Add decision label and close — report honestly
+  local label_error close_error
+  local label_ok=true close_ok=true
 
-  echo "[gh-issues] Closed issue #$issue_num ($scope) — $decision"
+  if ! label_error=$(run_gh gh issue edit "$issue_num" --repo "$REPO" --add-label "status:$decision" 2>&1); then
+    label_ok=false
+  fi
+
+  if ! close_error=$(run_gh gh issue close "$issue_num" --repo "$REPO" 2>&1); then
+    close_ok=false
+  fi
+
+  if [[ "$label_ok" == "true" && "$close_ok" == "true" ]]; then
+    echo "[gh-issues] Closed issue #$issue_num ($scope) — $decision"
+  else
+    [[ "$label_ok" == "false" ]] && echo "[gh-issues] WARNING: Failed to add label 'status:$decision' to #$issue_num: $label_error" >&2
+    [[ "$close_ok" == "false" ]] && echo "[gh-issues] WARNING: Failed to close #$issue_num: $close_error" >&2
+    echo "[gh-issues] Local state updated for $scope, but GitHub sync incomplete" >&2
+  fi
 }
 
 do_verify() {
@@ -1170,8 +1221,13 @@ do_comment() {
     return 0
   fi
 
-  run_gh gh issue comment "$issue_num" --repo "$REPO" --body "$message" >/dev/null 2>&1 || true
-  echo "[gh-issues] Comment added to #$issue_num"
+  local comment_error
+  if comment_error=$(run_gh gh issue comment "$issue_num" --repo "$REPO" --body "$message" 2>&1); then
+    echo "[gh-issues] Comment added to #$issue_num"
+  else
+    echo "[gh-issues] WARNING: Failed to add comment to #$issue_num" >&2
+    echo "[gh-issues]   Error: $comment_error" >&2
+  fi
 }
 
 do_list_issues() {
@@ -1410,7 +1466,10 @@ do_split() {
 
       # Inherit parent's priority label
       if [[ -n "$parent_priority" ]]; then
-        run_gh gh issue edit "$child_num" --repo "$REPO" --add-label "$parent_priority" >/dev/null 2>&1 || true
+        local inherit_error
+        if ! inherit_error=$(run_gh gh issue edit "$child_num" --repo "$REPO" --add-label "$parent_priority" 2>&1); then
+          echo "[gh-issues] WARNING: Could not inherit priority '$parent_priority' to #$child_num: $inherit_error" >&2
+        fi
       fi
 
       # Link as sub-issue via API (creates parent-child relationship in GitHub UI)
@@ -1439,9 +1498,12 @@ ${created_children[*]}
 
 This issue is now closed. Track progress on the child issues above."
 
-    run_gh gh issue comment "$parent_issue" --repo "$REPO" --body "$split_comment" >/dev/null 2>&1 || true
+    local split_error
+    if ! split_error=$(run_gh gh issue comment "$parent_issue" --repo "$REPO" --body "$split_comment" 2>&1); then
+      echo "[gh-issues] WARNING: Could not add split comment to #$parent_issue: $split_error" >&2
+    fi
 
-    # Remove all other status:* labels — split parent has no progression status
+    # Remove all other status:* labels — split parent has no progression status (best effort)
     local parent_labels
     parent_labels=$(run_gh gh issue view "$parent_issue" --repo "$REPO" --json labels --jq '.labels[].name' 2>/dev/null) || parent_labels=""
     for old_label in status:planning status:executing status:reviewing status:iterate status:active status:blocked; do
@@ -1451,12 +1513,24 @@ This issue is now closed. Track progress on the child issues above."
     done
 
     # Only add status:split if not already present
+    local label_ok=true close_ok=true
     if ! echo "$parent_labels" | grep -q "^status:split$"; then
-      run_gh gh issue edit "$parent_issue" --repo "$REPO" --add-label "status:split" >/dev/null 2>&1 || true
+      if ! split_error=$(run_gh gh issue edit "$parent_issue" --repo "$REPO" --add-label "status:split" 2>&1); then
+        echo "[gh-issues] WARNING: Could not add status:split label to #$parent_issue: $split_error" >&2
+        label_ok=false
+      fi
     fi
-    run_gh gh issue close "$parent_issue" --repo "$REPO" >/dev/null 2>&1 || true
 
-    echo "[gh-issues] Closed parent issue #$parent_issue with status:split"
+    if ! split_error=$(run_gh gh issue close "$parent_issue" --repo "$REPO" 2>&1); then
+      echo "[gh-issues] WARNING: Could not close parent issue #$parent_issue: $split_error" >&2
+      close_ok=false
+    fi
+
+    if [[ "$label_ok" == "true" && "$close_ok" == "true" ]]; then
+      echo "[gh-issues] Closed parent issue #$parent_issue with status:split"
+    else
+      echo "[gh-issues] Parent issue #$parent_issue: some operations failed (see warnings above)" >&2
+    fi
   fi
 
   echo "[gh-issues] Split complete: $parent_scope → ${child_scopes[*]}"
