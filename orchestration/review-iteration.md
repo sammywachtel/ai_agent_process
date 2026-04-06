@@ -40,7 +40,9 @@ Once you've loaded context, follow the coordinator from its first step.
 
 ## Scope Reference (Flexible Input)
 
-Specify which scope to review. You can provide any of these formats:
+**Reference:** `{{SCOPE_NAME or GITHUB_ISSUE}}`
+
+Specify which scope to review using any of these formats:
 
 - **Scope name:** `my_feature_scope` — the work folder name under `.agent_process/work/`
 - **GitHub issue number:** `#123`, `123`, or full URL — the issue title should match the scope name

@@ -17,6 +17,8 @@ If GH issues are enabled, the issue should exist by the time planning starts. St
 
 ## Scope Reference (Flexible Input)
 
+**Reference:** `{{SCOPE_NAME, GITHUB_ISSUE, or REQUIREMENT_PATH}}`
+
 The user specifies which scope to plan using any of these formats:
 
 - **Requirement path:** `category/my_feature_scope.md` — direct path to the requirement doc

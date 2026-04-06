@@ -17,6 +17,8 @@ Issue verification happens in Step 1.5. Post-decision label transitions and issu
 
 ## Scope Reference (Flexible Input)
 
+**Reference:** `{{SCOPE_NAME or GITHUB_ISSUE}}`
+
 The user specifies which scope to review using any of these formats:
 
 - **Scope name:** `my_feature_scope` — the work folder name under `.agent_process/work/`
