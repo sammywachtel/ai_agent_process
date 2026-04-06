@@ -53,24 +53,53 @@ If this exits non-zero, STOP and tell the user: "GitHub Issues integration is en
 
 If `github_issues.enabled` is true in `quality-config.json`:
 
-Spawn a **cheap** sub-agent with `process/github-issues-handling.md` as input:
+**Step 0.5a: Check for linked issue**
 
-**Task:**
-1. Read `scope-tracker.jsonl` for `{scope}`'s `gh_issue` field
-2. **If `gh_issue` exists:**
-   - Run `lifecycle.sh start {scope}` (adopts and verifies)
-   - Run `lifecycle.sh set-status {scope} status:executing`
-   - Continue
-3. **If `gh_issue` does NOT exist:**
-   - **ASK the user:** "No GitHub Issue found for scope '{scope}'. Do you have an existing issue? Enter the number/link, say 'create' for a new one, or 'skip' to continue without."
-   - If user provides number: `lifecycle.sh associate {scope} {number}`, then `lifecycle.sh set-status {scope} status:executing`
-   - If user says create: `lifecycle.sh start {scope}`, then `lifecycle.sh set-status {scope} status:executing`
-   - If user says skip: continue without GH issue, log warning
-4. Return updated `.run/gh-issue-context.md`
+Run this command to check if the scope already has a linked GitHub issue:
 
-**Input:** `process/github-issues-handling.md` + `.run/gh-issue-context.md` (if exists)
+```bash
+bash .agent_process/scripts/github-issues-lifecycle.sh get-issue {scope}
+```
 
-If GH is disabled, also run scope tracking init for local state:
+This returns the issue number (e.g., `165`) if linked, or **empty output** if not linked.
+
+**If output is NOT empty** (issue already linked):
+1. Run: `bash .agent_process/scripts/github-issues-lifecycle.sh start {scope}` (adopts and verifies)
+2. Run: `bash .agent_process/scripts/github-issues-lifecycle.sh set-status {scope} status:executing`
+3. Continue to Step 0.7
+
+**If output IS empty** (no linked issue), proceed to Step 0.5b.
+
+**Step 0.5b: Search GitHub for matching issue**
+
+Run this command to search GitHub for an existing issue matching the scope name:
+
+```bash
+bash .agent_process/scripts/github-issues-lifecycle.sh search-issue {scope}
+```
+
+This returns a JSON array of matching issues (e.g., `[{"number":123,"title":"my_scope"}]`) or **empty/`[]`** if none found.
+
+**If JSON array has entries** (matches found):
+- Extract the first match's `number` and `title` using jq or by reading the JSON
+- **ASK the user:** "Found issue #`{number}` titled '`{title}`'. Use this issue? (yes/no/skip)"
+  - **yes:** Run `lifecycle.sh associate {scope} {number}`, then `lifecycle.sh set-status {scope} status:executing`
+  - **no:** Fall through to "no matches" handling below
+  - **skip:** Continue without GH issue, log warning
+
+**If JSON is empty or `[]`** (no matches found):
+- **ASK the user:** "No GitHub Issue found for scope '{scope}'. Enter issue number/link, say 'create', or 'skip'."
+  - **number/link:** Run `lifecycle.sh associate {scope} {number}`, then `lifecycle.sh set-status {scope} status:executing`
+  - **create:** Run `lifecycle.sh start {scope}`, then `lifecycle.sh set-status {scope} status:executing`
+  - **skip:** Continue without GH issue, log warning
+
+**Output:** Updated `.run/gh-issue-context.md`
+
+**Reference:** See `process/github-issues-handling.md` Section 4 for the full decision tree.
+
+---
+
+If GH is **disabled**, run scope tracking init for local state only:
 
 ```bash
 bash .agent_process/scripts/github-issues-lifecycle.sh start {scope}

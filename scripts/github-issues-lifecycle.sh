@@ -16,6 +16,10 @@
 #   bash scripts/github-issues-lifecycle.sh set-priority <scope> <priority:P0-P4>
 #   bash scripts/github-issues-lifecycle.sh set-iteration <scope> <iteration>
 #   bash scripts/github-issues-lifecycle.sh get-iteration <scope>
+#   bash scripts/github-issues-lifecycle.sh get-issue <scope>
+#   bash scripts/github-issues-lifecycle.sh search-issue <scope>
+#   bash scripts/github-issues-lifecycle.sh list-issues
+#   bash scripts/github-issues-lifecycle.sh audit
 #   bash scripts/github-issues-lifecycle.sh task-create <scope> <wu-id> <description>
 #   bash scripts/github-issues-lifecycle.sh task-update <scope> <wu-id> <status>
 #   bash scripts/github-issues-lifecycle.sh close <scope> <decision>
@@ -42,7 +46,7 @@ source "${SCRIPT_DIR}/lib/tracker-utils.sh"
 # --- Parse action ---
 ACTION="${1:-}"
 if [[ -z "$ACTION" ]]; then
-  echo "Usage: github-issues-lifecycle.sh <health-check|create-labels|start|associate|set-status|retitle|sync-body|set-priority|set-iteration|get-iteration|task-create|task-update|close|verify|comment|split> [args...]" >&2
+  echo "Usage: github-issues-lifecycle.sh <health-check|create-labels|start|associate|set-status|retitle|sync-body|set-priority|set-iteration|get-iteration|get-issue|search-issue|list-issues|audit|task-create|task-update|close|verify|comment|split> [args...]" >&2
   exit 1
 fi
 
@@ -541,6 +545,12 @@ do_set_status() {
   local current_labels
   current_labels=$(run_gh gh issue view "$issue_num" --repo "$REPO" --json labels --jq '.labels[].name' 2>/dev/null) || current_labels=""
 
+  # Check if already has the target label — skip if no change needed
+  if echo "$current_labels" | grep -q "^${label}$"; then
+    echo "[gh-issues] #$issue_num already has $label — no change"
+    return 0
+  fi
+
   # Remove old status labels (best-effort)
   for old_label in status:planning status:executing status:reviewing status:iterate status:active; do
     if echo "$current_labels" | grep -q "^${old_label}$"; then
@@ -797,6 +807,12 @@ do_set_priority() {
   local current_labels
   current_labels=$(run_gh gh issue view "$issue_num" --repo "$REPO" --json labels --jq '.labels[].name' 2>/dev/null) || current_labels=""
 
+  # Check if already has the target priority — skip if no change needed
+  if echo "$current_labels" | grep -q "^${new_priority}$"; then
+    echo "[gh-issues] #$issue_num already has $new_priority — no change"
+    return 0
+  fi
+
   for old_priority in priority:P0 priority:P1 priority:P2 priority:P3 priority:P4; do
     if echo "$current_labels" | grep -q "^${old_priority}$"; then
       run_gh gh issue edit "$issue_num" --repo "$REPO" --remove-label "$old_priority" >/dev/null 2>&1 || true
@@ -842,6 +858,39 @@ do_get_iteration() {
   fi
 
   tracker_get_field "$scope" "iteration"
+}
+
+do_get_issue() {
+  local scope="$1"
+  validate_scope_name "$scope" || return 1
+
+  # Returns the gh_issue number if linked, empty string if not.
+  # Exit 0 in both cases — absence is not an error.
+  tracker_get_field "$scope" "gh_issue"
+}
+
+do_search_issue() {
+  local scope="$1"
+  validate_scope_name "$scope" || return 1
+
+  # Search GitHub for an existing issue matching this scope name.
+  # Returns JSON with number and title if found, empty if not.
+  # Does NOT create an issue or update tracker — that's for associate/start.
+
+  if [[ "$GH_ENABLED" != "true" ]]; then
+    # GH disabled — nothing to search
+    return 0
+  fi
+
+  local issue_list
+  issue_list=$(gh issue list --repo "$REPO" --label "ap:scope" --search "$scope in:title" --state open --json number,title --limit 5 2>/dev/null) || issue_list=""
+
+  if [[ -z "$issue_list" || "$issue_list" == "[]" ]]; then
+    return 0
+  fi
+
+  # Return matching issues as JSON (caller can parse with jq)
+  echo "$issue_list"
 }
 
 do_task_create() {
@@ -1021,6 +1070,146 @@ do_comment() {
   echo "[gh-issues] Comment added to #$issue_num"
 }
 
+do_list_issues() {
+  # List all open ap:scope issues from GitHub as JSON.
+  # Output: JSON array of {number, title, state, labels}
+  # Used by audit to compare against local tracker.
+
+  if [[ "$GH_ENABLED" != "true" ]]; then
+    echo "[]"
+    return 0
+  fi
+
+  local issues
+  issues=$(gh issue list --repo "$REPO" --label "ap:scope" --state all --json number,title,state,labels --limit 200 2>/dev/null) || issues="[]"
+  echo "$issues"
+}
+
+do_audit() {
+  # Compare local tracker against GitHub issues.
+  # Reports mismatches in a structured format for Claude to parse and act on.
+  #
+  # Output format (one JSON object per line):
+  #   {"type":"ORPHAN_TRACKER","scope":"foo","gh_issue":"123","reason":"Issue not found on GitHub"}
+  #   {"type":"TITLE_MISMATCH","scope":"bar","gh_issue":"456","gh_title":"old_name","reason":"GitHub title differs from scope name"}
+  #   {"type":"ORPHAN_GH","gh_issue":"789","gh_title":"baz","reason":"No tracker entry for this issue"}
+  #   {"type":"UNLINKED","scope":"qux","gh_issue":"101","gh_title":"qux","reason":"Matching issue exists but not linked in tracker"}
+
+  echo "## GitHub Issues Audit"
+  echo ""
+
+  if [[ "$GH_ENABLED" != "true" ]]; then
+    echo "GitHub integration disabled — nothing to audit."
+    return 0
+  fi
+
+  # Fetch all ap:scope issues from GitHub
+  local gh_issues
+  gh_issues=$(do_list_issues)
+  if [[ -z "$gh_issues" || "$gh_issues" == "[]" ]]; then
+    echo "No ap:scope issues found on GitHub."
+    echo ""
+  fi
+
+  local mismatch_count=0
+
+  echo "### Mismatches Found"
+  echo ""
+
+  # Check each tracker entry with gh_issue against GitHub
+  if [[ -f "$TRACKER_FILE" ]]; then
+    while IFS= read -r line; do
+      [[ -z "$line" ]] && continue
+
+      local scope gh_issue status
+      scope=$(echo "$line" | jq -r '.scope // empty' 2>/dev/null)
+      gh_issue=$(echo "$line" | jq -r '.gh_issue // empty' 2>/dev/null)
+      status=$(echo "$line" | jq -r '.status // empty' 2>/dev/null)
+
+      [[ -z "$scope" ]] && continue
+      [[ -z "$gh_issue" ]] && continue
+      # Skip closed/split scopes
+      [[ "$status" == "closed" || "$status" == "split" ]] && continue
+
+      # Check if this issue exists on GitHub
+      local gh_entry gh_title gh_state
+      gh_entry=$(echo "$gh_issues" | jq -r --arg n "$gh_issue" '.[] | select(.number == ($n | tonumber))' 2>/dev/null)
+
+      if [[ -z "$gh_entry" ]]; then
+        echo "{\"type\":\"ORPHAN_TRACKER\",\"scope\":\"$scope\",\"gh_issue\":\"$gh_issue\",\"reason\":\"Issue #$gh_issue not found on GitHub\"}"
+        mismatch_count=$((mismatch_count + 1))
+        continue
+      fi
+
+      gh_title=$(echo "$gh_entry" | jq -r '.title // empty' 2>/dev/null)
+      gh_state=$(echo "$gh_entry" | jq -r '.state // empty' 2>/dev/null)
+
+      # Check title mismatch (allow prefix match for split children like "scope-01")
+      if [[ "$gh_title" != "$scope" && ! "$gh_title" =~ ^"$scope" ]]; then
+        echo "{\"type\":\"TITLE_MISMATCH\",\"scope\":\"$scope\",\"gh_issue\":\"$gh_issue\",\"gh_title\":\"$gh_title\",\"gh_state\":\"$gh_state\",\"reason\":\"GitHub title '$gh_title' differs from scope name '$scope'\"}"
+        mismatch_count=$((mismatch_count + 1))
+      fi
+
+    done < "$TRACKER_FILE"
+  fi
+
+  # Check for GitHub issues not in tracker (orphan GH issues)
+  if [[ -n "$gh_issues" && "$gh_issues" != "[]" ]]; then
+    local issue_numbers
+    issue_numbers=$(echo "$gh_issues" | jq -r '.[].number' 2>/dev/null)
+
+    for issue_num in $issue_numbers; do
+      local gh_entry gh_title gh_state
+      gh_entry=$(echo "$gh_issues" | jq -r --arg n "$issue_num" '.[] | select(.number == ($n | tonumber))' 2>/dev/null)
+      gh_title=$(echo "$gh_entry" | jq -r '.title // empty' 2>/dev/null)
+      gh_state=$(echo "$gh_entry" | jq -r '.state // empty' 2>/dev/null)
+
+      # Skip closed issues for orphan check
+      [[ "$gh_state" == "CLOSED" ]] && continue
+
+      # Check if any tracker entry references this issue
+      local tracker_has_issue=false
+      if [[ -f "$TRACKER_FILE" ]]; then
+        if grep -q "\"gh_issue\":\"$issue_num\"" "$TRACKER_FILE" 2>/dev/null; then
+          tracker_has_issue=true
+        fi
+      fi
+
+      if [[ "$tracker_has_issue" == "false" ]]; then
+        # Check if there's an unlinked tracker entry with matching scope name
+        local matching_scope
+        matching_scope=$(tracker_read_scope "$gh_title")
+
+        if [[ -n "$matching_scope" ]]; then
+          local existing_gh_issue
+          existing_gh_issue=$(echo "$matching_scope" | jq -r '.gh_issue // empty' 2>/dev/null)
+          if [[ -z "$existing_gh_issue" ]]; then
+            echo "{\"type\":\"UNLINKED\",\"scope\":\"$gh_title\",\"gh_issue\":\"$issue_num\",\"gh_title\":\"$gh_title\",\"reason\":\"Tracker entry exists but not linked to issue #$issue_num\"}"
+            mismatch_count=$((mismatch_count + 1))
+          fi
+        else
+          echo "{\"type\":\"ORPHAN_GH\",\"gh_issue\":\"$issue_num\",\"gh_title\":\"$gh_title\",\"gh_state\":\"$gh_state\",\"reason\":\"No tracker entry for issue #$issue_num\"}"
+          mismatch_count=$((mismatch_count + 1))
+        fi
+      fi
+    done
+  fi
+
+  echo ""
+  if [[ $mismatch_count -eq 0 ]]; then
+    echo "✓ No mismatches found — tracker and GitHub are in sync."
+  else
+    echo "Found $mismatch_count mismatch(es)."
+    echo ""
+    echo "### Suggested Fixes"
+    echo ""
+    echo "For ORPHAN_TRACKER: Remove gh_issue from tracker or recreate the GitHub issue"
+    echo "For TITLE_MISMATCH: Run 'lifecycle.sh retitle <scope> <correct_title>' or update tracker"
+    echo "For ORPHAN_GH: Run 'lifecycle.sh associate <scope> <issue_number>' to link"
+    echo "For UNLINKED: Run 'lifecycle.sh associate <scope> <issue_number>' to link"
+  fi
+}
+
 do_split() {
   local parent_scope="$1"
   shift
@@ -1157,7 +1346,10 @@ This issue is now closed. Track progress on the child issues above."
       fi
     done
 
-    run_gh gh issue edit "$parent_issue" --repo "$REPO" --add-label "status:split" >/dev/null 2>&1 || true
+    # Only add status:split if not already present
+    if ! echo "$parent_labels" | grep -q "^status:split$"; then
+      run_gh gh issue edit "$parent_issue" --repo "$REPO" --add-label "status:split" >/dev/null 2>&1 || true
+    fi
     run_gh gh issue close "$parent_issue" --repo "$REPO" >/dev/null 2>&1 || true
 
     echo "[gh-issues] Closed parent issue #$parent_issue with status:split"
@@ -1220,6 +1412,22 @@ case "$ACTION" in
     [[ -z "$SCOPE" ]] && { echo "Usage: github-issues-lifecycle.sh get-iteration <scope>" >&2; exit 1; }
     do_get_iteration "$SCOPE"
     ;;
+  get-issue)
+    SCOPE="${2:-}"
+    [[ -z "$SCOPE" ]] && { echo "Usage: github-issues-lifecycle.sh get-issue <scope>" >&2; exit 1; }
+    do_get_issue "$SCOPE"
+    ;;
+  search-issue)
+    SCOPE="${2:-}"
+    [[ -z "$SCOPE" ]] && { echo "Usage: github-issues-lifecycle.sh search-issue <scope>" >&2; exit 1; }
+    do_search_issue "$SCOPE"
+    ;;
+  list-issues)
+    do_list_issues
+    ;;
+  audit)
+    do_audit
+    ;;
   task-create)
     SCOPE="${2:-}"
     WU_ID="${3:-}"
@@ -1260,7 +1468,7 @@ case "$ACTION" in
     ;;
   *)
     echo "ERROR: Unknown action '$ACTION'" >&2
-    echo "Valid actions: health-check, create-labels, start, associate, set-status, retitle, sync-body, set-priority, set-iteration, get-iteration, task-create, task-update, close, verify, comment, split" >&2
+    echo "Valid actions: health-check, create-labels, start, associate, set-status, retitle, sync-body, set-priority, set-iteration, get-iteration, get-issue, search-issue, list-issues, audit, task-create, task-update, close, verify, comment, split" >&2
     exit 1
     ;;
 esac

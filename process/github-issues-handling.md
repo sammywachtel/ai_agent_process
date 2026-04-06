@@ -21,6 +21,13 @@ Read `.agent_process/quality-config.json`:
 **All GH operations go through `github-issues-lifecycle.sh`.** Never run `gh` directly.
 
 ```bash
+# Query commands (read-only, no side effects)
+bash .agent_process/scripts/github-issues-lifecycle.sh get-issue <scope>      # Returns issue number or empty
+bash .agent_process/scripts/github-issues-lifecycle.sh search-issue <scope>   # Search GH for matching issues (JSON)
+bash .agent_process/scripts/github-issues-lifecycle.sh list-issues            # All open ap:scope issues (JSON)
+bash .agent_process/scripts/github-issues-lifecycle.sh audit                  # Compare tracker vs GH, report mismatches
+bash .agent_process/scripts/github-issues-lifecycle.sh verify <scope>         # Full verification report for one scope
+
 # Core actions
 bash .agent_process/scripts/github-issues-lifecycle.sh start <scope>
 bash .agent_process/scripts/github-issues-lifecycle.sh associate <scope> <issue_number_or_url>
@@ -29,7 +36,7 @@ bash .agent_process/scripts/github-issues-lifecycle.sh set-priority <scope> <pri
 bash .agent_process/scripts/github-issues-lifecycle.sh set-iteration <scope> <iteration>
 bash .agent_process/scripts/github-issues-lifecycle.sh comment <scope> "message"
 bash .agent_process/scripts/github-issues-lifecycle.sh close <scope> <decision>
-bash .agent_process/scripts/github-issues-lifecycle.sh verify <scope>
+bash .agent_process/scripts/github-issues-lifecycle.sh retitle <scope> <new_title>
 
 # Scope splitting (when scope fails size gate)
 bash .agent_process/scripts/github-issues-lifecycle.sh split <parent_scope> <child1> <child2> [child3...]
@@ -94,24 +101,39 @@ bash .agent_process/scripts/github-issues-lifecycle.sh set-priority my_scope pri
 When a pipeline step needs a GH issue for a scope:
 
 ```
-1. Read scope-tracker.jsonl for this scope's gh_issue field
+1. Check tracker for linked issue:
+   gh_issue=$(lifecycle.sh get-issue <scope>)
    │
-   ├─ gh_issue EXISTS
-   │  └─ Run: lifecycle.sh start <scope>
+   ├─ gh_issue NOT EMPTY → Run: lifecycle.sh start <scope>
    │     (start will verify the issue, adopt it, regenerate context file)
    │
-   └─ gh_issue DOES NOT EXIST
+   └─ gh_issue EMPTY → Search GitHub for matching issue:
       │
-      ├─ User provided an issue number (#N)?
-      │  └─ Run: lifecycle.sh associate <scope> <N>
+      search_results=$(lifecycle.sh search-issue <scope>)
       │
-      ├─ Pipeline step should auto-create? (plan-scope: yes, execute-preflight: no)
-      │  └─ Run: lifecycle.sh start <scope>
-      │     (start will search-then-create)
+      ├─ search_results HAS MATCHES
+      │  │
+      │  ├─ Pipeline step should auto-adopt? (plan-scope: yes)
+      │  │  └─ Run: lifecycle.sh associate <scope> <first_match>
+      │  │
+      │  └─ Pipeline step should ask user? (execute-preflight: yes)
+      │     └─ Ask: "Found issue #N titled '{title}'. Use this? (yes/no/skip)"
+      │        - yes → lifecycle.sh associate <scope> <N>
+      │        - no  → fall through to "no matches" path
+      │        - skip → continue without GH issue
       │
-      └─ Pipeline step should ask user? (execute-preflight: yes)
-         └─ Ask: "No GitHub Issue found for scope '{scope}'.
-            Enter issue number/link, say 'create', or 'skip'."
+      └─ search_results EMPTY (no matches)
+         │
+         ├─ User provided an issue number (#N)?
+         │  └─ Run: lifecycle.sh associate <scope> <N>
+         │
+         ├─ Pipeline step should auto-create? (plan-scope: yes)
+         │  └─ Run: lifecycle.sh start <scope>
+         │     (start will create new issue)
+         │
+         └─ Pipeline step should ask user? (execute-preflight: yes)
+            └─ Ask: "No GitHub Issue found for scope '{scope}'.
+               Enter issue number/link, say 'create', or 'skip'."
 ```
 
 **Key rule:** `scope-tracker.jsonl`'s `gh_issue` field is the single source of truth. Whoever sets it first wins. Subsequent steps adopt it.
@@ -141,6 +163,36 @@ When a scope fails the hard size gate during planning (too many criteria, files,
 - Parent issue is **closed** — all future work happens on child issues
 - Child tracker entries have `split_from` field linking back to parent
 - Child issues are regular `ap:scope` issues (no special `ap:child` label needed)
+
+## 4.2. Auditing and Sync
+
+The `audit` command compares local tracker state against GitHub issues and reports mismatches:
+
+```bash
+bash .agent_process/scripts/github-issues-lifecycle.sh audit
+```
+
+**Mismatch types detected:**
+
+| Type | Description | Suggested Fix |
+|------|-------------|---------------|
+| `ORPHAN_TRACKER` | Tracker has `gh_issue` that doesn't exist on GH | Remove `gh_issue` from tracker, or recreate the GH issue |
+| `TITLE_MISMATCH` | GH issue title ≠ scope name | `lifecycle.sh retitle <scope> <correct_title>` |
+| `ORPHAN_GH` | GH issue with `ap:scope` label has no tracker entry | `lifecycle.sh associate <scope> <issue_number>` |
+| `UNLINKED` | Tracker scope exists, matching GH issue exists, but not linked | `lifecycle.sh associate <scope> <issue_number>` |
+
+**Output format:** One JSON object per mismatch line, parseable by agents:
+```json
+{"type":"TITLE_MISMATCH","scope":"foo","gh_issue":"123","gh_title":"old_name","reason":"..."}
+```
+
+**When to audit:**
+- Before starting a new session on a project
+- When preflight reports unexpected state
+- After manual GH issue edits
+- Periodically as a health check
+
+**Fixing mismatches:** The audit reports suggested fixes but doesn't auto-apply them. Use the appropriate lifecycle commands to resolve each mismatch, with user confirmation for destructive changes.
 
 ## 5. Context File
 
