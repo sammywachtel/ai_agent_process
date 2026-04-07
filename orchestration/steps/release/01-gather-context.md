@@ -20,8 +20,9 @@ cat .agent_process/work/current_iteration.conf
 Read:
 - `.agent_process/work/{scope}/{iteration}/results.md` — what was implemented
 - `.agent_process/work/{scope}/iteration_plan.md` — scope context
+- `.agent_process/work/{scope}/.run/gh-issue-context.md` — tracked GitHub issue context, if present
 
-Extract: summary, files changed, change type (feature/fix/breaking), user-facing changes.
+Extract: summary, files changed, change type (feature/fix/breaking), user-facing changes, and the tracked GitHub issue number if available.
 
 ### No-Scope Mode (noscope arg)
 
@@ -52,6 +53,7 @@ Write to `.run/release/01-context.md`:
 **Scope:** {name or "none"}
 **Iteration:** {name or "none"}
 **Build number:** {N}
+**GitHub issue:** #{N} / none
 
 ## Changes Summary
 - {bullet points describing what changed}
