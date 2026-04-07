@@ -2,8 +2,8 @@
 
 **Model tier:** capable
 **Tools needed:** Read, Write, Bash
-**Input:** synthesis (`.run/04-synthesis.md`), feasibility review (`.run/05-feasibility-review.md`), idea
-**Output:** Requirement file in `requirements_docs/{category}/`
+**Input:** synthesis (`.run/04-synthesis.md`), feasibility review (`.run/05-feasibility-review.md`), scope check (`.run/05b-scope-check.md`), idea
+**Output:** Requirement file(s) in `requirements_docs/{category}/`
 
 ---
 
@@ -75,10 +75,19 @@ Wait for user confirmation or adjustments.
 
 ## Step 8: Write and Register
 
+**Single requirement (no breakdown):**
 1. Determine location: `requirements_docs/{category}/`
 2. Generate ID (find existing IDs, suggest next)
 3. Write the requirement file
 4. Update master roadmap with NOT_STARTED status
+
+**If breakdown occurred in Step 05b:**
+1. Transform and write EACH child requirement
+2. Each child uses `-01`, `-02` suffix per the parent ID
+3. Create parent breakdown file (`{id}-breakdown.md`) with coverage map
+4. Update roadmap with all children (parent marked as `split`)
+
+If the scope check returned WARN (not FAIL), include the risk note in Known Risks.
 
 ## Report
 

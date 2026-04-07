@@ -48,7 +48,7 @@ Read `.run/04-synthesis.md` and extract:
 **If questions require human judgment:**
 - List them clearly with context
 - Set `CLARIFICATION_NEEDED: true`
-- The coordinator will present these to the user before Step 06
+- The coordinator will present these to the user before proceeding
 
 ## How Findings Inform the Requirement
 
@@ -70,5 +70,5 @@ Use the output template from `process/code-feasibility-review.md`.
 
 ## What Happens Next
 
-- If `CLARIFICATION_NEEDED: false` → Proceed to Step 06 (Transform + Write)
+- If `CLARIFICATION_NEEDED: false` → Proceed to Step 05b (Scope Size Check)
 - If `CLARIFICATION_NEEDED: true` → Coordinator asks user, then re-runs this step or proceeds
