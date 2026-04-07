@@ -123,7 +123,7 @@ Check if `{{ details }}` starts with `#` followed by digits (e.g., `#43`):
 
 Ask the user:
 > "Would you like to brainstorm this idea first? Brainstorming produces a richer requirement
-> with design review feedback, trade-off analysis, and structured success criteria.
+> with multi-agent perspectives, feasibility review (same checks plan-scope uses), and structured success criteria.
 >
 > 1. **Brainstorm first** (recommended for complex or exploratory features)
 > 2. **Create directly** (for well-understood requirements)"
@@ -210,6 +210,30 @@ priority: {{ priority }}
 
 **Note:** The `type: requirement` field is mandatory — discovery and sync will ignore files without it.
 
+### Step 5.5: Feasibility Review (MANDATORY)
+
+Before writing the requirement, run the standard feasibility review per `process/code-feasibility-review.md`.
+
+**Purpose:** Ensure the requirement is grounded in codebase reality and will pass plan-scope's checks.
+
+**Process:**
+1. Query the knowledge base for relevant patterns, gotchas, anti-patterns
+2. Read CLAUDE.md files for conventions and constraints
+3. Review actual code files related to the requirement
+4. Assess technical feasibility
+5. Identify risks (informed by code + knowledge)
+6. Check for clarification needs
+
+**Incorporate findings into the requirement:**
+- Knowledge patterns → Implementation guidance in Technical Requirements
+- Knowledge gotchas → Items in Known Risks
+- Knowledge anti-patterns → Items in Out of Scope
+- Risk assessment → Known Risks with mitigations
+
+**Gate behavior:**
+- If `CLARIFICATION_NEEDED: false` → Proceed to Step 6
+- If `CLARIFICATION_NEEDED: true` → Present questions to user, iterate on requirement, then proceed
+
 ### Step 6: Update Roadmap
 
 Add new requirement to master roadmap with NOT_STARTED status.
@@ -244,7 +268,7 @@ Recommend:
 
 **Use `/ap_brainstorm "{{ details }}"` instead.**
 
-`/ap_brainstorm` provides multi-agent brainstorming (Product, Architecture, Critical perspectives), optional design review, and transforms the output into a formal AP requirement — all in one command.
+`/ap_brainstorm` provides multi-agent brainstorming (Product, Architecture, Critical perspectives), mandatory feasibility review (same checks plan-scope uses), and transforms the output into a formal AP requirement — all in one command.
 
 ```bash
 /ap_brainstorm "{{ details }}"
@@ -502,16 +526,30 @@ else:
 2. If `needs_move` is True, delete the original file after successful write
 3. If source was already at target, just update frontmatter in place
 
-### Step 12: Offer Design Review (if metaswarm available)
-
-**Only if `METASWARM_AVAILABLE = true` AND `metaswarm.features.design_review = true`:**
+### Step 12: Offer Feasibility Review (Recommended)
 
 Ask the user:
-> "Run multi-agent design review on this imported requirement? [y/N]"
+> "Would you like to run a feasibility review on this imported requirement? [Y/n]
+>
+> **Why this helps:**
+> - Checks the requirement against actual codebase patterns and constraints
+> - Queries the knowledge base for relevant gotchas and anti-patterns
+> - Identifies risks and clarification needs BEFORE plan-scope
+> - Ensures the requirement will pass plan-scope's checks
+>
+> Recommended for new or draft requirements. Skip if this requirement has already been reviewed."
 
-If yes:
-> Run: `/review-design`
-> Append review feedback to the requirement's Notes section.
+**If yes (default):**
+1. Run the standard feasibility review per `process/code-feasibility-review.md`
+2. If `CLARIFICATION_NEEDED: true` → Present questions, iterate with user
+3. Update the requirement with findings:
+   - Knowledge patterns → Technical Requirements
+   - Knowledge gotchas → Known Risks
+   - Knowledge anti-patterns → Out of Scope
+4. Append review summary to Notes section
+
+**If no:**
+> Note: Skipping review. If plan-scope raises clarification questions, you may need to iterate then.
 
 ### Step 13: Update Roadmap (Incremental)
 

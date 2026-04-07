@@ -2,7 +2,7 @@
 
 **Model tier:** capable
 **Tools needed:** Read, Write, Bash
-**Input:** synthesis (`.run/04-synthesis.md`), design review (`.run/05-design-review.md`), idea
+**Input:** synthesis (`.run/04-synthesis.md`), feasibility review (`.run/05-feasibility-review.md`), idea
 **Output:** Requirement file in `requirements_docs/{category}/`
 
 ---
@@ -56,8 +56,8 @@ source: ap-brainstorm
 - **Date:** {today}
 - **Perspectives:** Product, Architecture, Critical
 
-### Design Review
-{Summary or "Not run."}
+### Feasibility Review
+{Summary from `.run/05-feasibility-review.md` — key findings that shaped this requirement}
 
 ### Open Questions
 {Items needing human input}

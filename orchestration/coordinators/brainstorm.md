@@ -1,6 +1,6 @@
 # Brainstorm Coordinator
 
-You are orchestrating a multi-agent brainstorm. Take a vague idea and turn it into a well-structured AP requirement through diverse perspectives, synthesis, and optional design review.
+You are orchestrating a multi-agent brainstorm. Take a vague idea and turn it into a well-structured AP requirement through diverse perspectives, synthesis, and mandatory feasibility review.
 
 ## Inputs
 
@@ -28,7 +28,7 @@ The final synthesis saves to `.agent_process/brainstorms/{chosen_name}/brainstor
 | Tier | Use For | Claude Code | Codex |
 |------|---------|-------------|-------|
 | **cheap** | Config check | haiku | gpt-5.4-mini |
-| **capable** | Context + code review, brainstorm agents, design review, requirement writing | sonnet | gpt-5.4 |
+| **capable** | Context + code review, brainstorm agents, feasibility review, requirement writing | sonnet | gpt-5.4 |
 | **synthesis** | Aggregating 3 perspectives into unified analysis | opus | gpt-5.4 |
 
 ## Data Flow
@@ -73,20 +73,32 @@ Spawn a **synthesis** sub-agent with `orchestration/steps/brainstorm/04-synthesi
 - **Output:** `.run/04-synthesis.md`
 - Also saves to `.agent_process/brainstorms/{chosen_name}/brainstorm.md`
 
-### Step 05: Design Review (CONDITIONAL)
+### Step 05: Feasibility Review (MANDATORY)
 
-Read `orchestration/steps/brainstorm/05-design-review.md`.
+Spawn a **capable** sub-agent with `orchestration/steps/brainstorm/05-feasibility-review.md`.
+- Pass: synthesis output, idea
+- **Output:** `.run/05-feasibility-review.md`
 
-**Ask the user:** "Want to run a multi-agent design review before creating the requirement?"
-- If yes (or complexity is high): spawn 2-3 **capable** reviewer sub-agents in parallel
-- If no: skip, write "Skipped — user declined" to `.run/05-design-review.md`
+This step runs the same checks plan-scope uses — knowledge base query, CLAUDE.md review, actual code review. It ensures the requirement is grounded in codebase reality before writing.
+
+**Gate behavior:**
+- If `CLARIFICATION_NEEDED: false` → Proceed to Step 06
+- If `CLARIFICATION_NEEDED: true` → Present questions to user, resolve, then proceed
+
+**Do NOT skip this step.** It prevents idealistic requirements that get rejected later.
 
 ### Steps 06-08: Transform + Confirm + Write (sequential)
 
 Spawn a **capable** sub-agent with `orchestration/steps/brainstorm/06-08-transform-write.md`.
-- Pass: synthesis output, design review (if any), idea
+- Pass: synthesis output, feasibility review output, idea
 - **Output:** The requirement `.md` file in `requirements_docs/{category}/`
 - Also: confirm with user (title, category, priority, complexity), update roadmap
+
+The feasibility review findings inform:
+- Technical Requirements (from knowledge patterns)
+- Known Risks (from knowledge gotchas + code review)
+- Out of Scope (from knowledge anti-patterns)
+- Implementation guidance
 
 ---
 
@@ -98,5 +110,6 @@ Spawn a **capable** sub-agent with `orchestration/steps/brainstorm/06-08-transfo
 - [ ] `.run/03-architect.md`
 - [ ] `.run/03-critical.md`
 - [ ] `.run/04-synthesis.md`
-- [ ] `.run/05-design-review.md`
+- [ ] `.run/05-feasibility-review.md`
+- [ ] `CLARIFICATION_NEEDED: false` in feasibility review
 - [ ] Requirement file in `requirements_docs/`
