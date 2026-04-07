@@ -102,7 +102,8 @@ This makes GitHub issues readable by product managers and stakeholders, not just
 | Brainstorm/Requirements | *(no status label)* | Issue created, not yet planned |
 | Plan scope | `status:planning` | Planning coordinator active |
 | Execute preflight | `status:executing` | Implementation underway |
-| Review | `status:reviewing` | Orchestrator review active |
+| Execute complete | `status:awaiting_review` | Implementation done, awaiting review |
+| Review start | `status:reviewing` | Orchestrator review active |
 | APPROVE decision | `status:approved` | Issue closed |
 | ITERATE decision | `status:iterate` | Needs another pass |
 | BLOCK decision | `status:blocked` | Issue closed |

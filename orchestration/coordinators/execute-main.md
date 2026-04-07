@@ -287,6 +287,15 @@ if req_match:
 PYEOF
 ```
 
+**Update GitHub issue status (if GH enabled):**
+
+```bash
+# Transition from executing → awaiting_review so the issue reflects work is done
+bash .agent_process/scripts/github-issues-lifecycle.sh set-status {scope} status:awaiting_review
+```
+
+This makes the GitHub issue status accurate — execution is complete, awaiting orchestrator review.
+
 ---
 
 ## Step 6: Report Completion

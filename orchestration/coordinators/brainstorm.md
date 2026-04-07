@@ -27,8 +27,8 @@ The final synthesis saves to `.agent_process/brainstorms/{chosen_name}/brainstor
 
 | Tier | Use For | Claude Code | Codex |
 |------|---------|-------------|-------|
-| **cheap** | Config check, context gathering | haiku | gpt-5.4-mini |
-| **capable** | Brainstorm agents, design review, requirement writing | sonnet | gpt-5.4 |
+| **cheap** | Config check | haiku | gpt-5.4-mini |
+| **capable** | Context + code review, brainstorm agents, design review, requirement writing | sonnet | gpt-5.4 |
 | **synthesis** | Aggregating 3 perspectives into unified analysis | opus | gpt-5.4 |
 
 ## Data Flow
@@ -50,11 +50,13 @@ Read `.agent_process/process/local_environment_instructions.md` before starting 
 Spawn a **cheap** sub-agent with `orchestration/steps/brainstorm/01-config-check.md`.
 - **Output:** `.run/01-config.md`
 
-### Step 02: Gather Context (sequential)
+### Step 02: Gather Context + Code Review (sequential)
 
-Spawn a **cheap** sub-agent with `orchestration/steps/brainstorm/02-gather-context.md`.
+Spawn a **capable** sub-agent with `orchestration/steps/brainstorm/02-gather-context.md`.
 - Pass: idea
 - **Output:** `.run/02-context.md`
+
+This step now does actual code exploration — not just README scanning — so brainstorm agents have grounded technical context.
 
 ### Step 03: Brainstorm Agents (3 in parallel)
 

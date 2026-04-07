@@ -169,7 +169,7 @@ get_default_priority() {
 
 # --- Label management (idempotent) ---
 
-REQUIRED_LABELS="ap:scope status:active status:approved status:blocked status:complete status:planning status:executing status:reviewing status:iterate status:split"
+REQUIRED_LABELS="ap:scope status:active status:approved status:blocked status:complete status:planning status:executing status:awaiting_review status:reviewing status:iterate status:split"
 
 # Priority labels (P0=critical, P4=low) — only created if priority_labels.enabled
 PRIORITY_LABELS=(
@@ -573,7 +573,7 @@ do_set_status() {
   fi
 
   # Remove old status labels (best-effort — failure is OK, label might not exist)
-  for old_label in status:planning status:executing status:reviewing status:iterate status:active; do
+  for old_label in status:planning status:executing status:awaiting_review status:reviewing status:iterate status:active; do
     if echo "$current_labels" | grep -q "^${old_label}$"; then
       run_gh gh issue edit "$issue_num" --repo "$REPO" --remove-label "$old_label" >/dev/null 2>&1 || true
     fi
