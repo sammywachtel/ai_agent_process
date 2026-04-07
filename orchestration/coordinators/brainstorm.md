@@ -82,17 +82,63 @@ Spawn a **capable** sub-agent with `orchestration/steps/brainstorm/05-feasibilit
 This step runs the same checks plan-scope uses — knowledge base query, CLAUDE.md review, actual code review. It ensures the requirement is grounded in codebase reality before writing.
 
 **Gate behavior:**
-- If `CLARIFICATION_NEEDED: false` → Proceed to Step 06
+- If `CLARIFICATION_NEEDED: false` → Proceed to Step 05b
 - If `CLARIFICATION_NEEDED: true` → Present questions to user, resolve, then proceed
 
 **Do NOT skip this step.** It prevents idealistic requirements that get rejected later.
 
+### Step 05b: Scope Size Check + Breakdown Offer
+
+Run scope-sizing check per `process/scope-sizing-check.md` with thresholds from `orchestration/scope-sizing-rules.md`.
+
+**Purpose:** Catch oversized requirements NOW while you have full brainstorm context.
+
+**Process:**
+1. Using the synthesis output, count: criteria, files expected to change, subsystems
+2. Run 5-second check
+3. Compare against thresholds
+
+**If VERDICT: PASS or WARN:**
+- Output: `.run/05b-scope-check.md`
+- Proceed to Step 06
+- If WARN, include risk note for the requirement
+
+**If VERDICT: FAIL:**
+- Output: `.run/05b-scope-check.md` with failure details
+- Ask the user:
+
+> "The brainstormed requirement exceeds size thresholds:
+> - Criteria: {N} (threshold: >10)
+> - Files: {N} (threshold: >15)  
+> - Subsystems: {N} (threshold: >4)
+>
+> Would you like me to break it down into smaller requirements?
+> 1. **Yes, break it down** (recommended — you have full brainstorm context)
+> 2. **No, write as single requirement** (plan-scope will require breakdown later)"
+
+**If user chooses breakdown:**
+1. Follow breakdown process in `process/scope-breakdown.md`
+2. Use brainstorm context to inform split decisions
+3. Create child requirements with sequential naming
+4. Validate each child against thresholds
+5. Output: `.run/05b-breakdown.md` + child requirement files
+6. Proceed to Step 06 with children
+
+**If user declines:**
+- Note in synthesis: "User chose to defer breakdown to plan-scope"
+- Proceed to Step 06 with single requirement
+
 ### Steps 06-08: Transform + Confirm + Write (sequential)
 
 Spawn a **capable** sub-agent with `orchestration/steps/brainstorm/06-08-transform-write.md`.
-- Pass: synthesis output, feasibility review output, idea
-- **Output:** The requirement `.md` file in `requirements_docs/{category}/`
+- Pass: synthesis output, feasibility review output, scope check output, idea
+- **Output:** The requirement `.md` file(s) in `requirements_docs/{category}/`
 - Also: confirm with user (title, category, priority, complexity), update roadmap
+
+If breakdown occurred in Step 05b:
+- Transform and write EACH child requirement
+- Create parent breakdown file
+- Update roadmap with all children
 
 The feasibility review findings inform:
 - Technical Requirements (from knowledge patterns)
@@ -112,4 +158,6 @@ The feasibility review findings inform:
 - [ ] `.run/04-synthesis.md`
 - [ ] `.run/05-feasibility-review.md`
 - [ ] `CLARIFICATION_NEEDED: false` in feasibility review
-- [ ] Requirement file in `requirements_docs/`
+- [ ] `.run/05b-scope-check.md`
+- [ ] `VERDICT: PASS` or `WARN` (or breakdown completed)
+- [ ] Requirement file(s) in `requirements_docs/`

@@ -231,12 +231,54 @@ Before writing the requirement, run the standard feasibility review per `process
 - Risk assessment → Known Risks with mitigations
 
 **Gate behavior:**
-- If `CLARIFICATION_NEEDED: false` → Proceed to Step 6
+- If `CLARIFICATION_NEEDED: false` → Proceed to Step 5.6
 - If `CLARIFICATION_NEEDED: true` → Present questions to user, iterate on requirement, then proceed
+
+### Step 5.6: Scope Size Check + Breakdown Offer
+
+Run the standard scope-sizing check per `process/scope-sizing-check.md`.
+
+**Purpose:** Catch oversized requirements NOW while you have full context, rather than deferring to plan-scope.
+
+**Process:**
+1. Read thresholds from `orchestration/scope-sizing-rules.md`
+2. Count: criteria, files expected to change, subsystems touched
+3. Run 5-second check (one sentence? done definition? timeframe? specific name?)
+4. Compare against thresholds
+
+**If VERDICT: PASS or WARN:**
+- Proceed to Step 6
+- If WARN, note the risk in the requirement's Known Risks section
+
+**If VERDICT: FAIL:**
+- Present the failure reason to the user
+- Offer breakdown:
+
+> "This requirement exceeds size thresholds:
+> - Criteria: {N} (threshold: >10)
+> - Files: {N} (threshold: >15)
+> - Subsystems: {N} (threshold: >4)
+>
+> Would you like me to break it down into smaller requirements?
+> 1. **Yes, break it down** (recommended — you have full context now)
+> 2. **No, write as-is** (plan-scope will require breakdown later)"
+
+**If user chooses breakdown:**
+1. Follow the breakdown process in `process/scope-breakdown.md`
+2. Create child requirements: `{id}-01.md`, `{id}-02.md`, etc.
+3. Create parent breakdown file: `{id}-breakdown.md`
+4. Validate each child against scope-sizing thresholds
+5. Proceed to Step 6 with the CHILDREN (not the parent)
+
+**If user declines:**
+- Write the requirement as-is
+- Note in Known Risks: "Scope exceeds recommended thresholds. Plan-scope will require breakdown."
 
 ### Step 6: Update Roadmap
 
-Add new requirement to master roadmap with NOT_STARTED status.
+Add new requirement(s) to master roadmap with NOT_STARTED status.
+
+If breakdown occurred, add all children and mark parent as `split`.
 
 ### Step 7 (if issue reference was provided): Associate Issue
 
