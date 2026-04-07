@@ -77,7 +77,10 @@ tracker_write_scope() {
   dir="$(dirname "$TRACKER_FILE")"
   mkdir -p "$dir"
 
-  local tmp_file="${TRACKER_FILE}.tmp"
+  # Use unique tmp file per process to prevent race conditions when
+  # multiple subagents call tracker_write_scope concurrently.
+  # The old shared .tmp path caused massive duplication when agents ran in parallel.
+  local tmp_file="${TRACKER_FILE}.tmp.$$"
   local found=false
 
   # If the tracker file exists, copy all lines except the one we're replacing
@@ -108,7 +111,11 @@ tracker_write_scope() {
   fi
 
   # Atomic rename — the whole point of this dance
-  mv "$tmp_file" "$TRACKER_FILE"
+  # If mv fails, clean up tmp file
+  if ! mv "$tmp_file" "$TRACKER_FILE"; then
+    rm -f "$tmp_file"
+    return 1
+  fi
 }
 
 # tracker_get_field <scope> <field>
