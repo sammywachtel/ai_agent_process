@@ -40,10 +40,6 @@
 
 set -uo pipefail
 
-# --- Source tracker-utils for local state operations ---
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/lib/tracker-utils.sh"
-
 # --- Parse action ---
 ACTION="${1:-}"
 if [[ -z "$ACTION" ]]; then
@@ -54,6 +50,8 @@ fi
 # --- AP Root Detection (polyrepo support) ---
 # If .agent_process/ doesn't exist in cwd, traverse up to find it.
 # This handles nested repos where the agent may be in a sub-repo.
+# IMPORTANT: Must happen BEFORE sourcing tracker-utils.sh, which sets
+# paths relative to the working directory.
 
 find_ap_root() {
   local dir="$PWD"
@@ -81,6 +79,11 @@ if [[ ! -d ".agent_process" ]]; then
 else
   AP_ROOT="$PWD"
 fi
+
+# --- Source tracker-utils for local state operations ---
+# Sourced AFTER cd to AP root so TRACKER_FILE resolves correctly.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/lib/tracker-utils.sh"
 
 # --- Config reading ---
 CONFIG_FILE=".agent_process/quality-config.json"
