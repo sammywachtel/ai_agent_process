@@ -19,14 +19,23 @@ A structured workflow framework for AI-powered development with Claude Code. Pro
 /ap_brainstorm "improve the login experience"
 # or: /ap_requirements add "user_authentication"
 
-# 4. Execute the work
+# 4. Plan the iteration (read orchestration prompt, work with Claude)
+#    Open: .agent_process/orchestration/plan-scope.md
+#    This creates: iteration_plan.md with frozen acceptance criteria
+
+# 5. Execute the work
 /ap_exec user_auth iteration_01
 
-# 5. Ship it
+# 6. Review results (orchestrator decides: APPROVE/ITERATE/BLOCK/PIVOT)
+#    Open: .agent_process/orchestration/review-iteration.md
+
+# 7. Ship it (after APPROVE)
 /ap_release pr
 ```
 
-That's it. The framework handles planning, validation, adversarial review, and knowledge accumulation automatically. Read on for the full picture.
+**Key distinction:** Steps 3, 5, 7 are slash commands. Steps 4 and 6 are orchestration prompts you read with Claude — they guide multi-step planning and review workflows.
+
+Read on for the full picture.
 
 ---
 
@@ -155,13 +164,25 @@ The AI Agent Process solves a common problem: AI-assisted development often beco
 
 ### Detailed Steps
 
-#### Step 1: Plan (Human + Orchestrator)
-1. Human defines scope name, objectives, and acceptance criteria
-2. Orchestrator creates `iteration_plan.md` with **LOCKED** criteria
-3. Scoped validation script is created for this work
-4. **Critical:** Criteria CANNOT change once iteration starts
+#### Step 0: Create Requirement (Slash Commands)
+```bash
+/ap_brainstorm "idea"           # Multi-agent ideation → requirement
+/ap_requirements add "name"     # Direct creation
+/ap_requirements add #42        # From GitHub Issue
+```
+Produces a formal requirement file in `.agent_process/requirements_docs/`.
 
-#### Step 2: Execute (Implementation)
+#### Step 1: Plan (Orchestration Prompt)
+```
+Read: .agent_process/orchestration/plan-scope.md
+```
+1. Orchestrator sizes the scope (fits 1-2 weeks? split if too large)
+2. Queries knowledge base for relevant patterns and gotchas
+3. Creates `iteration_plan.md` with **LOCKED** acceptance criteria
+4. Sets up scoped validation script
+5. **Critical:** Criteria CANNOT change once iteration starts
+
+#### Step 2: Execute (Slash Command)
 ```bash
 /ap_exec <scope> <iteration>
 ```
@@ -169,17 +190,22 @@ The AI Agent Process solves a common problem: AI-assisted development often beco
 - For multi-domain scopes (3+ files across 2+ layers), decomposes into work units — a DAG of independently-executable tasks with per-unit agents and validation
 - Implements changes within scope boundaries (parallel where possible)
 - Runs scoped validation (hook fires automatically)
+- Spawns adversarial reviewer (fresh agent, zero context)
 - Creates `results.md` (with Work Unit Summary if decomposed) and `test-output.txt`
 
-#### Step 3: Review (Orchestrator)
+#### Step 3: Review (Orchestration Prompt)
+```
+Read: .agent_process/orchestration/review-iteration.md
+```
 - Evaluates results against **frozen criteria for this major iteration** (after PIVOT, uses revised criteria)
+- Verifies actual code, not just claims in results.md
+- Reads adversarial review verdict
 - Chooses exactly one decision: **APPROVE / ITERATE / BLOCK / PIVOT**
-- Updates iteration plan with decision
 
 #### Step 4: Ship or Continue
-- **APPROVE** → `/ap_release pr` to create PR
-- **ITERATE** → Creates sub-iteration (a/b/c), max 3 attempts
-- **PIVOT** → New major iteration with revised criteria (requires human approval)
+- **APPROVE** → `/ap_release pr` to create PR (slash command)
+- **ITERATE** → Creates sub-iteration (a/b/c), max 3 attempts, return to Step 2
+- **PIVOT** → New major iteration with revised criteria (requires human approval), return to Step 1
 - **BLOCK** → Escalate to human, do not proceed
 
 ### End-to-End Process Flow
@@ -286,6 +312,28 @@ The complete lifecycle from idea to acceptance, with all optional features enabl
 │  └───────────────────────────────────────────────────────────────────┘│
 │                                                                       │
 └───────────────────────────────────────────────────────────────────────┘
+```
+
+### Slash Commands vs Orchestration Prompts
+
+The framework uses two types of interactions:
+
+| Type | How to Invoke | Purpose | Examples |
+|------|---------------|---------|----------|
+| **Slash Commands** | `/ap_<command>` | Single-step operations | `/ap_brainstorm`, `/ap_exec`, `/ap_release` |
+| **Orchestration Prompts** | `Read: .agent_process/orchestration/<file>.md` | Multi-step workflows with sub-agents | `plan-scope.md`, `review-iteration.md` |
+
+**Slash commands** are self-contained: you invoke them, they run, they're done.
+
+**Orchestration prompts** are collaborative: you read the prompt file with Claude, and it guides a multi-step workflow — spawning sub-agents, gathering your input, and producing structured artifacts. These are the "thinking" phases where plans are created and decisions are made.
+
+```
+Typical workflow:
+  /ap_brainstorm "idea"              ← Slash command creates requirement
+  Read: plan-scope.md                ← Orchestration prompt creates iteration plan
+  /ap_exec scope iteration_01        ← Slash command implements
+  Read: review-iteration.md          ← Orchestration prompt reviews and decides
+  /ap_release pr                     ← Slash command ships
 ```
 
 ---
@@ -708,25 +756,34 @@ The installer copies slash commands to `.claude/commands/` and sets up the `.age
 
 ### 3. Define Your First Requirement
 
-```bash
-# Brainstorm first (recommended for vague ideas)
-/ap_brainstorm "improve user authentication"
+Choose your entry point based on what you have:
 
-# Or create directly
-/ap_requirements add "user_authentication"
+| Starting Point | Command | What Happens |
+|----------------|---------|--------------|
+| Vague idea | `/ap_brainstorm "improve login"` | Multi-agent ideation → formal requirement |
+| Clear feature | `/ap_requirements add "user_auth"` | Direct requirement creation |
+| Existing spec | `/ap_requirements import "spec.md"` | Import with AP frontmatter |
+| GitHub Issue | `/ap_brainstorm #42` or `/ap_requirements add #42` | Seed from issue content |
 
-# Or import an existing spec
-/ap_requirements import "path/to/spec.md"
-```
+All paths produce a formal requirement file in `.agent_process/requirements_docs/`.
 
 ### 4. Plan the First Iteration
 
-Load the planning prompt and work with the orchestrator:
+**This is NOT a slash command.** Read the orchestration prompt with Claude:
 
-1. Open `orchestration/plan-scope.md`
-2. Define scope name and objectives with the orchestrator
-3. Create `iteration_plan.md` with frozen criteria
-4. Set up scoped validation script
+```
+Read: .agent_process/orchestration/plan-scope.md
+```
+
+Work with the orchestrator to:
+1. **Size check** — Verify scope fits 1-2 weeks; break down if too large
+2. **Query knowledge base** — Pull relevant patterns and gotchas
+3. **Create iteration_plan.md** — With **LOCKED** acceptance criteria
+4. **Set up scoped validation** — Script that runs automatically via hook
+
+**Output:** `.agent_process/work/{scope}/iteration_plan.md`
+
+The orchestrator spawns sub-agents for each step. You approve the final plan.
 
 ### 5. Execute the Work
 
@@ -734,11 +791,35 @@ Load the planning prompt and work with the orchestrator:
 /ap_exec user_auth iteration_01
 ```
 
+This slash command:
+1. Runs pre-flight checks (branch, working tree, session recovery)
+2. Loads the frozen criteria from iteration_plan.md
+3. Decomposes into work units if multi-domain (3+ files, 2+ layers)
+4. Implements changes within scope
+5. Runs validation (hook fires automatically)
+6. Spawns adversarial reviewer (fresh agent, zero implementation context)
+7. Creates `results.md` and `test-output.txt`
+
 ### 6. Review and Decide
 
-Load `orchestration/review-iteration.md` and:
-- Review results against original criteria
-- Choose: APPROVE / ITERATE / BLOCK / PIVOT
+**This is NOT a slash command.** Read the review prompt with Claude:
+
+```
+Read: .agent_process/orchestration/review-iteration.md
+```
+
+The orchestrator:
+1. Loads results, test output, and adversarial review verdict
+2. Evaluates against **frozen criteria** (not claims in results.md — actual code)
+3. Verifies documentation and integration
+4. **Chooses exactly one decision:**
+
+| Decision | Meaning | What Happens Next |
+|----------|---------|-------------------|
+| **APPROVE** | All criteria met | Proceed to release |
+| **ITERATE** | Minor fixes needed (same criteria) | Create sub-iteration (_a, _b, _c) |
+| **PIVOT** | Wrong approach (need revised criteria) | New major iteration (02, 03) — requires human approval |
+| **BLOCK** | External blocker | Escalate to human immediately |
 
 ### 7. Ship It
 
@@ -746,6 +827,8 @@ Load `orchestration/review-iteration.md` and:
 /ap_release pr              # Creates PR with changelog updates
 /ap_release pr --shepherd   # Creates PR + monitors CI and reviews
 ```
+
+The PR shepherd (optional) monitors CI status, responds to review comments, and reports merge-readiness. It never merges — the human always clicks merge.
 
 ---
 
