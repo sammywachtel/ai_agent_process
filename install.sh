@@ -410,62 +410,6 @@ json.dump(cfg, open(path, 'w'), indent=2)
   fi
 fi
 
-# ─── Legacy BEADS config migration ──────────────────────────────────
-# If upgrading from a project that had BEADS, clean up the old config key
-python3 -c "
-import json
-path = '$AGENT_PROCESS_DIR/quality-config.json'
-try:
-    cfg = json.load(open(path))
-except:
-    cfg = {}
-if 'beads' in cfg:
-    print('LEGACY_BEADS_FOUND')
-" 2>/dev/null | grep -q LEGACY_BEADS_FOUND && {
-  echo ""
-  echo -e "${YELLOW}  Detected legacy BEADS configuration.${NC}"
-  echo -e "  Run ${GREEN}scripts/migrate-from-beads.sh${NC} to migrate your data."
-  python3 -c "
-import json
-path = '$AGENT_PROCESS_DIR/quality-config.json'
-cfg = json.load(open(path))
-del cfg['beads']
-json.dump(cfg, open(path, 'w'), indent=2)
-" 2>/dev/null
-  echo -e "${GREEN}  ✓${NC} Removed legacy 'beads' key from quality-config.json"
-}
-
-# ─── Remove BEADS-related files ───────────────────────────────────────
-# AP doesn't use BEADS. Remove any BEADS artifacts to prevent agents from
-# running bd commands during orchestration.
-
-# Remove AGENTS.md if it contains BEADS instructions
-if [[ -f "$TARGET_DIR/AGENTS.md" ]]; then
-  if grep -q "BEADS INTEGRATION\|bd prime\|bd onboard\|beads.*issue" "$TARGET_DIR/AGENTS.md" 2>/dev/null; then
-    rm -f "$TARGET_DIR/AGENTS.md"
-    echo -e "${GREEN}  ✓${NC} Removed AGENTS.md (contained BEADS instructions)"
-  fi
-fi
-
-# Remove beads-integration.md from process directory (legacy file)
-if [[ -f "$AGENT_PROCESS_DIR/process/beads-integration.md" ]]; then
-  rm -f "$AGENT_PROCESS_DIR/process/beads-integration.md"
-  echo -e "${GREEN}  ✓${NC} Removed legacy beads-integration.md"
-fi
-
-# Remove BEADS scripts from scripts directory (legacy files)
-for beads_script in "beads-lifecycle.sh" "validate-beads-state.sh" "migrate-knowledge.py"; do
-  if [[ -f "$AGENT_PROCESS_DIR/scripts/$beads_script" ]]; then
-    rm -f "$AGENT_PROCESS_DIR/scripts/$beads_script"
-    echo -e "${GREEN}  ✓${NC} Removed legacy $beads_script"
-  fi
-done
-
-# Remove .beads directory if it exists
-if [[ -d "$TARGET_DIR/.beads" ]]; then
-  echo -e "${YELLOW}  ⊙${NC} Found .beads/ directory — run ${GREEN}scripts/migrate-from-beads.sh${NC} to clean up"
-fi
-
 # ─── Metaswarm Setup (if enabled) ─────────────────────────────────────
 if [[ "$FEAT_METASWARM" == "yes" ]]; then
   echo ""

@@ -245,15 +245,3 @@ Set `github_issues.enabled` to `false` in `quality-config.json`:
 ```
 
 File-based tracking (`scope-tracker.jsonl`, `scope-events.log`) continues to work. Existing GitHub Issues are not modified or closed.
-
----
-
-## Migrating from BEADS
-
-If your project previously used BEADS for state tracking:
-
-```bash
-bash scripts/migrate-from-beads.sh
-```
-
-This discovers BEADS artifacts (knowledge, .beads-state, iteration configs) and migrates them with your permission at each step. See the script output for cleanup reminders.
