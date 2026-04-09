@@ -161,3 +161,15 @@ The feasibility review findings inform:
 - [ ] `.run/05b-scope-check.md`
 - [ ] `VERDICT: PASS` or `WARN` (or breakdown completed)
 - [ ] Requirement file(s) in `requirements_docs/`
+
+---
+
+## After Brainstorm Completes
+
+**Next step:** Plan the scope using `orchestration/plan-scope.md` (in Codex), then run `/ap_exec {requirement_id}`.
+
+Do NOT suggest:
+- `/metaswarm:start` or any metaswarm commands
+- Any workflow outside the AP system
+
+AP workflow: `/ap_brainstorm` → `plan-scope.md` (Codex) → `/ap_exec` → `/ap_release`

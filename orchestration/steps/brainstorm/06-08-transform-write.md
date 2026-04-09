@@ -97,5 +97,7 @@ If the scope check returned WARN (not FAIL), include the risk note in Known Risk
   Brainstorm:  .agent_process/brainstorms/{name}.md
   Criteria:    {count} acceptance criteria
 
-Next: Review the requirement, then feed to orchestrator for planning
+Next step: Plan the scope using orchestration/plan-scope.md (in Codex), then /ap_exec {id}
 ```
+
+**Important:** The next step uses AP's `orchestration/plan-scope.md` — NOT metaswarm. Never suggest `/metaswarm:start` or other metaswarm commands as alternatives to AP workflow.
