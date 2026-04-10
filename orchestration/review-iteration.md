@@ -66,10 +66,15 @@ This returns JSON with:
 
 Use the `scope` and `iteration` from this output for all subsequent operations.
 
+**Iteration Resolution:**
+1. If `iteration` is non-null → use it (this is the tracker's current iteration)
+2. If `iteration` is null → list `.agent_process/work/{scope}/iteration_*` directories and use the latest one
+3. **If user manually specified a different iteration** → **STOP and ask**: "Tracker shows current iteration is {tracker_iteration}, but you specified {manual_iteration}. Which one should I review?"
+
 ## Iteration to Review
 
 **Scope:** {scope} (from resolve-input)
-**Iteration:** {iteration} (from resolve-input — defaults to latest tracked iteration)
+**Iteration:** {iteration} (from resolve-input)
 **Notes:** See QA results in results.md
 
 ---

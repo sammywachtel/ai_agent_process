@@ -50,7 +50,10 @@ Use these values:
 - **Iteration:** Use `iteration` from the JSON (the current/latest iteration from tracker)
 - **Run directory:** `.agent_process/work/{scope}/.run/review/`
 
-**Note:** If `iteration` is null (scope not in tracker), check the work folder for iteration directories and use the latest one.
+**Iteration Resolution:**
+1. If `iteration` is non-null → use it (this is the tracker's current iteration)
+2. If `iteration` is null → list `.agent_process/work/{scope}/iteration_*` directories and use the latest one
+3. **If user manually specified a different iteration** (e.g., "review iteration_01" when tracker says iteration_02) → **STOP and ask**: "Tracker shows current iteration is {tracker_iteration}, but you specified {manual_iteration}. Which one should I review?"
 
 ## Model Tiers
 
