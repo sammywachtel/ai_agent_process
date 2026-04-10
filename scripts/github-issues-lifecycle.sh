@@ -1240,6 +1240,17 @@ do_close() {
     return 0
   fi
 
+  # Remove workflow status labels before adding final decision label
+  # These are the in-progress labels that should be cleared on close
+  local current_labels
+  current_labels=$(run_gh gh issue view "$issue_num" --repo "$REPO" --json labels --jq '.labels[].name' 2>/dev/null) || current_labels=""
+
+  for old_label in status:planning status:executing status:awaiting_review status:reviewing status:iterate; do
+    if echo "$current_labels" | grep -q "^${old_label}$"; then
+      run_gh gh issue edit "$issue_num" --repo "$REPO" --remove-label "$old_label" >/dev/null 2>&1 || true
+    fi
+  done
+
   # Add decision label and close — report honestly
   local label_error close_error
   local label_ok=true close_ok=true
