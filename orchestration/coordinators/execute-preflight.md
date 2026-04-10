@@ -64,9 +64,8 @@ bash .agent_process/scripts/github-issues-lifecycle.sh get-issue {scope}
 This returns the issue number (e.g., `165`) if linked, or **empty output** if not linked.
 
 **If output is NOT empty** (issue already linked):
-1. Run: `bash .agent_process/scripts/github-issues-lifecycle.sh start {scope}` (adopts and verifies)
-2. Run: `bash .agent_process/scripts/github-issues-lifecycle.sh set-status {scope} status:executing`
-3. Continue to Step 0.7
+1. Run: `bash .agent_process/scripts/github-issues-lifecycle.sh start {scope}` (adopts, verifies, and sets status:executing)
+2. Continue to Step 0.7
 
 **If output IS empty** (no linked issue), proceed to Step 0.5b.
 
@@ -90,7 +89,7 @@ This returns a JSON array of matching issues (e.g., `[{"number":123,"title":"my_
 **If JSON is empty or `[]`** (no matches found):
 - **ASK the user:** "No GitHub Issue found for scope '{scope}'. Enter issue number/link, say 'create', or 'skip'."
   - **number/link:** Run `lifecycle.sh associate {scope} {number}`, then `lifecycle.sh set-status {scope} status:executing`
-  - **create:** Run `lifecycle.sh start {scope}`, then `lifecycle.sh set-status {scope} status:executing`
+  - **create:** Run `lifecycle.sh start {scope}` (creates issue and sets status:executing)
   - **skip:** Continue without GH issue, log warning
 
 **Output:** Updated `.run/gh-issue-context.md`

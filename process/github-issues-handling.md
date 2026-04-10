@@ -30,7 +30,8 @@ bash .agent_process/scripts/github-issues-lifecycle.sh verify <scope>         # 
 bash .agent_process/scripts/github-issues-lifecycle.sh resolve-input <input>  # Resolve issue#/scope/path → JSON
 
 # Core actions
-bash .agent_process/scripts/github-issues-lifecycle.sh start <scope>          # Creates issue + auto-syncs body from requirement doc
+bash .agent_process/scripts/github-issues-lifecycle.sh create <scope> [description]  # Creates issue with ap:scope only (no status label)
+bash .agent_process/scripts/github-issues-lifecycle.sh start <scope> [description]   # Creates issue + sets status:executing (work begins)
 bash .agent_process/scripts/github-issues-lifecycle.sh associate <scope> <issue_number_or_url>
 bash .agent_process/scripts/github-issues-lifecycle.sh set-status <scope> <label>
 bash .agent_process/scripts/github-issues-lifecycle.sh set-priority <scope> <priority:P0-P4>
@@ -40,7 +41,9 @@ bash .agent_process/scripts/github-issues-lifecycle.sh close <scope> <decision>
 bash .agent_process/scripts/github-issues-lifecycle.sh retitle <scope> <new_title>
 
 # Scope splitting (when scope fails size gate)
-bash .agent_process/scripts/github-issues-lifecycle.sh split <parent_scope> <child1> <child2> [child3...]
+# Format: "scope|description" — description explains what work this child handles
+bash .agent_process/scripts/github-issues-lifecycle.sh split <parent_scope> \
+  "child1|description" "child2|description" [...]
 
 # Work unit management
 bash .agent_process/scripts/github-issues-lifecycle.sh task-create <scope> <wu-id> <description>
@@ -113,7 +116,7 @@ Use `set-status` to transition between labels. The script removes old `status:*`
 
 ## 3.1. Priority Labels
 
-Priority labels help triage scope urgency. When enabled, `start` applies a default priority and `split` inherits the parent's priority to children.
+Priority labels help triage scope urgency. When enabled, `create` (and `start`) applies a default priority and `split` inherits the parent's priority to children.
 
 | Priority | Color | Meaning |
 |----------|-------|---------|
@@ -152,8 +155,8 @@ When a pipeline step needs a GH issue for a scope:
 1. Check tracker for linked issue:
    gh_issue=$(lifecycle.sh get-issue <scope>)
    │
-   ├─ gh_issue NOT EMPTY → Run: lifecycle.sh start <scope>
-   │     (start will verify the issue, adopt it, regenerate context file)
+   ├─ gh_issue NOT EMPTY → Run: lifecycle.sh create <scope>
+   │     (create will verify the issue, adopt it, regenerate context file)
    │
    └─ gh_issue EMPTY → Search GitHub for matching issue:
       │
@@ -176,10 +179,14 @@ When a pipeline step needs a GH issue for a scope:
          │  └─ Run: lifecycle.sh associate <scope> <N>
          │
          ├─ Pipeline step should auto-create? (plan-scope: yes)
-         │  └─ Run: lifecycle.sh start <scope>
-         │     (start will create new issue)
+         │  └─ Run: lifecycle.sh create <scope>
+         │     (creates issue with ap:scope only, no status label yet)
          │
-         └─ Pipeline step should ask user? (execute-preflight: yes)
+         ├─ Pipeline step should start work? (execute-preflight: yes)
+         │  └─ Run: lifecycle.sh start <scope>
+         │     (creates issue + sets status:executing)
+         │
+         └─ Pipeline step should ask user? (other contexts)
             └─ Ask: "No GitHub Issue found for scope '{scope}'.
                Enter issue number/link, say 'create', or 'skip'."
 ```
@@ -193,14 +200,17 @@ When a scope fails the hard size gate during planning (too many criteria, files,
 ```
 1. Scope-check coordinator returns FAIL with recommended breakdown
    │
-2. Planning coordinator calls: lifecycle.sh split <parent> <child1> <child2> ...
+2. Planning coordinator calls: lifecycle.sh split <parent> "child1|description" "child2|description"
    │
    ├─ Tracker updates:
    │  ├─ Parent scope: status="split", split_into=[child1, child2, ...]
    │  └─ Each child: status="pending", split_from=parent
    │
    └─ GH operations (if enabled):
-      ├─ Create child issues with body: "Split from #N (parent_scope)"
+      ├─ Create child issues with templated body including:
+      │  ├─ Description: what work this child handles
+      │  ├─ Parent reference: #N (parent_scope)
+      │  └─ Requirement doc link (if available)
       ├─ Comment on parent: "Scope split into smaller pieces: #A, #B, #C"
       ├─ Add status:split label to parent
       └─ Close parent issue

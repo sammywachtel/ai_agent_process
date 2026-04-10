@@ -8,9 +8,10 @@
 # Usage:
 #   bash scripts/github-issues-lifecycle.sh health-check
 #   bash scripts/github-issues-lifecycle.sh create-labels
-#   bash scripts/github-issues-lifecycle.sh start <scope>
+#   bash scripts/github-issues-lifecycle.sh create <scope> [description]   # Create issue, no status label
+#   bash scripts/github-issues-lifecycle.sh start <scope> [description]    # Create + set status:executing
 #   bash scripts/github-issues-lifecycle.sh associate <scope> <issue_number_or_url>
-#   bash scripts/github-issues-lifecycle.sh set-status <scope> <label>
+#   bash scripts/github-issues-lifecycle.sh set-status <scope> <status>  # e.g., "planning" or "status:planning"
 #   bash scripts/github-issues-lifecycle.sh retitle <scope> <new_title>
 #   bash scripts/github-issues-lifecycle.sh sync-body <scope>
 #   bash scripts/github-issues-lifecycle.sh set-priority <scope> <priority:P0-P4>
@@ -26,7 +27,7 @@
 #   bash scripts/github-issues-lifecycle.sh close <scope> <decision>
 #   bash scripts/github-issues-lifecycle.sh verify <scope>
 #   bash scripts/github-issues-lifecycle.sh comment <scope> <message>
-#   bash scripts/github-issues-lifecycle.sh split <parent_scope> <child1> <child2> [child3...]
+#   bash scripts/github-issues-lifecycle.sh split <parent_scope> "child1|description" "child2|description" [...]
 #
 # Config: reads .agent_process/quality-config.json
 #   github_issues.enabled = true/false
@@ -43,7 +44,7 @@ set -uo pipefail
 # --- Parse action ---
 ACTION="${1:-}"
 if [[ -z "$ACTION" ]]; then
-  echo "Usage: github-issues-lifecycle.sh <health-check|create-labels|start|associate|set-status|retitle|sync-body|set-priority|set-iteration|get-iteration|get-issue|search-issue|list-issues|audit|resolve-input|task-create|task-update|close|verify|comment|split> [args...]" >&2
+  echo "Usage: github-issues-lifecycle.sh <health-check|create-labels|create|start|associate|set-status|retitle|sync-body|set-priority|set-iteration|get-iteration|get-issue|search-issue|list-issues|audit|resolve-input|task-create|task-update|close|verify|comment|split> [args...]" >&2
   exit 1
 fi
 
@@ -170,9 +171,59 @@ get_default_priority() {
   echo "${default:-priority:P2}"
 }
 
+# --- Issue body template rendering ---
+# Uses envsubst to substitute variables in the template.
+# Checks templates/overrides/ first, falls back to templates/.
+
+render_issue_body() {
+  local description="$1"
+  local parent_issue="${2:-}"       # optional
+  local parent_scope="${3:-}"       # optional
+  local relationship_type="${4:-}"  # "split from" | "work unit of" | ""
+  local requirement_doc="${5:-}"    # optional
+
+  # Build optional sections (complete markdown blocks or empty)
+  local PARENT_SECTION=""
+  if [[ -n "$parent_issue" && -n "$parent_scope" ]]; then
+    PARENT_SECTION="
+---
+**Parent:** #${parent_issue} (${parent_scope})
+**Relationship:** ${relationship_type}"
+  fi
+
+  local REQUIREMENT_SECTION=""
+  if [[ -n "$requirement_doc" ]]; then
+    REQUIREMENT_SECTION="
+---
+**Requirement:** [\`${requirement_doc}\`](${requirement_doc})"
+  fi
+
+  # Find template (overrides first, then default)
+  local template=""
+  if [[ -f "$AP_ROOT/templates/overrides/github-issue-body.md" ]]; then
+    template="$AP_ROOT/templates/overrides/github-issue-body.md"
+  elif [[ -f "$AP_ROOT/templates/github-issue-body.md" ]]; then
+    template="$AP_ROOT/templates/github-issue-body.md"
+  else
+    # Fallback: no template found, just return the description
+    echo "## Description"
+    echo ""
+    echo "$description"
+    echo "$PARENT_SECTION"
+    echo "$REQUIREMENT_SECTION"
+    return 0
+  fi
+
+  # Export variables and substitute
+  export DESCRIPTION="$description"
+  export PARENT_SECTION
+  export REQUIREMENT_SECTION
+  envsubst < "$template"
+}
+
 # --- Label management (idempotent) ---
 
-REQUIRED_LABELS="ap:scope status:active status:approved status:blocked status:complete status:planning status:executing status:awaiting_review status:reviewing status:iterate status:split"
+REQUIRED_LABELS="ap:scope status:approved status:blocked status:complete status:planning status:executing status:awaiting_review status:reviewing status:iterate status:split"
 
 # Priority labels (P0=critical, P4=low) — only created if priority_labels.enabled
 PRIORITY_LABELS=(
@@ -365,8 +416,12 @@ do_health_check() {
   return 0
 }
 
-do_start() {
+# do_create — Create/adopt a GH issue for a scope WITHOUT setting a status label.
+# Use this when you want to track a scope but haven't started work yet.
+# The issue gets only the ap:scope label; status labels come later via set-status.
+do_create() {
   local scope="$1"
+  local description="${2:-}"  # Optional description for the issue body
   validate_scope_name "$scope" || return 1
 
   # Handle local state (tracker, events, current_iteration.conf)
@@ -405,7 +460,7 @@ do_start() {
       fi
 
       events_log "$scope" "SCOPE_ADOPT" "issue=$tracked_issue"
-      generate_context_file "$scope" "$tracked_issue" "status:active"
+      generate_context_file "$scope" "$tracked_issue" ""
       echo "[gh-issues] Adopted existing issue #$tracked_issue for $scope"
       return 0
     else
@@ -425,11 +480,20 @@ do_start() {
     echo "[gh-issues] Existing issue found: #$issue_num for $scope"
   else
     # --- Create path: no existing issue found ---
+    # Look up requirement doc for the body
+    local req_path=""
+    req_path=$(find_requirement_doc "$scope" 2>/dev/null) || req_path=""
+
+    # Use provided description or default
+    local body_desc="${description:-Scope: ${scope}}"
+    local body
+    body=$(render_issue_body "$body_desc" "" "" "" "$req_path")
+
     local create_output
     if ! create_output=$(run_gh gh issue create --repo "$REPO" \
       --title "$scope" \
-      --body "AP scope: $scope" \
-      --label "ap:scope,status:active"); then
+      --body "$body" \
+      --label "ap:scope"); then
       return 1
     fi
 
@@ -459,7 +523,7 @@ do_start() {
       fi
     fi
 
-    generate_context_file "$scope" "$issue_num" "status:active"
+    generate_context_file "$scope" "$issue_num" ""
 
     # Auto-sync issue body with requirement doc content (if requirement doc exists)
     local req_path
@@ -470,6 +534,21 @@ do_start() {
         echo "[gh-issues] WARNING: Could not sync issue body: $sync_error" >&2
       fi
     fi
+  fi
+}
+
+# do_start — Create/adopt a GH issue AND set status:executing (work is beginning).
+# This is a convenience wrapper: create + set-status executing.
+do_start() {
+  local scope="$1"
+  local description="${2:-}"
+
+  # Create the issue (or adopt existing)
+  do_create "$scope" "$description" || return $?
+
+  # If GH is enabled, set status to executing
+  if [[ "$GH_ENABLED" == "true" ]]; then
+    do_set_status "$scope" "executing"
   fi
 }
 
@@ -545,8 +624,13 @@ do_set_status() {
   validate_scope_name "$scope" || return 1
 
   if [[ -z "$label" ]]; then
-    echo "ERROR: Label required (e.g., status:planning, status:executing)" >&2
+    echo "ERROR: Label required (e.g., planning, executing, or status:planning)" >&2
     return 1
+  fi
+
+  # Normalize: accept both "planning" and "status:planning"
+  if [[ "$label" != status:* ]]; then
+    label="status:$label"
   fi
 
   # Update local state (tracker + events)
@@ -576,7 +660,7 @@ do_set_status() {
   fi
 
   # Remove old status labels (best-effort — failure is OK, label might not exist)
-  for old_label in status:planning status:executing status:awaiting_review status:reviewing status:iterate status:active; do
+  for old_label in status:planning status:executing status:awaiting_review status:reviewing status:iterate; do
     if echo "$current_labels" | grep -q "^${old_label}$"; then
       run_gh gh issue edit "$issue_num" --repo "$REPO" --remove-label "$old_label" >/dev/null 2>&1 || true
     fi
@@ -1047,11 +1131,17 @@ do_task_create() {
     return 1
   fi
 
-  # Create child issue
+  # Create child issue with rendered body
+  local req_path=""
+  req_path=$(find_requirement_doc "$scope" 2>/dev/null) || req_path=""
+
+  local body
+  body=$(render_issue_body "$desc" "$parent_num" "$scope" "work unit of" "$req_path")
+
   local child_output child_num
   child_output=$(run_gh gh issue create --repo "$REPO" \
     --title "$wu_id: $desc" \
-    --body "Work unit for scope: $scope" \
+    --body "$body" \
     --label "ap:scope") || return 1
 
   child_num=$(echo "$child_output" | grep -o '[0-9]*$')
@@ -1376,14 +1466,32 @@ do_audit() {
 do_split() {
   local parent_scope="$1"
   shift
-  local child_scopes=("$@")
+  local child_args=("$@")
 
   validate_scope_name "$parent_scope" || return 1
 
-  if [[ ${#child_scopes[@]} -lt 2 ]]; then
+  if [[ ${#child_args[@]} -lt 2 ]]; then
     echo "ERROR: split requires at least 2 child scopes" >&2
     return 1
   fi
+
+  # Parse child arguments: "scope|description" or just "scope"
+  # If no pipe, description defaults to a reference to parent
+  local child_scopes=()
+  local child_descriptions=()
+
+  for arg in "${child_args[@]}"; do
+    local scope_part desc_part
+    if [[ "$arg" == *"|"* ]]; then
+      scope_part="${arg%%|*}"
+      desc_part="${arg#*|}"
+    else
+      scope_part="$arg"
+      desc_part=""  # Will be filled with default later
+    fi
+    child_scopes+=("$scope_part")
+    child_descriptions+=("$desc_part")
+  done
 
   for child in "${child_scopes[@]}"; do
     validate_scope_name "$child" || return 1
@@ -1447,10 +1555,25 @@ do_split() {
     parent_priority=$(echo "$parent_labels" | grep "^priority:P[0-4]$" | head -1)
   fi
 
+  # Look up parent's requirement doc for reference in child issues
+  local parent_req_path=""
+  parent_req_path=$(find_requirement_doc "$parent_scope" 2>/dev/null) || parent_req_path=""
+
   # Create child issues with reference to parent
   local created_children=()
-  for child in "${child_scopes[@]}"; do
-    local body="Split from #${parent_issue:-N/A} ($parent_scope)"
+  local i
+  for i in "${!child_scopes[@]}"; do
+    local child="${child_scopes[$i]}"
+    local desc="${child_descriptions[$i]}"
+
+    # Default description if not provided
+    if [[ -z "$desc" ]]; then
+      desc="Split from parent scope: ${parent_scope}"
+    fi
+
+    local body
+    body=$(render_issue_body "$desc" "${parent_issue:-}" "$parent_scope" "split from" "$parent_req_path")
+
     local child_output child_num
 
     if child_output=$(run_gh gh issue create --repo "$REPO" \
@@ -1509,7 +1632,7 @@ This issue is now closed. Track progress on the child issues above."
     # Remove all other status:* labels — split parent has no progression status (best effort)
     local parent_labels
     parent_labels=$(run_gh gh issue view "$parent_issue" --repo "$REPO" --json labels --jq '.labels[].name' 2>/dev/null) || parent_labels=""
-    for old_label in status:planning status:executing status:reviewing status:iterate status:active status:blocked; do
+    for old_label in status:planning status:executing status:reviewing status:iterate status:blocked; do
       if echo "$parent_labels" | grep -q "^${old_label}$"; then
         run_gh gh issue edit "$parent_issue" --repo "$REPO" --remove-label "$old_label" >/dev/null 2>&1 || true
       fi
@@ -1548,10 +1671,17 @@ case "$ACTION" in
   create-labels)
     do_create_labels
     ;;
+  create)
+    SCOPE="${2:-}"
+    DESC="${3:-}"
+    [[ -z "$SCOPE" ]] && { echo "Usage: github-issues-lifecycle.sh create <scope> [description]" >&2; exit 1; }
+    do_create "$SCOPE" "$DESC"
+    ;;
   start)
     SCOPE="${2:-}"
-    [[ -z "$SCOPE" ]] && { echo "Usage: github-issues-lifecycle.sh start <scope>" >&2; exit 1; }
-    do_start "$SCOPE"
+    DESC="${3:-}"
+    [[ -z "$SCOPE" ]] && { echo "Usage: github-issues-lifecycle.sh start <scope> [description]" >&2; exit 1; }
+    do_start "$SCOPE" "$DESC"
     ;;
   associate)
     SCOPE="${2:-}"
@@ -1562,7 +1692,7 @@ case "$ACTION" in
   set-status)
     SCOPE="${2:-}"
     LABEL="${3:-}"
-    [[ -z "$SCOPE" || -z "$LABEL" ]] && { echo "Usage: github-issues-lifecycle.sh set-status <scope> <label>" >&2; exit 1; }
+    [[ -z "$SCOPE" || -z "$LABEL" ]] && { echo "Usage: github-issues-lifecycle.sh set-status <scope> <status>" >&2; exit 1; }
     do_set_status "$SCOPE" "$LABEL"
     ;;
   retitle)
@@ -1648,9 +1778,9 @@ case "$ACTION" in
   split)
     PARENT_SCOPE="${2:-}"
     shift 2 2>/dev/null || shift $#
-    CHILD_SCOPES=("$@")
-    [[ -z "$PARENT_SCOPE" || ${#CHILD_SCOPES[@]} -lt 2 ]] && { echo "Usage: github-issues-lifecycle.sh split <parent_scope> <child1> <child2> [child3...]" >&2; exit 1; }
-    do_split "$PARENT_SCOPE" "${CHILD_SCOPES[@]}"
+    CHILD_ARGS=("$@")
+    [[ -z "$PARENT_SCOPE" || ${#CHILD_ARGS[@]} -lt 2 ]] && { echo "Usage: github-issues-lifecycle.sh split <parent_scope> \"child1|description\" \"child2|description\" [...]" >&2; exit 1; }
+    do_split "$PARENT_SCOPE" "${CHILD_ARGS[@]}"
     ;;
   *)
     echo "ERROR: Unknown action '$ACTION'" >&2

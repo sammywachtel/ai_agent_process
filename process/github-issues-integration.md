@@ -154,8 +154,11 @@ All GitHub Issues operations go through `github-issues-lifecycle.sh`. Agents and
 # Health check
 bash .agent_process/scripts/github-issues-lifecycle.sh health-check
 
-# Start/create/adopt scope issue
-bash .agent_process/scripts/github-issues-lifecycle.sh start <scope>
+# Create/adopt scope issue — applies ap:scope label only, no status label
+bash .agent_process/scripts/github-issues-lifecycle.sh create <scope> [description]
+
+# Start work — creates issue + sets status:executing (use when execution begins)
+bash .agent_process/scripts/github-issues-lifecycle.sh start <scope> [description]
 
 # Associate existing issue with scope
 bash .agent_process/scripts/github-issues-lifecycle.sh associate <scope> <issue_number_or_url>
@@ -176,7 +179,9 @@ bash .agent_process/scripts/github-issues-lifecycle.sh verify <scope>
 bash .agent_process/scripts/github-issues-lifecycle.sh comment <scope> <message>
 
 # Split scope into children (when scope-check fails)
-bash .agent_process/scripts/github-issues-lifecycle.sh split <parent_scope> <child1> <child2> [child3...]
+# Format: "scope|description" — description explains what this child handles
+bash .agent_process/scripts/github-issues-lifecycle.sh split <parent_scope> \
+  "child1|description of child1 work" "child2|description of child2 work" [...]
 
 # Create work unit sub-issue
 bash .agent_process/scripts/github-issues-lifecycle.sh task-create <scope> <wu_id> <description>

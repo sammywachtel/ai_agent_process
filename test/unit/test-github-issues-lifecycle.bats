@@ -14,10 +14,14 @@ setup() {
   # Project structure the script expects
   mkdir -p "$TEST_DIR/.agent_process/work"
   mkdir -p "$TEST_DIR/scripts/lib"
+  mkdir -p "$TEST_DIR/templates/overrides"
 
   # Copy the script under test and its dependency
   cp "$ORIG_DIR/$SCRIPT" "$TEST_DIR/scripts/github-issues-lifecycle.sh"
   cp "$ORIG_DIR/scripts/lib/tracker-utils.sh" "$TEST_DIR/scripts/lib/tracker-utils.sh"
+
+  # Copy the issue body template
+  cp "$ORIG_DIR/templates/github-issue-body.md" "$TEST_DIR/templates/github-issue-body.md"
 
   # Point tracker-utils at our temp dir
   export TRACKER_FILE="$TEST_DIR/.agent_process/work/scope-tracker.jsonl"
@@ -1048,6 +1052,59 @@ EOF
 }
 
 # ============================================================
+#  Create command tests (no status label)
+# ============================================================
+
+@test "create: creates issue with ap:scope only, no status label" {
+  export PATH="$TEST_DIR/bin:$PATH"
+  run bash scripts/github-issues-lifecycle.sh create my-scope
+  [ "$status" -eq 0 ]
+
+  # gh issue create was called
+  _gh_was_called_with "issue create"
+
+  # Tracker should have gh_issue number
+  grep -q '"gh_issue"' "$TRACKER_FILE"
+  grep -q '"my-scope"' "$TRACKER_FILE"
+
+  # issue create should use --label ap:scope (not ap:scope,status:active)
+  grep "issue create" "$GH_CALLS_LOG" | grep -q "ap:scope"
+  # Should NOT have status:executing in the create call (that's for start, not create)
+  ! grep "issue create" "$GH_CALLS_LOG" | grep -q "status:"
+}
+
+@test "create: GH disabled → writes tracker only, no gh calls" {
+  cat > "$TEST_DIR/.agent_process/quality-config.json" << 'EOF'
+{
+  "github_issues": { "enabled": false }
+}
+EOF
+  export PATH="$TEST_DIR/bin:$PATH"
+  run bash scripts/github-issues-lifecycle.sh create my-scope
+  [ "$status" -eq 0 ]
+
+  # Local tracker should be written
+  [ -f "$TRACKER_FILE" ]
+  grep -q '"scope":"my-scope"' "$TRACKER_FILE"
+
+  # No gh calls (file shouldn't even exist)
+  [ ! -f "$GH_CALLS_LOG" ] || ! grep -q "issue" "$GH_CALLS_LOG"
+}
+
+@test "start: calls create then sets status:executing" {
+  export PATH="$TEST_DIR/bin:$PATH"
+  run bash scripts/github-issues-lifecycle.sh start my-scope
+  [ "$status" -eq 0 ]
+
+  # issue create was called (from do_create)
+  _gh_was_called_with "issue create"
+
+  # set-status to executing was called (after create)
+  # This manifests as gh issue edit with --add-label status:executing
+  _gh_was_called_with "edit" "status:executing"
+}
+
+# ============================================================
 #  Context file generation tests
 # ============================================================
 
@@ -1113,4 +1170,195 @@ EOF
 
   local ctx_file="$TEST_DIR/.agent_process/work/my-scope/.run/gh-issue-context.md"
   [ ! -f "$ctx_file" ]
+}
+
+# ============================================================
+#  split tests
+# ============================================================
+
+@test "split: creates child issues with descriptions" {
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  # Start parent scope
+  run bash scripts/github-issues-lifecycle.sh start parent-scope
+  [ "$status" -eq 0 ]
+
+  # Split with descriptions (pipe-separated)
+  run bash scripts/github-issues-lifecycle.sh split parent-scope \
+    "child-one|Handles the first part of the work" \
+    "child-two|Handles the second part of the work"
+  [ "$status" -eq 0 ]
+
+  # Should have called gh issue create for each child
+  local create_count
+  create_count=$(grep -c "issue create" "$GH_CALLS_LOG" || echo "0")
+  [ "$create_count" -ge 3 ]  # parent + 2 children
+
+  # Tracker should have split_into for parent
+  grep -q '"split_into"' "$TRACKER_FILE"
+  grep -q '"child-one"' "$TRACKER_FILE"
+  grep -q '"child-two"' "$TRACKER_FILE"
+
+  # Events log should record split
+  local events_file="$EVENTS_DIR/parent-scope/scope-events.log"
+  grep -q "SCOPE_SPLIT" "$events_file"
+}
+
+@test "split: backward compatible without descriptions" {
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  run bash scripts/github-issues-lifecycle.sh start parent-scope
+  [ "$status" -eq 0 ]
+
+  # Split without descriptions (old format)
+  run bash scripts/github-issues-lifecycle.sh split parent-scope child-a child-b
+  [ "$status" -eq 0 ]
+
+  # Should still work
+  grep -q '"split_into"' "$TRACKER_FILE"
+  grep -q '"child-a"' "$TRACKER_FILE"
+  grep -q '"child-b"' "$TRACKER_FILE"
+}
+
+@test "split: requires at least 2 children" {
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  run bash scripts/github-issues-lifecycle.sh start my-scope
+
+  run bash scripts/github-issues-lifecycle.sh split my-scope "only-child|Not enough"
+  [ "$status" -ne 0 ]
+  # Error comes from the case statement usage check
+  [[ "$output" == *"Usage:"* ]] || [[ "$output" == *"at least 2"* ]]
+}
+
+@test "split: validates child scope names" {
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  run bash scripts/github-issues-lifecycle.sh start my-scope
+
+  # Invalid scope name (contains special chars)
+  run bash scripts/github-issues-lifecycle.sh split my-scope \
+    "valid-child|Good" \
+    "invalid;child|Bad scope name"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Invalid scope"* ]]
+}
+
+@test "split: GH disabled → local state only" {
+  cat > "$TEST_DIR/.agent_process/quality-config.json" << 'EOF'
+{"github_issues": {"enabled": false}}
+EOF
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  run bash scripts/github-issues-lifecycle.sh start parent-scope
+  > "$GH_CALLS_LOG"
+
+  run bash scripts/github-issues-lifecycle.sh split parent-scope \
+    "child-x|First child" \
+    "child-y|Second child"
+  [ "$status" -eq 0 ]
+
+  # No gh calls for issue creation
+  [ "$(_gh_call_count)" -eq 0 ]
+
+  # But tracker should still be updated
+  grep -q '"split_into"' "$TRACKER_FILE"
+}
+
+# ============================================================
+#  start with description tests
+# ============================================================
+
+@test "start: accepts optional description" {
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  run bash scripts/github-issues-lifecycle.sh start my-scope "This scope implements feature X"
+  [ "$status" -eq 0 ]
+
+  # gh issue create should have been called
+  _gh_was_called_with "issue create"
+}
+
+@test "start: works without description (backward compatible)" {
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  run bash scripts/github-issues-lifecycle.sh start my-scope
+  [ "$status" -eq 0 ]
+
+  _gh_was_called_with "issue create"
+}
+
+# ============================================================
+#  template override tests
+# ============================================================
+
+@test "template: uses override when present" {
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  # Create custom override template
+  cat > "$TEST_DIR/templates/overrides/github-issue-body.md" << 'EOF'
+# Custom Template
+
+${DESCRIPTION}
+
+*This is a custom template.*
+${PARENT_SECTION}
+${REQUIREMENT_SECTION}
+EOF
+
+  run bash scripts/github-issues-lifecycle.sh start my-scope "Testing override"
+  [ "$status" -eq 0 ]
+
+  # The body should use the custom template (we can't easily verify the body content
+  # in unit tests, but we verify the create succeeded)
+  _gh_was_called_with "issue create"
+}
+
+@test "task-create: uses template for issue body" {
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  run bash scripts/github-issues-lifecycle.sh start my-scope
+  [ "$status" -eq 0 ]
+
+  run bash scripts/github-issues-lifecycle.sh task-create my-scope WU-01 "Implement the feature"
+  [ "$status" -eq 0 ]
+
+  # Should have called gh issue create
+  _gh_was_called_with "issue create"
+
+  # Events log should record WU_CREATE
+  local events_file="$EVENTS_DIR/my-scope/scope-events.log"
+  grep -q "WU_CREATE" "$events_file"
+}
+
+# ============================================================
+#  set-status normalization tests
+# ============================================================
+
+@test "set-status: accepts bare status name (planning)" {
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  run bash scripts/github-issues-lifecycle.sh start my-scope
+  [ "$status" -eq 0 ]
+
+  # Use bare name without "status:" prefix
+  run bash scripts/github-issues-lifecycle.sh set-status my-scope planning
+  [ "$status" -eq 0 ]
+
+  # Should have called gh issue edit with the full label
+  _gh_was_called_with "status:planning"
+}
+
+@test "set-status: accepts full label name (status:executing)" {
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  run bash scripts/github-issues-lifecycle.sh start my-scope
+  [ "$status" -eq 0 ]
+
+  # Use full name with "status:" prefix
+  run bash scripts/github-issues-lifecycle.sh set-status my-scope status:executing
+  [ "$status" -eq 0 ]
+
+  # Should have called gh issue edit with the label
+  _gh_was_called_with "status:executing"
 }

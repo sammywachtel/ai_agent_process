@@ -264,9 +264,15 @@ children: [{id}-01, {id}-02, {id}-03]
 ### GitHub Issues (if enabled)
 
 ```bash
+# Format: "scope|description" for each child
 bash .agent_process/scripts/github-issues-lifecycle.sh split \
-  {parent_scope} {child-01} {child-02} {child-03}
+  {parent_scope} \
+  "{child-01}|Handles the first part: brief description of what this child covers" \
+  "{child-02}|Handles the second part: brief description of what this child covers" \
+  "{child-03}|Handles the third part: brief description of what this child covers"
 ```
+
+The description should explain what work this child scope handles and how it relates to the parent scope.
 
 ---
 

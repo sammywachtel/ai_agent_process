@@ -220,9 +220,40 @@ else
   log_fail "create-labels failed: $output"
 fi
 
-# --- Test 3: Start (Create New Issue) ---
+# --- Test 3: Create (Create Issue Without Status) ---
 
-log_test "start (create new scope issue)"
+log_test "create (create scope issue without status label)"
+
+TEST_SCOPE_CREATE="test_create_$(date +%s)"
+output=$(bash scripts/github-issues-lifecycle.sh create "$TEST_SCOPE_CREATE" 2>&1)
+
+if echo "$output" | grep -q "Created.*#"; then
+  issue_num_create=$(echo "$output" | grep -o '#[0-9]*' | head -1 | tr -d '#')
+  CREATED_ISSUES+=("$issue_num_create")
+  log_pass "created issue #$issue_num_create for scope $TEST_SCOPE_CREATE"
+
+  # Verify ap:scope label present
+  if has_label "$issue_num_create" "ap:scope"; then
+    log_pass "issue has ap:scope label"
+  else
+    log_fail "issue missing ap:scope label"
+  fi
+
+  # Verify NO status label (create should not set any status)
+  if ! has_label "$issue_num_create" "status:executing" && \
+     ! has_label "$issue_num_create" "status:planning" && \
+     ! has_label "$issue_num_create" "status:reviewing"; then
+    log_pass "issue has no status label (correct for create)"
+  else
+    log_fail "issue unexpectedly has a status label"
+  fi
+else
+  log_fail "create failed: $output"
+fi
+
+# --- Test 4: Start (Create + Set Executing) ---
+
+log_test "start (create issue and set status:executing)"
 
 TEST_SCOPE_1="test_scope_$(date +%s)"
 output=$(bash scripts/github-issues-lifecycle.sh start "$TEST_SCOPE_1" 2>&1)
@@ -239,10 +270,10 @@ if echo "$output" | grep -q "Created.*#"; then
     log_fail "issue missing ap:scope label"
   fi
 
-  if has_label "$issue_num" "status:active"; then
-    log_pass "issue has status:active label"
+  if has_label "$issue_num" "status:executing"; then
+    log_pass "issue has status:executing label (start sets executing)"
   else
-    log_fail "issue missing status:active label"
+    log_fail "issue missing status:executing label"
   fi
 else
   log_fail "start failed: $output"
@@ -336,8 +367,10 @@ if [[ -n "$parent_issue" ]]; then
   CREATED_ISSUES+=("$parent_issue")
   log_info "created parent issue #$parent_issue"
 
-  # Now split
-  output=$(bash scripts/github-issues-lifecycle.sh split "$TEST_PARENT" "$TEST_CHILD_1" "$TEST_CHILD_2" 2>&1)
+  # Now split (with descriptions)
+  output=$(bash scripts/github-issues-lifecycle.sh split "$TEST_PARENT" \
+    "${TEST_CHILD_1}|First child: handles initial setup and configuration" \
+    "${TEST_CHILD_2}|Second child: handles implementation and testing" 2>&1)
 
   if echo "$output" | grep -q "Split complete"; then
     log_pass "split command succeeded"
@@ -549,10 +582,12 @@ if [[ -n "$parent_prio_issue" ]]; then
   # Set parent to P1
   bash scripts/github-issues-lifecycle.sh set-priority "$TEST_PARENT_PRIO" "priority:P1" >/dev/null 2>&1
 
-  # Split
+  # Split (with descriptions for priority inheritance test)
   CHILD_PRIO_1="${TEST_PARENT_PRIO}-01"
   CHILD_PRIO_2="${TEST_PARENT_PRIO}-02"
-  output=$(bash scripts/github-issues-lifecycle.sh split "$TEST_PARENT_PRIO" "$CHILD_PRIO_1" "$CHILD_PRIO_2" 2>&1)
+  output=$(bash scripts/github-issues-lifecycle.sh split "$TEST_PARENT_PRIO" \
+    "${CHILD_PRIO_1}|Priority child 1: tests priority inheritance" \
+    "${CHILD_PRIO_2}|Priority child 2: tests priority inheritance" 2>&1)
 
   if echo "$output" | grep -q "Split complete"; then
     # Get child issue numbers
