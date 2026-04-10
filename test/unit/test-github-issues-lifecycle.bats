@@ -1362,3 +1362,56 @@ EOF
   # Should have called gh issue edit with the label
   _gh_was_called_with "status:executing"
 }
+
+# ============================================================
+#  resolve-input tests
+# ============================================================
+
+@test "resolve-input: returns iteration from tracker" {
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  # Create a scope with a known iteration
+  run bash scripts/github-issues-lifecycle.sh create my-scope
+  [ "$status" -eq 0 ]
+
+  # Set iteration to something other than default
+  run bash scripts/github-issues-lifecycle.sh set-iteration my-scope iteration_03
+  [ "$status" -eq 0 ]
+
+  # resolve-input should return that iteration
+  run bash scripts/github-issues-lifecycle.sh resolve-input my-scope
+  [ "$status" -eq 0 ]
+
+  # Output should be JSON with iteration field
+  echo "$output" | grep -q '"iteration"'
+  echo "$output" | grep -q 'iteration_03'
+}
+
+@test "resolve-input: returns null iteration for unknown scope" {
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  # Don't create the scope - just resolve
+  run bash scripts/github-issues-lifecycle.sh resolve-input unknown-scope
+  [ "$status" -eq 0 ]
+
+  # Should have scope but null iteration
+  echo "$output" | grep -q '"scope": "unknown-scope"'
+  echo "$output" | grep -q '"iteration": null'
+}
+
+@test "resolve-input: includes all expected fields" {
+  export PATH="$TEST_DIR/bin:$PATH"
+
+  run bash scripts/github-issues-lifecycle.sh create my-scope
+  [ "$status" -eq 0 ]
+
+  run bash scripts/github-issues-lifecycle.sh resolve-input my-scope
+  [ "$status" -eq 0 ]
+
+  # Verify all expected fields present
+  echo "$output" | grep -q '"scope"'
+  echo "$output" | grep -q '"requirement_path"'
+  echo "$output" | grep -q '"gh_issue"'
+  echo "$output" | grep -q '"input_type"'
+  echo "$output" | grep -q '"iteration"'
+}
