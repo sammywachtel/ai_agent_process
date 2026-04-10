@@ -72,9 +72,12 @@ bash .agent_process/scripts/github-issues-lifecycle.sh resolve-input 123
   "scope": "my_feature_scope",
   "requirement_path": ".agent_process/requirements_docs/category/my_feature_scope.md",
   "gh_issue": "123",
-  "input_type": "issue"
+  "input_type": "issue",
+  "iteration": "iteration_02"
 }
 ```
+
+The `iteration` field contains the current iteration from the tracker (e.g., `iteration_01`, `iteration_02`). This enables `review-iteration` to automatically review the latest iteration without requiring explicit specification.
 
 This enables `plan-scope` and `review-iteration` to accept any input format. The coordinator resolves it to structured values before proceeding.
 

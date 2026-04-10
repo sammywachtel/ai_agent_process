@@ -40,14 +40,17 @@ This returns JSON:
   "scope": "my_feature_scope",
   "requirement_path": ".agent_process/requirements_docs/category/my_feature_scope.md",
   "gh_issue": "123",
-  "input_type": "issue"
+  "input_type": "issue",
+  "iteration": "iteration_02"
 }
 ```
 
 Use these values:
 - **Scope:** Use `scope` from the JSON
-- **Iteration:** provided separately (e.g., `iteration_01`, `iteration_01_a`)
+- **Iteration:** Use `iteration` from the JSON (the current/latest iteration from tracker)
 - **Run directory:** `.agent_process/work/{scope}/.run/review/`
+
+**Note:** If `iteration` is null (scope not in tracker), check the work folder for iteration directories and use the latest one.
 
 ## Model Tiers
 

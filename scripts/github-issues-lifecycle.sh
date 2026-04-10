@@ -825,15 +825,22 @@ PYEOF
     req_path=$(find_requirement_doc "$scope" 2>/dev/null) || req_path=""
   fi
 
+  # Get current iteration from tracker (if scope exists)
+  local iteration=""
+  if [[ -n "$scope" ]]; then
+    iteration=$(tracker_get_field "$scope" "iteration" 2>/dev/null) || iteration=""
+  fi
+
   # Output JSON
-  python3 - "$scope" "$req_path" "$gh_issue" "$input_type" <<'PYEOF'
+  python3 - "$scope" "$req_path" "$gh_issue" "$input_type" "$iteration" <<'PYEOF'
 import json
 import sys
 print(json.dumps({
     "scope": sys.argv[1] or None,
     "requirement_path": sys.argv[2] or None,
     "gh_issue": sys.argv[3] or None,
-    "input_type": sys.argv[4]
+    "input_type": sys.argv[4],
+    "iteration": sys.argv[5] or None
 }, indent=2))
 PYEOF
 }

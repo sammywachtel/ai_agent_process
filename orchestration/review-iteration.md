@@ -62,13 +62,14 @@ This returns JSON with:
 - `requirement_path`: Path to requirement doc
 - `gh_issue`: Linked GitHub issue number (may be null)
 - `input_type`: What you provided (issue or scope)
+- `iteration`: Current iteration from tracker (e.g., `iteration_01`, `iteration_02`)
 
-Use the `scope` from this output for all subsequent operations.
+Use the `scope` and `iteration` from this output for all subsequent operations.
 
 ## Iteration to Review
 
-**Scope:** {scope_name} (from resolve-input)
-**Iteration:** iteration_01 (or as specified)
+**Scope:** {scope} (from resolve-input)
+**Iteration:** {iteration} (from resolve-input — defaults to latest tracked iteration)
 **Notes:** See QA results in results.md
 
 ---
