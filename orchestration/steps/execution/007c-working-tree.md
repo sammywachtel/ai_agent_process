@@ -27,10 +27,19 @@ Verify the working tree is in a good state before making changes.
 
 ```bash
 # Quick check — any uncommitted changes at all?
-git status --porcelain 2>/dev/null | head -10
+# EXCLUDE .agent_process/ — these are project management files, not application code
+git status --porcelain 2>/dev/null | grep -v '^\s*[MADRCU?!]\{1,2\}\s*.agent_process/' | head -10
 ```
 
-If there are uncommitted changes, check if they overlap with files in scope:
+**IMPORTANT:** Always exclude `.agent_process/` from uncommitted changes analysis. These files contain:
+- Scope tracking state (`scope-tracker.jsonl`, `current_iteration.conf`)
+- Roadmap and requirement updates
+- Review artifacts and iteration results
+- Validation scripts
+
+These are expected to have changes during normal workflow — they are project management artifacts, not application code.
+
+If there are uncommitted changes (after excluding `.agent_process/`), check if they overlap with files in scope:
 ```bash
 # Get files in scope from iteration plan
 grep -A 50 "## Files in Scope" .agent_process/work/{scope}/iteration_plan.md 2>/dev/null | grep "^- \`" | sed 's/^- `//;s/`.*$//'
@@ -50,14 +59,15 @@ Write to `.run/execution/007b-working-tree.md`:
 # Working Tree Check
 
 CONFLICT: true/false
-UNCOMMITTED_CHANGES: {count}
+UNCOMMITTED_CHANGES: {count} (excluding .agent_process/)
 IS_SUB_ITERATION: true/false
 
 ## Details
-- {If no changes: "Clean working tree"}
+- {If no changes outside .agent_process/: "Clean working tree (ignoring .agent_process/ project management files)"}
 - {If sub-iteration with changes in scope: "Uncommitted changes in scope files — expected for sub-iteration, continuing"}
 - {If changes only in unrelated files: "Uncommitted changes in {N} files outside scope — may indicate mixed work"}
 - {If primary iteration with unexpected changes: "Uncommitted changes in scope files on primary iteration — verify this is intended"}
+- {If only .agent_process/ changes: "Only .agent_process/ changes detected — these are project management artifacts, not application code. Continuing."}
 ```
 
 ## Key Distinction
