@@ -23,7 +23,12 @@
 
 **CRITICAL:** These criteria are FROZEN at iteration start.
 New issues discovered during iteration → backlog for future scopes.
-No mid-iteration scope creep allowed.
+
+**Scope boundaries are guidance, not walls.** If meeting the acceptance criteria
+correctly requires touching files outside this list, the executor may do so with:
+- Documentation of what was added and why
+- Validation script updated to cover new files
+- Justification in results.md for reviewer assessment
 
 ## Known Patterns & Constraints
 
@@ -75,7 +80,11 @@ N/A — scope complexity is not `complex` (or design review gate disabled)
 
 After iteration_01_c → Escalate to human for decision (ship/pivot/abort)
 
-## Files in Scope
+## Files in Scope (Expected)
+
+These are the files expected to change. The executor may touch additional files
+if necessary for correctness — see "Scope boundaries" note above.
+
 - `path/to/file1.tsx`
 - `path/to/file2.ts`
 - `path/to/test1.test.tsx`

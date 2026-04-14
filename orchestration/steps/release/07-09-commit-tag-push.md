@@ -13,9 +13,23 @@ Execute git operations in strict sequence. These CANNOT be parallelized.
 
 ## Step 7: Commit
 
+**Check local_environment_instructions for multi-repo config.** If polyrepo, handle each repo separately.
+
+### Single-repo (default):
 ```bash
 git add .
 git status --short  # sanity check — verify only expected files
+```
+
+### Multi-repo (if local_environment_instructions specifies repos):
+
+For EACH repo that has changes (from `01-context.md`):
+```bash
+cd {repo}
+git add .
+git status --short
+# Commit with same message format (see below)
+cd ..
 ```
 
 Review staged files. Unstage anything unexpected (`git reset HEAD <file>`).
@@ -53,6 +67,7 @@ git tag -a "v{version}" -m "Release v{version}..."
 
 ## Step 9: Push and Create PR
 
+### Single-repo:
 **Push branch + tags:**
 ```bash
 # pr mode: branch + build tag
@@ -65,10 +80,23 @@ git push -u origin $(git branch --show-current) "build/{BUILD_NUM}" "v{version}-
 git push -u origin $(git branch --show-current) "build/{BUILD_NUM}" "v{version}"
 ```
 
+### Multi-repo:
+For EACH repo that had commits:
+```bash
+cd {repo}
+git push -u origin $(git branch --show-current)
+# Create PR for this repo
+gh pr create --title "{type}({repo}): {description}" --body "..."
+cd ..
+```
+
+Build/release tags only go on the root repo (or primary repo per local_environment_instructions).
+
 **Create PR with `gh pr create`:**
 - Title follows conventional commits
 - Body includes changelog entry and scope/build metadata
 - Label `beta` or `release` as appropriate
+- **Multi-repo:** Create separate PR for each repo with changes, link them in the body
 
 ## Central Repo Sync (optional)
 
@@ -96,6 +124,7 @@ cd -
 
 Write to `.run/release/07-09-git-ops.md`:
 
+### Single-repo:
 ```markdown
 # Git Operations
 
@@ -104,5 +133,27 @@ Write to `.run/release/07-09-git-ops.md`:
 **Release tag:** {tag or "none"}
 **Pushed to:** origin/{branch}
 **PR:** {URL}
+**Central sync:** {committed/skipped}
+```
+
+### Multi-repo:
+```markdown
+# Git Operations
+
+**Build tag:** build/{N} (on root)
+**Release tag:** {tag or "none"}
+
+## Repos
+
+### {repo-name}
+- **Commit:** {sha}
+- **Branch:** {branch}
+- **PR:** {URL}
+
+### {another-repo}
+- **Commit:** {sha}
+- **Branch:** {branch}
+- **PR:** {URL}
+
 **Central sync:** {committed/skipped}
 ```

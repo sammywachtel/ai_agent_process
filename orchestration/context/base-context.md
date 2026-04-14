@@ -27,12 +27,15 @@
 - Reviews results with 4-choice framework
 - Enforces iteration budget (cannot create iteration_01_d)
 - Escalates blockers immediately (no silent failures)
-- **Does NOT run `github-issues-lifecycle.sh` directly.** Lifecycle tracking is managed by the execution phase (`ap_exec` Step 0.5 via `github-issues-lifecycle.sh`). The orchestrator coordinates planning and review — lifecycle state changes happen in execution.
+- **Creates GitHub issues at first opportunity:** When creating requirements (`ap_requirements`), brainstorming that produces requirements (`ap_brainstorm`), or planning (`plan-scope`), run `github-issues-lifecycle.sh start {scope}` to create the tracking issue. Don't defer to execution.
 
-### Implementation Session
+### Implementation Session (The Problem-Solver)
+- **Has agency:** The executor owns the implementation. Scope files are guidance, not walls.
 - Implements changes via `/ap_exec <scope> <iteration>`
+- May touch files outside plan if necessary for correctness (with justification and validation updates)
 - Records validation artifacts using scoped validation
 - Respects time-boxing (2-4 hours per iteration)
+- **Reports to reviewer:** Documents what was done and why; the review decides if it was justified
 
 ---
 
@@ -42,6 +45,7 @@
 - Human defines scope name, objectives, acceptance criteria
 - You create `iteration_plan.md` with LOCKED criteria
 - Set up scoped validation script for this scope
+- **Create GitHub issue:** Run `github-issues-lifecycle.sh start {scope}` to create tracking issue
 - **Critical:** Criteria CANNOT change once iteration starts
 
 ### 2. Execute (Implementation Session)

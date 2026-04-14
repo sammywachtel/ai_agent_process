@@ -485,6 +485,13 @@ done
 echo ""
 echo -e "${BLUE}▸${NC} Installing orchestration files..."
 
+# Clean up old orchestration files to prevent stale files from accumulating
+# (new consolidated files replace multiple old files with different names)
+if [[ -d "$AGENT_PROCESS_DIR/orchestration" ]]; then
+  rm -rf "$AGENT_PROCESS_DIR/orchestration"
+  mkdir -p "$AGENT_PROCESS_DIR/orchestration"
+fi
+
 cp -r "$SOURCE_DIR"/orchestration/* "$AGENT_PROCESS_DIR/orchestration/"
 echo -e "${GREEN}  ✓${NC} Installed $(find "$SOURCE_DIR/orchestration" -type f | wc -l | tr -d ' ') orchestration files"
 

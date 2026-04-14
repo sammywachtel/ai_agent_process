@@ -37,47 +37,24 @@ Key settings: `pre_flight.enabled`, `adversarial_review.enabled`, `work_unit_dec
 
 ## Your Role
 
-You are the implementation agent executing a planned iteration. Follow the two-part execution workflow: preflight checks, then implementation.
+You are the implementation agent executing a planned iteration.
 
 ---
 
-## Part 1: Preflight
+## Execute
 
-Read and follow the preflight coordinator:
+Read and follow the execution coordinator:
 
 ```
-.agent_process/orchestration/coordinators/execute-preflight.md
+.agent_process/orchestration/coordinators/execute.md
 ```
 
 This runs:
-- **Step 0.4:** GitHub Issues health check (conditional)
-- **Step 0.5:** Scope tracking init (direct bash call)
-- **Step 0.7:** Pre-flight checks — session recovery, working tree, branch, git context (4 parallel sub-agents)
-- **Step 1:** Load context from iteration plan (capable sub-agent)
-- **Step 1.25:** Assess work unit decomposition (capable sub-agent)
-- **Step 1.5:** Select specialized agent (cheap sub-agent)
-
-All outputs go to `.agent_process/work/{scope}/.run/`. If any gate check fails, the coordinator will stop and tell you what to do.
-
----
-
-## Part 2: Implementation
-
-After preflight completes, read and follow the main execution prompt:
-
-```
-.agent_process/orchestration/coordinators/execute-main.md
-```
-
-This handles:
-- **Step 2:** Implement changes (Agent tool with selected specialist)
-- **Step 3:** Validate (hook fires automatically)
-- **Step 4:** Run full validation commands
-- **Step 4.5:** Adversarial review (fresh agent, if enabled)
-- **Step 5:** Document results via `/ap_iteration_results`
-- **Step 6:** Report completion to user
-
-The main prompt reads all preflight outputs from `.run/` — it does not repeat any preflight logic.
+1. **Preflight** — branch check, working state, git context
+2. **Prepare** — load context, assess decomposition, select agent
+3. **Implement** — execute with selected agent (semantic comprehension for sub-iterations)
+4. **Validate** — hook + full validation
+5. **Document** — results via `/ap_iteration_results`
 
 ---
 
@@ -86,20 +63,16 @@ The main prompt reads all preflight outputs from `.run/` — it does not repeat 
 ```
 ap_exec {scope} {iteration}
   │
-  ├── Preflight (sub-agents)
-  │   ├── GH Issues health check (bash)
-  │   ├── Scope tracking init (bash)
-  │   ├── 4 parallel checks (cheap)
-  │   ├── Load context (capable)
-  │   ├── Decomposition assessment (capable)
-  │   └── Agent selection (cheap)
+  ├── Preflight (cheap agent)
+  │   └── Branch, working state, git context
   │
-  └── Implementation (main session)
-      ├── Implement with selected agent(s)
-      ├── Validate (hook + full commands)
-      ├── Adversarial review (fresh agent)
-      ├── Document results
-      └── Report completion
+  ├── Prepare (capable agent)
+  │   └── Context, decomposition, agent selection
+  │
+  └── Implement (selected agent)
+      ├── Execute changes
+      ├── Validate
+      └── Document results
 ```
 
 ---

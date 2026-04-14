@@ -537,8 +537,9 @@ do_create() {
   fi
 }
 
-# do_start — Create/adopt a GH issue AND set status:executing (work is beginning).
-# This is a convenience wrapper: create + set-status executing.
+# do_start — Create/adopt a GH issue AND set status:planning (scope is being planned).
+# This is a convenience wrapper: create + set-status planning.
+# Execution preflight will transition to status:executing when work begins.
 do_start() {
   local scope="$1"
   local description="${2:-}"
@@ -546,9 +547,9 @@ do_start() {
   # Create the issue (or adopt existing)
   do_create "$scope" "$description" || return $?
 
-  # If GH is enabled, set status to executing
+  # If GH is enabled, set status to planning (execution will set executing)
   if [[ "$GH_ENABLED" == "true" ]]; then
-    do_set_status "$scope" "executing"
+    do_set_status "$scope" "planning"
   fi
 }
 
@@ -813,10 +814,19 @@ PYEOF
       gh_issue=$(tracker_get_field "$scope" "gh_issue" 2>/dev/null) || gh_issue=""
     fi
 
-  # --- Try to parse as scope name ---
+  # --- Try to parse as scope name (possibly with iteration) ---
   else
     input_type="scope"
-    scope="$input"
+
+    # Check if input contains an iteration specifier (e.g., "scope_name iteration_01_c")
+    # Use grep/sed instead of BASH_REMATCH for better compatibility
+    local explicit_iteration=""
+    if echo "$input" | grep -qE ' iteration_[0-9]+[a-z_]*$'; then
+      explicit_iteration=$(echo "$input" | grep -oE 'iteration_[0-9]+[a-z_]*$')
+      scope=$(echo "$input" | sed "s/ ${explicit_iteration}\$//")
+    else
+      scope="$input"
+    fi
 
     # Check tracker for linked issue
     gh_issue=$(tracker_get_field "$scope" "gh_issue" 2>/dev/null) || gh_issue=""
@@ -825,9 +835,11 @@ PYEOF
     req_path=$(find_requirement_doc "$scope" 2>/dev/null) || req_path=""
   fi
 
-  # Get current iteration from tracker (if scope exists)
+  # Get iteration: explicit from input takes precedence, otherwise check tracker
   local iteration=""
-  if [[ -n "$scope" ]]; then
+  if [[ -n "$explicit_iteration" ]]; then
+    iteration="$explicit_iteration"
+  elif [[ -n "$scope" ]]; then
     iteration=$(tracker_get_field "$scope" "iteration" 2>/dev/null) || iteration=""
   fi
 

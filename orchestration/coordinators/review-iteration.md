@@ -1,177 +1,144 @@
-# Review Iteration Coordinator
+# Review Iteration Coordinator (Lean)
 
-You are the orchestrator reviewing a completed iteration. Execute each step by spawning focused sub-agents. The decision step (06) is the highest-stakes step in the entire AP workflow — use the best available model.
+Review a completed iteration in 3 steps instead of 10.
 
 ## Prohibitions
 
-- **Do NOT commit** during review — artifacts are created but not committed
-- **Do NOT push** to remote
-- **Do NOT modify application code** — only create review artifacts in `.agent_process/`
-- The user decides when to commit review artifacts
+- Do NOT commit, push, or modify application code during review
+- Review artifacts go to `.run/review/` only
 
-## GitHub Issues: Verify and Transition
+## Model Tiers
 
-**GitHub Issues:** Follow `process/github-issues-handling.md` for all issue operations.
+| Tier | Use For |
+|------|---------|
+| **cheap** | File reads, gate counting, validation checks |
+| **capable** | Code verification, doc verification, criteria evaluation |
+| **synthesis** | The 4-choice decision — HIGH STAKES, use best model |
 
-Issue verification happens in Step 1.5. Post-decision label transitions and issue close happen in Steps 07-10. Review sub-agents do NOT call lifecycle commands directly.
+## Local Environment Instructions
 
-## Scope Reference (Flexible Input)
+Read `.agent_process/process/local_environment_instructions.md` before starting. Pass relevant content to sub-agents if any section is not `<none>`.
 
-**Reference:** `{{SCOPE_NAME or GITHUB_ISSUE}}`
+---
 
-The user specifies which scope to review using any of these formats:
-
-- **Scope name:** `my_feature_scope` — the work folder name under `.agent_process/work/`
-- **GitHub issue number:** `#123`, `123`, or full URL — issue title should match the scope name
-
-The scope must have completed iteration work to review.
-
-**Step 0.0: Resolve Input**
-
-Run this command FIRST to resolve the input to structured scope info:
+## Step 0: Resolve Input
 
 ```bash
 bash .agent_process/scripts/github-issues-lifecycle.sh resolve-input "{{input}}"
 ```
 
-This returns JSON:
-```json
-{
-  "scope": "my_feature_scope",
-  "requirement_path": ".agent_process/requirements_docs/category/my_feature_scope.md",
-  "gh_issue": "123",
-  "input_type": "issue",
-  "iteration": "iteration_02"
-}
-```
-
-Use these values:
-- **Scope:** Use `scope` from the JSON
-- **Iteration:** Use `iteration` from the JSON (the current/latest iteration from tracker)
-- **Run directory:** `.agent_process/work/{scope}/.run/review/`
+Returns: `scope`, `iteration`, `gh_issue`. Use these values throughout.
 
 **Iteration Resolution:**
-1. If `iteration` is non-null → use it (this is the tracker's current iteration)
-2. If `iteration` is null → list `.agent_process/work/{scope}/iteration_*` directories and use the latest one
-3. **If user manually specified a different iteration** (e.g., "review iteration_01" when tracker says iteration_02) → **STOP and ask**: "Tracker shows current iteration is {tracker_iteration}, but you specified {manual_iteration}. Which one should I review?"
+1. If `iteration` is non-null → use it (tracker's current iteration)
+2. If `iteration` is null → list `.agent_process/work/{scope}/iteration_*` directories and use the **latest** one (sort alphanumerically, e.g., `iteration_01_c` > `iteration_01_b` > `iteration_01`)
+3. If user manually specified a different iteration than resolved → **STOP and ask** which to review
 
-## Model Tiers
-
-| Tier | Use For | Claude Code | Codex |
-|------|---------|-------------|-------|
-| **cheap** | File reads, gate counting, validation checks | haiku | gpt-5.4-mini |
-| **capable** | Code verification, doc verification, criteria evaluation | sonnet | gpt-5.4 |
-| **synthesis** | The 4-choice decision — HIGH STAKES, use best model | opus | gpt-5.4 |
-
----
-
-## Local Environment Instructions
-
-Read `.agent_process/process/local_environment_instructions.md` before starting steps. If any section is not `<none>`, pass relevant content to sub-agents that need it. These instructions are ADDITIVE — they augment but never skip default steps.
-
----
-
-## Step Sequence
-
-### Step 01: Load Context (sequential)
-
-Spawn a **cheap** sub-agent with `orchestration/steps/review/01-load-context.md`.
-- Pass: scope, iteration
-- **Output:** `.run/review/01-review-context.md`
-
-### Step 1.5: Scope Event Verification + GH Issue Check (sequential)
-
-Run directly — not a sub-agent:
+**GH Issue status (if gh_issue is set):**
 ```bash
-bash .agent_process/scripts/github-issues-lifecycle.sh verify {scope}
+bash .agent_process/scripts/github-issues-lifecycle.sh set-status {scope} reviewing
 ```
-This is informational, not blocking. Write result to `.run/review/015-scope-verify.md`.
 
-**GitHub Issues status update (if enabled):**
+---
 
-Spawn a **cheap** sub-agent with `process/github-issues-handling.md`:
-- **Task:** "If GH issue exists for scope {scope}, update status to `status:reviewing`. If no issue exists, log a warning but do not block review."
-- **Input:** `process/github-issues-handling.md` + `.run/gh-issue-context.md` (if exists)
+## Step 1: Verify Implementation
 
-The review is about the code, not the issue — a missing issue should never block review.
+Spawn **capable** agent:
 
-### Parallel Verification Gates (5 sub-agents simultaneously)
+```
+Agent({
+  description: "Verify {scope}/{iteration}",
+  prompt: "Read orchestration/steps/review/01-verify.md and execute.
+    Scope: {scope}
+    Iteration: {iteration}
+    
+    Load context, evaluate criteria, verify code matches claims.
+    Check if executor understood semantic intent, not just made mechanical changes.
+    Output: .run/review/01-verify.md"
+})
+```
 
-This is the **biggest parallelization win**. These 5 gates have no data dependencies on each other — all read from the iteration artifacts, not each other's output.
+---
 
-Spawn FIVE sub-agents **simultaneously**:
+## Step 2: Quality Gates
 
-1. **capable** agent with `orchestration/steps/review/02-eval-criteria.md`
-   - Pass: scope, iteration
-   - **Output:** `.run/review/02-eval-criteria.md`
+Spawn **capable** agent:
 
-2. **capable** agent with `orchestration/steps/review/03-code-verify.md`
-   - Pass: scope, iteration
-   - **Output:** `.run/review/03-code-verify.md`
+```
+Agent({
+  description: "Gates for {scope}/{iteration}",
+  prompt: "Read orchestration/steps/review/02-gates.md and execute.
+    Scope: {scope}
+    Iteration: {iteration}
+    Input: .run/review/01-verify.md
+    
+    Run documentation, integration, adversarial, and validation gates.
+    Fast-track if internal-only changes.
+    Output: .run/review/02-gates.md"
+})
+```
 
-3. **cheap** agent with `orchestration/steps/review/035-doc-verify.md`
-   - Pass: scope, iteration
-   - **Output:** `.run/review/035-doc-verify.md`
+---
 
-4. **capable** agent with `orchestration/steps/review/036-integration-verify.md`
-   - Pass: scope, iteration
-   - **Output:** `.run/review/036-integration-verify.md`
+## Step 3: Decision + Actions
 
-5. **capable** agent with `orchestration/steps/review/037-adversarial.md`
-   - Pass: scope, iteration
-   - **Output:** `.run/review/037-adversarial.md`
+Spawn **synthesis** (best model) agent:
 
-Wait for all five to complete.
+```
+Agent({
+  description: "Decision for {scope}/{iteration}",
+  prompt: "Read orchestration/steps/review/03-decide.md and execute.
+    Scope: {scope}
+    Iteration: {iteration}
+    Inputs: .run/review/01-verify.md, .run/review/02-gates.md
+    
+    Choose APPROVE/ITERATE/BLOCK/PIVOT.
+    For ITERATE: specify fixes with semantic intent and outcome-based tests.
+    Output: .run/review/03-decision.md"
+})
+```
 
-### Step 04-05: Gate Aggregation + Attempt Count (sequential)
+---
 
-Spawn a **cheap** sub-agent with `orchestration/steps/review/04-05-gates.md`.
-- Pass: scope, iteration, ALL gate outputs
-- **Output:** `.run/review/04-05-gates.md`
+## Post-Decision (after human approval)
 
-### Step 06: Choose Decision — HIGH STAKES (sequential)
+Based on decision in `.run/review/03-decision.md`:
 
-Spawn a **synthesis** sub-agent with `orchestration/steps/review/06-choose-decision.md`.
+**APPROVE:**
+```bash
+bash .agent_process/scripts/github-issues-lifecycle.sh set-status {scope} approved
+bash .agent_process/scripts/github-issues-lifecycle.sh close {scope} approved
+```
 
-**Use the best available model.** This step reads ALL `.run/review/*` files and produces the 4-choice decision (APPROVE/ITERATE/BLOCK/PIVOT) with structured reasoning.
+**ITERATE:**
+```bash
+bash .agent_process/scripts/github-issues-lifecycle.sh set-status {scope} iterate
+mkdir -p .agent_process/work/{scope}/{next_iteration}
+# Copy fix specifications to next iteration's plan
+bash .agent_process/scripts/github-issues-lifecycle.sh set-iteration {scope} {next_iteration}
+```
+Then: `/ap_exec {scope} {next_iteration}`
 
-- Pass: scope, iteration, ALL `.run/review/*` files
-- **Output:** `.run/review/06-decision.md`
+**BLOCK:**
+```bash
+bash .agent_process/scripts/github-issues-lifecycle.sh set-status {scope} blocked
+bash .agent_process/scripts/github-issues-lifecycle.sh close {scope} blocked
+```
+Present options to human.
 
-### Steps 07-10: Post-Decision (sequential)
-
-Spawn a **capable** sub-agent with `orchestration/steps/review/07-10-post-decision.md`.
-- Pass: scope, iteration, decision output (`.run/review/06-decision.md`)
-- **Output:** `.run/review/07-10-post-decision.md`
-- Handles: iteration_plan update, requirement doc update, **scope tracking state update** (via `github-issues-lifecycle.sh set-iteration`), knowledge deposit, artifact validation suggestion, handoff
-
-**GitHub Issues post-decision (if enabled):**
-
-After the post-decision sub-agent completes, spawn a **cheap** sub-agent with `process/github-issues-handling.md`:
-- **Task based on decision:**
-  - **APPROVE:** `lifecycle.sh set-status {scope} status:approved` then `lifecycle.sh close {scope} approved`
-  - **ITERATE:** `lifecycle.sh set-status {scope} status:iterate` and `lifecycle.sh comment {scope} "Iteration decision: {brief reason}"`
-  - **BLOCK:** `lifecycle.sh set-status {scope} status:blocked` then `lifecycle.sh close {scope} blocked`
-  - **PIVOT:** `lifecycle.sh comment {scope} "Scope pivoted: {brief reason}"` (no close — new scope takes over)
-- **Input:** `process/github-issues-handling.md` + `.run/gh-issue-context.md` + `.run/review/06-decision.md`
+**PIVOT:**
+```bash
+bash .agent_process/scripts/github-issues-lifecycle.sh comment {scope} "Scope pivoted: {reason}"
+```
+No close — new scope takes over.
 
 ---
 
 ## Completion
 
-After all steps complete, verify these `.run/review/` files exist:
+Verify outputs exist:
+- `.run/review/01-verify.md`
+- `.run/review/02-gates.md`
+- `.run/review/03-decision.md`
 
-- [ ] `.run/review/01-review-context.md`
-- [ ] `.run/review/015-scope-verify.md`
-- [ ] `.run/review/02-eval-criteria.md`
-- [ ] `.run/review/03-code-verify.md`
-- [ ] `.run/review/035-doc-verify.md`
-- [ ] `.run/review/036-integration-verify.md`
-- [ ] `.run/review/037-adversarial.md`
-- [ ] `.run/review/04-05-gates.md`
-- [ ] `.run/review/06-decision.md`
-- [ ] `.run/review/07-10-post-decision.md`
-
-Present the decision from `.run/review/06-decision.md` to the user and follow the post-decision actions from `.run/review/07-10-post-decision.md`.
-
-⏸️ **Wait for human approval before executing post-decision actions (ITERATE folder creation, APPROVE marking, PIVOT scope changes).**
+Present decision to user. Wait for approval before executing post-decision actions.
