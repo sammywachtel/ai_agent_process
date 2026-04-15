@@ -1,7 +1,7 @@
 ---
 name: ap_project
 description: Generic project roadmap and requirements management for .agent_process projects
-argument-hint: init | discover | status | set-status | archive | archive-completed | add-todo | add-requirement (→ /ap_requirements) | import-requirement (→ /ap_requirements) | sync | report | help ["details"]
+argument-hint: init | discover | status | set-status | archive | archive-completed | add-todo | add-requirement (→ /ap_requirements) | import-requirement (→ /ap_requirements) | sync | health | report | help ["details"]
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, TodoWrite]
 arguments:
   - name: action
@@ -19,6 +19,7 @@ arguments:
       - add-requirement: (deprecated → /ap_requirements add)
       - import-requirement: (deprecated → /ap_requirements import)
       - sync: Reconcile roadmap with actual work/ status
+      - health: Audit validation scripts for orphans and coverage
       - report: Generate stakeholder status report
       - help: Show detailed help for all commands
   - name: details
@@ -78,6 +79,7 @@ When generating files from templates, resolve these variables before writing:
 
 # Maintenance
 /ap_project sync                    # Reconcile roadmap with work/ status
+/ap_project health                  # Audit validation scripts
 /ap_project report                  # Generate stakeholder report
 /ap_project report "detailed"       # Specify report type
 
@@ -1829,6 +1831,57 @@ Consider:
 3. Archive if work is obsolete
 ```
 
+{% elif action == "health" %}
+
+## Validation Script Health Check
+
+Audit validation scripts for orphans and coverage gaps.
+
+### Step 1: Run Analysis
+
+Execute the validation script analyzer:
+
+```bash
+.agent_process/scripts/analyze-validation-scripts.sh
+```
+
+This reports:
+- **Matched scripts:** Validators with corresponding work directories (healthy)
+- **Orphan scripts:** Validators for scopes that no longer exist
+- **Missing validators:** Work directories without custom validators (often normal)
+
+### Step 2: Interpret Results
+
+**Orphan scripts** accumulate when:
+- Work directories are archived or deleted
+- Scopes are renamed without updating validators
+- Old naming conventions are superseded
+
+**Missing validators** are often intentional:
+- Simple scopes use ad-hoc validation (ruff, pytest, eslint)
+- Custom validators are only needed for complex artifact checks
+
+### Step 3: Cleanup (if needed)
+
+To remove orphan scripts:
+
+```bash
+# Preview what would be removed
+.agent_process/scripts/cleanup-validation-scripts.sh --dry-run
+
+# Actually remove orphans
+.agent_process/scripts/cleanup-validation-scripts.sh
+```
+
+### Step 4: Report Summary
+
+After running analysis, report:
+- Total validators: [N]
+- Orphans removed: [N] (if cleanup was run)
+- Work directories without validators: [N] (informational)
+
+See `.agent_process/process/validation-playbook.md` for guidance on when to create custom validators vs using ad-hoc validation.
+
 {% elif action == "report" %}
 
 ## Generate Status Report
@@ -2889,6 +2942,25 @@ When session expires, user stays on page with failing API calls instead of being
 Reconcile roadmap with actual work/ directory status. Reports discrepancies between status_overrides and discovered state.
 
 **Usage:** `/ap_project sync`
+
+---
+
+### `/ap_project health`
+Audit validation scripts for orphans and coverage gaps.
+
+**Usage:** `/ap_project health`
+
+Reports:
+- **Matched:** Scripts with corresponding work directories
+- **Orphans:** Scripts for scopes that no longer exist (can be removed)
+- **Missing:** Work directories without validators (often intentional)
+
+Runs `.agent_process/scripts/analyze-validation-scripts.sh` and optionally `.agent_process/scripts/cleanup-validation-scripts.sh` to remove orphans.
+
+**When to run:**
+- After archiving or deleting work scopes
+- Periodically as part of project hygiene
+- When `hook_after_edit.sh` lists unexpected validators
 
 ---
 

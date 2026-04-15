@@ -67,6 +67,59 @@ popd >/dev/null
 printf "[%s-validation] Complete.\n" "$SCOPE"
 ```
 
+### When to Create Custom Validators vs Ad-Hoc Validation
+
+**Custom validators (`validate-<scope>.sh`) are optional.** The hook gracefully
+handles missing validators with a "No validator found" message.
+
+**Use custom validators when:**
+- Complex artifact validation required (PPTX slide content, CSV column checks)
+- Multi-step pipeline validation (run pipeline → check outputs → verify state)
+- Scope involves multiple repositories or deployment targets
+- Validation logic is non-trivial and benefits from codification
+
+**Use ad-hoc validation when:**
+- Standard linting/testing covers the scope (ruff, pytest, eslint)
+- Acceptance criteria are simple file existence or basic content checks
+- Scope is exploratory or one-time
+
+**Ad-hoc validation pattern in results.md:**
+```markdown
+## Validation
+
+**Scoped validation:** PASS
+- Ruff lint: All checks passed
+- Pytest: 42 tests passed in 2.1s
+- Manual verification: [describe what was checked]
+```
+
+### Validator Maintenance
+
+Over time, validation scripts accumulate as scopes are created and completed.
+When work directories are archived or deleted, orphan validators remain.
+
+**Health check:**
+```bash
+.agent_process/scripts/analyze-validation-scripts.sh
+```
+
+Reports:
+- Scripts with matching work directories (healthy)
+- Orphan scripts (no matching work directory) 
+- Work directories without validators (normal for simple scopes)
+
+**Cleanup orphans:**
+```bash
+# Preview what would be removed
+.agent_process/scripts/cleanup-validation-scripts.sh --dry-run
+
+# Actually remove orphan scripts
+.agent_process/scripts/cleanup-validation-scripts.sh
+```
+
+Run these periodically (e.g., after archiving completed scopes) to keep the
+scripts directory tidy.
+
 ---
 
 ## Pre-existing Debt Handling

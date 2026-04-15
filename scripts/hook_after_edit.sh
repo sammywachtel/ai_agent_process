@@ -38,7 +38,7 @@ if [[ -f "$SCOPE_VALIDATOR" ]]; then
 else
   echo "[hook_after_edit] No validator found for scope: $CURRENT_SCOPE"
   echo "[hook_after_edit] Available validators:"
-  ls -1 "$SCRIPT_DIR"/validate-*.sh 2>/dev/null | sed 's/.*validate-//;s/.sh//' | sort || echo "  (none)"
+  ls -1 "$SCRIPT_DIR"/validate-*.sh 2>/dev/null | sed 's/.*validate-//;s/\.sh$//' | sort || echo "  (none)"
 fi
 
 # Check for documentation debt in results.md
