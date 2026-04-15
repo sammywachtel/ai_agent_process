@@ -6,6 +6,31 @@ A structured workflow framework for AI-powered development with Claude Code. Pro
 
 ---
 
+## This Framework Is Not About AI Doing Everything
+
+Let's be clear: **this is not an autopilot.**
+
+The goal is not to type a prompt and walk away while AI builds your product. That path leads to mediocre software, missed edge cases, and systems nobody understands. AI can write code fast, but speed without direction produces noise.
+
+This framework exists to **elevate your work, not eliminate it.** You're still the architect. You still make the hard calls. You still own the outcome. What changes is *where* you spend your energy:
+
+- **You define what matters** — requirements, acceptance criteria, quality standards
+- **You make judgment calls** — when to pivot, what tradeoffs to accept, when "good enough" is good enough
+- **You review with intention** — not rubber-stamping AI output, but genuinely evaluating whether it solves the problem
+- **You build understanding** — the knowledge base, the patterns, the "why" behind decisions
+
+AI agents handle the mechanical work: writing boilerplate, running validations, organizing artifacts, executing repetitive tasks. They're tireless and consistent. But they don't know what your users need. They don't feel the weight of technical debt. They can't tell when a "working" solution misses the point entirely.
+
+**The human-in-the-middle isn't a bottleneck — it's the whole point.**
+
+Great software comes from humans who care deeply about the problem, supported by tools that handle the grunt work. This framework structures that collaboration: AI does the coding and scope organization, you do the thinking and deciding. The result isn't "AI-generated code" — it's *your* work, built faster and more consistently.
+
+If you want to ship something you're proud of, something that solves real problems well, you have to stay engaged. This framework helps you do that at a higher level — focused on design, quality, and outcomes rather than syntax and boilerplate.
+
+**Do great work. AI is here to help, not to replace you.**
+
+---
+
 ## Quick Start
 
 ```bash
@@ -62,19 +87,20 @@ Read on for the full picture.
 
 ## Table of Contents
 
-1. [Quick Start](#quick-start)
-2. [Dependencies](#dependencies)
-3. [Overview](#overview)
-4. [The Workflow](#the-workflow)
-5. [Roles & Responsibilities](#roles--responsibilities)
-6. [Key Concepts](#key-concepts)
-7. [Slash Commands Reference](#slash-commands-reference)
-8. [Quality Configuration](#quality-configuration)
-9. [Directory Structure](#directory-structure)
-10. [Getting Started Guide](#getting-started-guide)
-11. [Success Metrics](#success-metrics)
-12. [Customization](#customization)
-13. [Documentation Reference](#documentation-reference)
+1. [This Framework Is Not About AI Doing Everything](#this-framework-is-not-about-ai-doing-everything)
+2. [Quick Start](#quick-start)
+3. [Dependencies](#dependencies)
+4. [Overview](#overview)
+5. [The Workflow](#the-workflow)
+6. [Roles & Responsibilities](#roles--responsibilities)
+7. [Key Concepts](#key-concepts)
+8. [Slash Commands Reference](#slash-commands-reference)
+9. [Quality Configuration](#quality-configuration)
+10. [Directory Structure](#directory-structure)
+11. [Getting Started Guide](#getting-started-guide)
+12. [Success Metrics](#success-metrics)
+13. [Customization](#customization)
+14. [Documentation Reference](#documentation-reference)
 
 ---
 
