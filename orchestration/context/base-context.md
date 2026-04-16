@@ -12,6 +12,7 @@
 - **Scoped validation:** Only test files in scope, not entire codebase
 - **Time-boxing:** 2-4 hours per iteration
 - **Done definition:** Objectives met (not zero issues)
+- **Working directory discipline:** ALL `.agent_process/` commands assume you're at project root. Before running any `bash .agent_process/scripts/...` command, verify your cwd with `pwd`. If not at project root, `cd` there first. Agents forget their working directory constantly.
 
 ---
 

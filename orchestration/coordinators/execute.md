@@ -8,6 +8,7 @@ Execute an iteration in 2 preparation steps + implementation.
 - Do NOT push to remote
 - The user reviews and commits after successful iteration
 - Do NOT proceed if GitHub integration is enabled and `github-issues-lifecycle.sh` fails — that's a blocking error, not a "non-blocking" inconvenience
+- Do NOT run `.agent_process/` commands from the wrong directory — verify `pwd` is at project root before any bash command. "Script not found" usually means you're in the wrong directory, not that the script is missing.
 
 ---
 
