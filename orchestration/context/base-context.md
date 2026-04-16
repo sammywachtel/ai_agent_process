@@ -28,6 +28,7 @@
 - Enforces iteration budget (cannot create iteration_01_d)
 - Escalates blockers immediately (no silent failures)
 - **Creates GitHub issues at first opportunity:** When creating requirements (`ap_requirements`), brainstorming that produces requirements (`ap_brainstorm`), or planning (`plan-scope`), run `github-issues-lifecycle.sh start {scope}` to create the tracking issue. Don't defer to execution.
+- **GitHub failures are blocking:** If `github_issues.enabled` is `true` in `quality-config.json`, then `github-issues-lifecycle.sh` failures are BLOCKING errors — do not proceed and hand-wave them as "non-blocking". Fix the issue or escalate. Script missing? That's an installation error.
 
 ### Implementation Session (The Problem-Solver)
 - **Has agency:** The executor owns the implementation. Scope files are guidance, not walls.

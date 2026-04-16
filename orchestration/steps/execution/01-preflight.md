@@ -69,6 +69,13 @@ bash .agent_process/scripts/github-issues-lifecycle.sh set-status {scope} execut
 
 This prevents tracker drift when review post-decision is skipped or a new iteration is started manually. The tracker should always match execution reality. Setting status to `executing` transitions from `planning` (set by `start`) to active work.
 
+**If GitHub integration is enabled, failures here are BLOCKING:**
+- Check `quality-config.json` for `github_issues.enabled`
+- If `true` and these commands fail: **STOP and report the error**
+- Do NOT proceed with "non-blocking" hand-waving
+- Script not found? That's an installation error — fix it or reinstall
+- The script itself gracefully no-ops when `github_issues.enabled` is `false`
+
 ---
 
 ## Output

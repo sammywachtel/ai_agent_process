@@ -7,6 +7,7 @@ Execute an iteration in 2 preparation steps + implementation.
 - Do NOT commit during execution — validation runs, then results documented
 - Do NOT push to remote
 - The user reviews and commits after successful iteration
+- Do NOT proceed if GitHub integration is enabled and `github-issues-lifecycle.sh` fails — that's a blocking error, not a "non-blocking" inconvenience
 
 ---
 
