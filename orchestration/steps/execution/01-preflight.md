@@ -13,9 +13,17 @@ CURRENT=$(git branch --show-current)
 EXPECTED="scope/{scope}"
 ```
 
-- **On correct branch:** Proceed
-- **Branch exists, not on it:** Flag for human — may have prior work
-- **Branch doesn't exist:** Create it: `git checkout -b "scope/{scope}"`
+**Decision tree:**
+
+1. **On expected branch already?** → Proceed
+2. **Expected branch doesn't exist?** → Create it and switch: `git checkout -b "$EXPECTED"`
+   - This is the normal case after plan-scope — just create and go
+3. **Expected branch exists but you're on a different branch?** → Flag for human
+   - May have uncommitted work on the expected branch
+   - Present options: switch to it, continue on current, or stash and switch
+
+**Key principle:** Don't block execution for a branch that doesn't exist yet. Just create it.
+The only blocking case is when the expected branch has prior work that needs attention.
 
 ## 2. Session Recovery
 
@@ -75,6 +83,7 @@ This prevents tracker drift when review post-decision is skipped or a new iterat
 - Current: {branch}
 - Expected: scope/{scope}
 - Status: OK / CREATED / NEEDS_DECISION
+- Action taken: {none / created branch / awaiting user}
 
 ## Working State
 - Uncommitted changes: {none / N files — listed}
@@ -86,5 +95,16 @@ This prevents tracker drift when review post-decision is skipped or a new iterat
 
 ## Gate
 PREFLIGHT: PASS / BLOCKED
+
+**PASS conditions:**
+- Already on expected branch, OR
+- Expected branch didn't exist and was created, OR
+- Working tree is clean (only .agent_process/ changes are OK)
+
+**BLOCK only if:**
+- Expected branch exists with uncommitted work that needs attention
+- Significant uncommitted changes outside .agent_process/
+- Recovery from interrupted session requires user decision
+
 {If blocked: reason and recommended action}
 ```
