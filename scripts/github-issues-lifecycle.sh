@@ -743,6 +743,77 @@ sys.exit(1)
 PYEOF
 }
 
+find_scope_by_issue() {
+  local issue_num="$1"
+  local issue_title="${2:-}"
+  python3 - "$issue_num" "$issue_title" <<'PYEOF'
+from pathlib import Path
+import json
+import re
+import sys
+
+issue_num = sys.argv[1].strip()
+issue_title = sys.argv[2].strip()
+
+tracker = Path(".agent_process/work/scope-tracker.jsonl")
+if tracker.exists():
+    for raw_line in tracker.read_text().splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            data = json.loads(line)
+        except Exception:
+            continue
+        if str(data.get("gh_issue", "")).strip() == issue_num:
+            scope = str(data.get("scope", "")).strip()
+            if scope:
+                print(scope)
+                sys.exit(0)
+
+def normalize(text: str) -> str:
+    text = re.sub(r"^\[[^\]]+\]\s*", "", text.strip())
+    text = re.sub(r"^requirements:\s*", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"[^a-z0-9]+", " ", text.lower())
+    return " ".join(text.split())
+
+normalized_issue_title = normalize(issue_title)
+if not normalized_issue_title:
+    sys.exit(1)
+
+root = Path(".agent_process/requirements_docs")
+for path in sorted(root.rglob("*.md")):
+    try:
+        text = path.read_text()
+    except Exception:
+        continue
+    if not text.startswith("---"):
+        continue
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        continue
+    frontmatter = parts[1]
+    body = parts[2]
+    scope_id = ""
+    doc_title = ""
+    for line in frontmatter.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("id:"):
+            scope_id = stripped.split(":", 1)[1].strip()
+            break
+    for line in body.splitlines():
+        if line.startswith("# "):
+            doc_title = line[2:].strip()
+            break
+    normalized_doc_title = normalize(doc_title)
+    if normalized_doc_title and normalized_doc_title == normalized_issue_title and scope_id:
+        print(scope_id)
+        sys.exit(0)
+
+sys.exit(1)
+PYEOF
+}
+
 do_resolve_input() {
   # Resolve flexible input to structured scope info.
   # Input can be: GitHub issue number (#123, 123, URL), scope name, or requirement path
@@ -756,7 +827,7 @@ do_resolve_input() {
     return 1
   fi
 
-  local scope="" req_path="" gh_issue="" input_type=""
+  local scope="" req_path="" gh_issue="" input_type="" explicit_iteration="" iteration=""
 
   # --- Try to parse as issue number ---
   local parsed_issue=""
@@ -770,10 +841,12 @@ do_resolve_input() {
 
     # Look up issue title from GitHub (should be the scope name)
     if [[ "$GH_ENABLED" == "true" ]]; then
-      local issue_data
+      local issue_data gh_title
       issue_data=$(gh issue view "$gh_issue" --repo "$REPO" --json title,state 2>/dev/null)
       if [[ -n "$issue_data" ]]; then
-        scope=$(echo "$issue_data" | jq -r '.title // empty' 2>/dev/null)
+        gh_title=$(echo "$issue_data" | jq -r '.title // empty' 2>/dev/null)
+        scope=$(find_scope_by_issue "$gh_issue" "$gh_title" 2>/dev/null) || scope=""
+        scope="${scope:-$gh_title}"
       fi
     fi
 
@@ -820,7 +893,6 @@ PYEOF
 
     # Check if input contains an iteration specifier (e.g., "scope_name iteration_01_c")
     # Use grep/sed instead of BASH_REMATCH for better compatibility
-    local explicit_iteration=""
     if echo "$input" | grep -qE ' iteration_[0-9]+[a-z_]*$'; then
       explicit_iteration=$(echo "$input" | grep -oE 'iteration_[0-9]+[a-z_]*$')
       scope=$(echo "$input" | sed "s/ ${explicit_iteration}\$//")
@@ -836,7 +908,6 @@ PYEOF
   fi
 
   # Get iteration: explicit from input takes precedence, otherwise check tracker
-  local iteration=""
   if [[ -n "$explicit_iteration" ]]; then
     iteration="$explicit_iteration"
   elif [[ -n "$scope" ]]; then
