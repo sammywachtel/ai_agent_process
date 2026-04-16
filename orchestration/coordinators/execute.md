@@ -65,6 +65,11 @@ Agent({
 
 Read `.run/execution/02-prepare.md` for agent selection and context.
 
+**If the preparation artifact includes a required human checkpoint:**
+- Preserve it in the implementation instructions
+- The executor must pause at the specified point, present the checklist clearly, and wait for the human response before continuing
+- Do NOT silently skip or collapse the checkpoint into a post-hoc note
+
 ### First Iteration
 
 ```
@@ -83,6 +88,10 @@ Agent({
     - Document what you added and why in results.md
     - Update the validation script to cover new files
     - The reviewer will assess whether the expansion was justified
+
+    **Human checkpoint:** If .run/execution/02-prepare.md declares one,
+    STOP at the specified pause point, present the human actions clearly,
+    wait for the response, then continue based on that response.
 
     You are the problem-solver. Meet the criteria correctly.
     Report completion status."
@@ -105,6 +114,11 @@ Agent({
     If you can't explain the semantic intent, STOP and ask.
 
     Then implement, and verify each fix's acceptance test passes.
+
+    **Human checkpoint:** If .run/execution/02-prepare.md declares one,
+    STOP at the specified pause point, present the human actions clearly,
+    wait for the response, then continue based on that response.
+
     Report: comprehension summary, changes made, test results."
 })
 ```
@@ -112,6 +126,12 @@ Agent({
 ---
 
 ## Step 4: Validate
+
+**If human checkpoint specifies "before live validation":**
+- Pause before running validation that touches external systems
+- Present the human actions clearly
+- Wait for the response (proceed / blocked / local-only)
+- If "local-only", skip live validation and note the limitation in results.md
 
 Hook fires automatically after edits. If fails, fix and retry (max 3 attempts).
 

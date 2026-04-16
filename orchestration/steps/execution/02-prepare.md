@@ -16,12 +16,14 @@ For sub-iterations: the executor must understand the SEMANTIC INTENT of each fix
 Read:
 - `.agent_process/work/{scope}/iteration_plan.md` — criteria, guidance, files
 - `.agent_process/work/{scope}/{iteration}/results.md` — for sub-iterations, the fixes required
+- `.agent_process/work/{scope}/human-prereqs.md` — optional human checkpoint (if exists)
 
 Extract:
 - **Acceptance Criteria** (LOCKED)
 - **Files in Scope**
 - **Validation Commands** (RUN vs SKIP)
 - **Technical Guidance**
+- **Human checkpoint requirements** (if `human-prereqs.md` exists)
 
 ### Sub-iteration Context
 
@@ -31,6 +33,16 @@ For `_a`/`_b`/`_c` iterations, also extract from the placeholder results.md:
 - Each fix's **acceptance test** (outcome-based verification)
 
 Read previous iteration's results to understand what worked/didn't.
+
+### Human Checkpoint Context
+
+If `.agent_process/work/{scope}/human-prereqs.md` exists:
+- Treat it as a required execution checkpoint, not optional context
+- Extract the concrete actions the human must complete
+- Surface exactly when execution must pause (e.g., before live validation, before deploy)
+- Carry forward the allowed human responses (e.g., proceed, blocked, local-only)
+
+This file is created during plan-scope and may be modified during review if checkpoint needs change between iterations.
 
 ---
 
@@ -83,6 +95,12 @@ For work units: one agent per unit.
 ## Validation
 - **RUN:** {commands}
 - **SKIP:** {commands with reasons}
+
+## Human Checkpoint
+- **Required:** YES / NO
+- **Pause Point:** {before live validation / before deploy / none}
+- **Human Actions:** {summary of what human must do}
+- **Allowed Responses:** {proceed / blocked / local-only / etc.}
 
 ## Sub-iteration Fixes (if applicable)
 

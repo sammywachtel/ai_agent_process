@@ -101,6 +101,35 @@ Agent({
 
 ---
 
+## Human Prerequisites (if needed)
+
+If this scope requires human collaboration during execution (environment setup, credentials, manual verification, production sign-off), create:
+
+```
+.agent_process/work/{scope}/human-prereqs.md
+```
+
+Template:
+```markdown
+# Human Prerequisites
+
+## Pause Point
+{before live validation / before deploy / before external API calls}
+
+## Human Actions Required
+- [ ] {action 1}
+- [ ] {action 2}
+
+## Allowed Responses
+- **proceed** — prerequisites satisfied, continue execution
+- **blocked** — cannot proceed, stop and report
+- **local-only** — skip live/external validation, note limitation in results
+```
+
+This file is optional — only create it if the scope genuinely needs human checkpoints. The executor will pause at the specified point and wait for the human response.
+
+---
+
 ## GitHub Issues (if enabled)
 
 After plan created:

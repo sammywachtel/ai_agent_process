@@ -117,6 +117,8 @@ mkdir -p .agent_process/work/{scope}/{next_iteration}
 # Copy fix specifications to next iteration's plan
 bash .agent_process/scripts/github-issues-lifecycle.sh set-iteration {scope} {next_iteration}
 ```
+If human checkpoint needs change (prereqs satisfied, or new checkpoint needed), update `.agent_process/work/{scope}/human-prereqs.md`.
+
 Then: `/ap_exec {scope} {next_iteration}`
 
 **BLOCK:**
