@@ -42,6 +42,16 @@ If `.agent_process/work/{scope}/human-prereqs.md` exists:
 - Surface exactly when execution must pause (e.g., before live validation, before deploy)
 - Carry forward the allowed human responses (e.g., proceed, blocked, local-only)
 
+**Format is not fixed.** Real files may use the strict template (Pause Point / Human Actions / Allowed Responses) OR a looser structure (e.g. "Required Decisions and Actions" with numbered items, "Blocking Assumptions", "Operator Actions"). Do not require the strict template — extract what's there and classify it yourself:
+
+- **pre_execution** — decisions, confirmations, credentials, environment setup needed before any code runs. Default bucket when the file doesn't say otherwise.
+- **mid_execution** — things that must be done before live validation / before touching external systems / before deploy.
+- **post_execution** — cutover, user notifications, follow-up work, prod parity confirmation.
+
+If a file only lists items without classifying them, put them in `pre_execution` — the coordinator will surface them to the human before spawning the implementer. Better to ask up front than silently skip.
+
+The coordinator (main conversation) is what holds the actual gate — this step just extracts and classifies. Do not try to pause inside this sub-agent.
+
 This file is created during plan-scope and may be modified during review if checkpoint needs change between iterations.
 
 ---
@@ -98,9 +108,13 @@ For work units: one agent per unit.
 
 ## Human Checkpoint
 - **Required:** YES / NO
-- **Pause Point:** {before live validation / before deploy / none}
-- **Human Actions:** {summary of what human must do}
-- **Allowed Responses:** {proceed / blocked / local-only / etc.}
+- **Source file:** `.agent_process/work/{scope}/human-prereqs.md` (present YES/NO)
+- **Pre-execution items:** {list, or "none"}
+- **Mid-execution items:** {list with trigger, or "none"}
+- **Post-execution items:** {list, or "none"}
+- **Allowed Responses:** {proceed / blocked / local-only / etc. — default set if file didn't specify}
+
+**Note for coordinator:** the actual gate runs in the main conversation (Steps 0.5 and 6 of `execute.md`). This section is input for that gate, not a place to claim the gate already ran.
 
 ## Sub-iteration Fixes (if applicable)
 

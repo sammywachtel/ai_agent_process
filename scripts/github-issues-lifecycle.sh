@@ -468,21 +468,30 @@ do_create() {
     fi
   fi
 
-  # --- Search path: look for existing issue by title/label ---
-  local issue_list issue_num=""
-  issue_list=$(gh issue list --repo "$REPO" --label "ap:scope" --search "$scope in:title" --state open --json number,title --limit 10 2>/dev/null) || issue_list=""
+  # --- Search path: look for existing issue (title + body) ---
+  # First, find requirement doc (needed for body search and issue creation)
+  local req_path=""
+  req_path=$(find_requirement_doc "$scope" 2>/dev/null) || req_path=""
 
-  if [[ -n "$issue_list" && "$issue_list" != "[]" ]] && command -v jq &>/dev/null; then
-    issue_num=$(echo "$issue_list" | jq -r --arg s "$scope" '[.[] | select(.title == $s or (.title | startswith($s)))] | .[0].number // empty' 2>/dev/null)
+  # Search GitHub using broader matching: title, body scope id, body requirement path
+  local issue_num="" search_result search_rc
+  search_result=$(search_github_for_scope "$scope" "$req_path" 2>/dev/null)
+  search_rc=$?
+
+  if [[ $search_rc -eq 2 ]]; then
+    # Multiple matches found — safety guard: require explicit association
+    echo "ERROR: Multiple existing issues found that could match scope '$scope':" >&2
+    echo "$search_result" | python3 -c "import json,sys; [print(f'  #{i[\"number\"]} (matched via {i[\"match_type\"]})') for i in json.load(sys.stdin)]" 2>/dev/null
+    echo "Use 'associate $scope <issue_number>' to link explicitly." >&2
+    return 1
+  elif [[ $search_rc -eq 0 && -n "$search_result" ]]; then
+    issue_num="$search_result"
   fi
 
   if [[ -n "$issue_num" ]]; then
     echo "[gh-issues] Existing issue found: #$issue_num for $scope"
   else
     # --- Create path: no existing issue found ---
-    # Look up requirement doc for the body
-    local req_path=""
-    req_path=$(find_requirement_doc "$scope" 2>/dev/null) || req_path=""
 
     # Use provided description or default
     local body_desc="${description:-Scope: ${scope}}"
@@ -814,6 +823,100 @@ sys.exit(1)
 PYEOF
 }
 
+# search_github_for_scope — Search GitHub for an existing issue matching a scope
+#
+# Priority cascade (returns first match):
+#   1. Exact scope name in title
+#   2. Exact scope id in body (e.g., "Requirement: scope_name" or "`scope_name`")
+#   3. Requirement path in body (if provided)
+#
+# Returns: issue number if exactly one match, empty if none, exits 2 if multiple matches
+# The multiple-match case is a safety guard — caller should prompt for explicit association.
+search_github_for_scope() {
+  local scope="$1"
+  local req_path="${2:-}"
+
+  if [[ "$GH_ENABLED" != "true" ]]; then
+    return 0
+  fi
+
+  # Search for issues with ap:scope label containing the scope anywhere
+  # We'll filter the results more carefully in Python
+  local issue_list
+  issue_list=$(gh issue list --repo "$REPO" --label "ap:scope" --search "$scope" --state open --json number,title,body --limit 20 2>/dev/null) || issue_list=""
+
+  if [[ -z "$issue_list" || "$issue_list" == "[]" ]]; then
+    return 0
+  fi
+
+  # Use Python to apply the priority cascade
+  python3 - "$scope" "$req_path" "$issue_list" <<'PYEOF'
+import json
+import sys
+import re
+
+scope = sys.argv[1]
+req_path = sys.argv[2] if len(sys.argv) > 2 else ""
+issues_json = sys.argv[3] if len(sys.argv) > 3 else "[]"
+
+try:
+    issues = json.loads(issues_json)
+except Exception:
+    sys.exit(0)
+
+candidates = []
+
+# Priority 1: Exact scope in title (or title starts with scope)
+for issue in issues:
+    title = issue.get("title", "")
+    if title == scope or title.startswith(f"{scope} ") or title.startswith(f"{scope}:"):
+        candidates.append(("title_exact", issue["number"]))
+
+# Priority 2: Exact scope id in body
+# Look for patterns like "Requirement: scope_name" or "`scope_name`" or "scope_name" as standalone
+if not candidates:
+    scope_patterns = [
+        rf"\bRequirement:\s*\[?`?{re.escape(scope)}`?\]?",  # Requirement: scope_name or Requirement: [`scope_name`]
+        rf"^id:\s*{re.escape(scope)}\s*$",                   # id: scope_name (frontmatter style in body)
+        rf"Scope:\s*{re.escape(scope)}\b",                   # Scope: scope_name
+        rf"`{re.escape(scope)}`",                            # `scope_name` (backticked)
+    ]
+    combined_pattern = "|".join(scope_patterns)
+    for issue in issues:
+        body = issue.get("body", "") or ""
+        if re.search(combined_pattern, body, re.MULTILINE | re.IGNORECASE):
+            candidates.append(("body_scope", issue["number"]))
+
+# Priority 3: Requirement path in body
+if not candidates and req_path:
+    # Normalize the path for matching
+    req_path_normalized = req_path.replace(".agent_process/", "")
+    for issue in issues:
+        body = issue.get("body", "") or ""
+        if req_path in body or req_path_normalized in body:
+            candidates.append(("body_req_path", issue["number"]))
+
+if not candidates:
+    sys.exit(0)
+
+# Deduplicate by issue number while preserving priority order
+seen = set()
+unique_candidates = []
+for match_type, num in candidates:
+    if num not in seen:
+        seen.add(num)
+        unique_candidates.append((match_type, num))
+
+if len(unique_candidates) == 1:
+    print(unique_candidates[0][1])
+    sys.exit(0)
+elif len(unique_candidates) > 1:
+    # Multiple matches — print them as JSON for caller to handle
+    print(json.dumps([{"number": num, "match_type": mt} for mt, num in unique_candidates]))
+    sys.exit(2)
+PYEOF
+}
+
 do_resolve_input() {
   # Resolve flexible input to structured scope info.
   # Input can be: GitHub issue number (#123, 123, URL), scope name, or requirement path
@@ -905,6 +1008,22 @@ PYEOF
 
     # Try to find requirement doc
     req_path=$(find_requirement_doc "$scope" 2>/dev/null) || req_path=""
+
+    # If tracker has no link, search GitHub for existing issue
+    # This prevents duplicate issues when the issue exists but isn't tracked locally
+    if [[ -z "$gh_issue" && "$GH_ENABLED" == "true" ]]; then
+      local search_result search_rc
+      search_result=$(search_github_for_scope "$scope" "$req_path" 2>/dev/null)
+      search_rc=$?
+      if [[ $search_rc -eq 0 && -n "$search_result" ]]; then
+        # Single match found
+        gh_issue="$search_result"
+      elif [[ $search_rc -eq 2 ]]; then
+        # Multiple matches — don't auto-adopt, but note it in output
+        # The caller can use this info to prompt for explicit association
+        :  # gh_issue stays empty; caller sees null and can investigate
+      fi
+    fi
   fi
 
   # Get iteration: explicit from input takes precedence, otherwise check tracker
@@ -1180,8 +1299,9 @@ do_search_issue() {
   local scope="$1"
   validate_scope_name "$scope" || return 1
 
-  # Search GitHub for an existing issue matching this scope name.
-  # Returns JSON with number and title if found, empty if not.
+  # Search GitHub for existing issues matching this scope name.
+  # Searches both title and body for comprehensive results.
+  # Returns JSON with number, title, and match_type if found, empty if not.
   # Does NOT create an issue or update tracker — that's for associate/start.
 
   if [[ "$GH_ENABLED" != "true" ]]; then
@@ -1189,15 +1309,23 @@ do_search_issue() {
     return 0
   fi
 
-  local issue_list
-  issue_list=$(gh issue list --repo "$REPO" --label "ap:scope" --search "$scope in:title" --state open --json number,title --limit 5 2>/dev/null) || issue_list=""
+  # Find requirement doc for body search
+  local req_path=""
+  req_path=$(find_requirement_doc "$scope" 2>/dev/null) || req_path=""
 
-  if [[ -z "$issue_list" || "$issue_list" == "[]" ]]; then
-    return 0
+  # Use broader search that checks title and body
+  local search_result search_rc
+  search_result=$(search_github_for_scope "$scope" "$req_path" 2>/dev/null)
+  search_rc=$?
+
+  if [[ $search_rc -eq 2 ]]; then
+    # Multiple matches — return them all for user review
+    echo "$search_result"
+  elif [[ $search_rc -eq 0 && -n "$search_result" ]]; then
+    # Single match — return as JSON array for consistency
+    echo "[{\"number\": $search_result, \"match_type\": \"single_match\"}]"
   fi
-
-  # Return matching issues as JSON (caller can parse with jq)
-  echo "$issue_list"
+  # If no matches, return nothing (empty output)
 }
 
 do_task_create() {

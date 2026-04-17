@@ -109,16 +109,18 @@ If this scope requires human collaboration during execution (environment setup, 
 .agent_process/work/{scope}/human-prereqs.md
 ```
 
-Template:
+Preferred template (keeps extraction simple and the gate unambiguous):
 ```markdown
-# Human Prerequisites
+# Human Prerequisites — {scope}
 
-## Pause Point
-{before live validation / before deploy / before external API calls}
+## Pre-execution (ask before work starts)
+- [ ] {decision or action the human must resolve up front}
 
-## Human Actions Required
-- [ ] {action 1}
-- [ ] {action 2}
+## Mid-execution (pause before live / external / destructive steps)
+- [ ] {action and the trigger — e.g. "before hitting prod API"}
+
+## Post-execution (ask after work completes)
+- [ ] {follow-up, cutover, notification, prod parity confirmation}
 
 ## Allowed Responses
 - **proceed** — prerequisites satisfied, continue execution
@@ -126,7 +128,9 @@ Template:
 - **local-only** — skip live/external validation, note limitation in results
 ```
 
-This file is optional — only create it if the scope genuinely needs human checkpoints. The executor will pause at the specified point and wait for the human response.
+**Looser formats are also accepted.** If a planner writes the file as "Required Decisions and Actions" + "Blocking Assumptions" + a numbered list, that is fine — the executor will classify items (defaulting to pre-execution) and surface them to the user. Structure helps, but the gate runs either way.
+
+This file is optional — only create it if the scope genuinely needs human checkpoints. When it exists, the execution coordinator is required to present its contents to the human at Step 0.5 (before work) and Step 6 (after work) of `execute.md`; it will never silently skip.
 
 ---
 
