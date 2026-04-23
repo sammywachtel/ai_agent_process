@@ -105,10 +105,17 @@ Agent({
 Based on decision in `.run/review/03-decision.md`:
 
 **APPROVE:**
-```bash
-bash .agent_process/scripts/github-issues-lifecycle.sh set-status {scope} approved
-bash .agent_process/scripts/github-issues-lifecycle.sh close {scope} approved
-```
+1. Update requirement doc frontmatter (`status: approved`) — use the `requirement_path` from resolve-input:
+   ```bash
+   # Edit the YAML frontmatter in the requirement doc, e.g.:
+   # status: scoped  →  status: approved
+   sed -i 's/^status: .*/status: approved/' {requirement_path}
+   ```
+2. GitHub lifecycle:
+   ```bash
+   bash .agent_process/scripts/github-issues-lifecycle.sh set-status {scope} approved
+   bash .agent_process/scripts/github-issues-lifecycle.sh close {scope} approved
+   ```
 
 **ITERATE:**
 ```bash
@@ -122,11 +129,16 @@ If human checkpoint needs change (prereqs satisfied, or new checkpoint needed), 
 Then: `/ap_exec {scope} {next_iteration}`
 
 **BLOCK:**
-```bash
-bash .agent_process/scripts/github-issues-lifecycle.sh set-status {scope} blocked
-bash .agent_process/scripts/github-issues-lifecycle.sh close {scope} blocked
-```
-Present options to human.
+1. Update requirement doc frontmatter (`status: blocked`) — use the `requirement_path` from resolve-input:
+   ```bash
+   sed -i 's/^status: .*/status: blocked/' {requirement_path}
+   ```
+2. GitHub lifecycle:
+   ```bash
+   bash .agent_process/scripts/github-issues-lifecycle.sh set-status {scope} blocked
+   bash .agent_process/scripts/github-issues-lifecycle.sh close {scope} blocked
+   ```
+3. Present options to human.
 
 **PIVOT:**
 ```bash

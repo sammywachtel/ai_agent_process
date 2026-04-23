@@ -18,13 +18,15 @@ Your role: Plan → Review Code → Decide → Handoff to implementation
 
 ---
 
-## Step 0: Load Context (READ THESE FILES FIRST)
+## Preflight: Load Context (READ THESE FILES FIRST)
 
 Before proceeding, use the Read tool to load these files:
 
 **Core context:**
 1. `.agent_process/orchestration/context/base-context.md` - Quick onboarding to process rules
 2. `.agent_process/README.md` - Process philosophy and principles
+3. `.agent_process/orchestration/context/personality/default-profile.md` - Agent personality baseline
+4. `.agent_process/orchestration/context/personality/user-profile.md` - User adaptation (if exists; create from `adaptation-schema.json` defaults if absent)
 
 **Coordinator (your step-by-step orchestration guide):**
 3. `.agent_process/orchestration/coordinators/plan-scope.md` - **Follow this file.** It tells you which sub-agents to spawn, in what order, and how data flows between steps.
@@ -52,41 +54,27 @@ Specify which scope to plan using any of these formats:
 
 If using a GitHub issue number, a requirement document must exist with a matching scope name. The requirement doc is the source of truth for acceptance criteria and scope boundaries.
 
-**Step 0.1: Resolve Input**
-
-Run this command to resolve the input to structured scope info:
-
-```bash
-bash .agent_process/scripts/github-issues-lifecycle.sh resolve-input "{{input}}"
-```
-
-This returns JSON with:
-- `scope`: The scope name (used for work folder)
-- `requirement_path`: Path to requirement doc
-- `gh_issue`: Linked GitHub issue number (may be null)
-- `input_type`: What you provided (issue, scope, or requirement_path)
-
-Use the `requirement_path` from this output to load the requirement doc.
+The coordinator's Step 0 resolves whichever form you pass into the concrete `scope` / `requirement_path` / `gh_issue` triple — you don't need to do this yourself.
 
 ---
 
 ## Your Task
 
-**Follow the coordinator at `orchestration/coordinators/plan-scope.md`.**
+**Follow the coordinator at `orchestration/coordinators/plan-scope.md`.** It is the authoritative flow; this wrapper only sets context and hands off.
 
-The coordinator breaks planning into focused steps, each executed by a sub-agent that receives only its own instructions (~40-80 lines). This prevents critical checks from being skipped.
+The coordinator is the **lean 4-step** variant. Each step is executed by a focused sub-agent that receives only its own instructions.
 
-Key steps the coordinator will guide you through:
-- **Step 01:** Scope size check (hard gate — planning stops if scope too large)
-- **Step 02:** Derive folder name from requirement ID
-- **Parallel A:** Knowledge base query + code review (run simultaneously)
-- **Step 04-05:** Define files in scope + create frozen criteria
-- **Parallel B:** Doc impact + pre-existing issues + validation script (run simultaneously)
-- **Step 08:** Aggregate all outputs into `iteration_plan.md`
-- **Step 08.5:** Design review (conditional, for complex scopes only)
-- **Steps 09-12:** Create folders, config, roadmap update, handoff
+Steps the coordinator will guide you through:
+- **Step 0:** Resolve input → `scope`, `requirement_path`, `gh_issue`
+- **Step 1:** Scope Setup — **HARD GATE** (cheap agent; scope-size check, folder creation)
+- **Step 2:** Technical Assessment (capable agent; KB query + code feasibility + design decisions)
+- **Step 3:** Define Scope (capable agent; files, frozen criteria, doc impact)
+- **Step 4:** Create Plan (synthesis / best model; aggregates into `iteration_plan.md`)
+- **Then:** optional `human-prereqs.md`, GitHub issue start, completion summary
 
-Each step writes its output to `.agent_process/work/{scope}/.run/` so subsequent steps can read it.
+Each step writes its output to `.agent_process/work/{scope}/.run/planning/` so subsequent steps can read it.
+
+If you find anything in this wrapper that contradicts the coordinator, the coordinator wins.
 
 ---
 
@@ -109,7 +97,7 @@ Use these tools throughout:
 ---
 
 **Remember:**
-- Load context files first (Step 0)
+- Load context files first (Preflight)
 - Follow the coordinator — it handles sequencing and parallelism
 - Each sub-agent sees only its step file (~40-80 lines), keeping focus sharp
 - Stop and provide handoff summary for approval

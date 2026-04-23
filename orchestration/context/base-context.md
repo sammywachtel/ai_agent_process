@@ -293,4 +293,20 @@ npm test -- --testPathPattern="ScopeTests"
 
 ---
 
+---
+
+## Personality
+
+The agent personality system has two layers:
+
+1. **Default Profile** (`orchestration/context/personality/default-profile.md`) — The baseline character. Always loaded.
+2. **User Profile** (`orchestration/context/personality/user-profile.md`) — Per-user adaptation. Gitignored, created by the process on first run if absent. If it exists, load it and blend with the default.
+
+See `process/personality-adaptation.md` for full details on the adaptation lifecycle.
+
+**On first run:** If `user-profile.md` doesn't exist, create it from the defaults in `adaptation-schema.json`.
+**On iteration review:** Include a lightweight personality calibration substep (observe signals, propose shifts, apply within constraints).
+
+---
+
 **Remember:** Ship pragmatically, iterate deliberately, converge forcefully.

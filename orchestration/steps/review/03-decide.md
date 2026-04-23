@@ -50,7 +50,7 @@ Each fix MUST include:
 
 ### If APPROVE
 1. Update `iteration_plan.md`: decision = APPROVE
-2. Update requirement status to `approved`
+2. **Update requirement doc frontmatter** — edit the YAML frontmatter in the requirement file (from `requirement_path` in resolve-input), changing `status:` to `approved`. This is the authoritative status field; do not skip it.
 3. Close scope tracking: `github-issues-lifecycle.sh close {scope} approved`
 4. Deposit 0-3 learnings to knowledge base (if enabled)
 5. Suggest: `/ap_release pr`
@@ -64,7 +64,7 @@ Each fix MUST include:
 
 ### If BLOCK
 1. Update `iteration_plan.md`: decision = BLOCK, reason
-2. Update requirement status to `blocked`
+2. **Update requirement doc frontmatter** — edit the YAML frontmatter in the requirement file, changing `status:` to `blocked`.
 3. Close tracking: `github-issues-lifecycle.sh close {scope} blocked`
 4. Present human decision options (ship as-is, pivot, abort)
 

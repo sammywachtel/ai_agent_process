@@ -718,6 +718,9 @@ if [[ ! -f "$GITIGNORE_FILE" ]]; then
 # Session state — changes every ap_exec run
 work/current_iteration.conf
 work/current_work_unit.conf
+
+# Per-user personality adaptation — personal data, not framework config
+orchestration/context/personality/user-profile.md
 GITIGNORE
   echo -e "${GREEN}  ✓${NC} Created .agent_process/.gitignore (.run/ excluded)"
 else
@@ -735,9 +738,52 @@ else
     echo "work/current_work_unit.conf" >> "$GITIGNORE_FILE"
     UPDATED=true
   fi
+  if ! grep -q 'user-profile\.md' "$GITIGNORE_FILE"; then
+    echo "" >> "$GITIGNORE_FILE"
+    echo "# Per-user personality adaptation — personal data, not framework config" >> "$GITIGNORE_FILE"
+    echo "orchestration/context/personality/user-profile.md" >> "$GITIGNORE_FILE"
+    UPDATED=true
+  fi
   if [[ "$UPDATED" == true ]]; then
     echo -e "${GREEN}  ✓${NC} Updated .agent_process/.gitignore"
   fi
+fi
+
+# Ensure .claude/CLAUDE.md includes personality awareness
+CLAUDE_MD_FILE="$TARGET_DIR/.claude/CLAUDE.md"
+PERSONALITY_MARKER="## Agent Personality"
+
+if [[ ! -f "$CLAUDE_MD_FILE" ]]; then
+  # Create minimal CLAUDE.md with personality section
+  cat > "$CLAUDE_MD_FILE" << 'CLAUDEMD'
+## Agent Personality
+
+Load these files at the start of every session to establish communication style:
+1. `.agent_process/orchestration/context/personality/default-profile.md` — baseline personality
+2. `.agent_process/orchestration/context/personality/user-profile.md` — per-user adaptation (if exists)
+
+If `user-profile.md` doesn't exist, create it from the defaults in `.agent_process/orchestration/context/personality/adaptation-schema.json`. See `.agent_process/process/personality-adaptation.md` for the full lifecycle.
+
+**During sessions:** When you notice strong personality signals from the user (consistent patterns across 3+ messages — not one-off phrasing), note them in the Observations section of `user-profile.md`. Do this at natural breakpoints: before commits, at the end of a work chunk, or when wrapping up a session. Keep observations lightweight — one line per signal.
+CLAUDEMD
+  echo -e "${GREEN}  ✓${NC} Created .claude/CLAUDE.md with personality awareness"
+elif ! grep -q "$PERSONALITY_MARKER" "$CLAUDE_MD_FILE"; then
+  # Append personality section to existing CLAUDE.md
+  cat >> "$CLAUDE_MD_FILE" << 'CLAUDEMD'
+
+## Agent Personality
+
+Load these files at the start of every session to establish communication style:
+1. `.agent_process/orchestration/context/personality/default-profile.md` — baseline personality
+2. `.agent_process/orchestration/context/personality/user-profile.md` — per-user adaptation (if exists)
+
+If `user-profile.md` doesn't exist, create it from the defaults in `.agent_process/orchestration/context/personality/adaptation-schema.json`. See `.agent_process/process/personality-adaptation.md` for the full lifecycle.
+
+**During sessions:** When you notice strong personality signals from the user (consistent patterns across 3+ messages — not one-off phrasing), note them in the Observations section of `user-profile.md`. Do this at natural breakpoints: before commits, at the end of a work chunk, or when wrapping up a session. Keep observations lightweight — one line per signal.
+CLAUDEMD
+  echo -e "${GREEN}  ✓${NC} Added personality awareness to .claude/CLAUDE.md"
+else
+  echo -e "${YELLOW}  ⊙${NC} Personality section already present in .claude/CLAUDE.md"
 fi
 
 echo ""

@@ -1,7 +1,7 @@
 # Review Iteration Results
 
 ## Your Role
-You are the orchestrator reviewing completed iteration work. You will follow a coordinator that breaks review into focused sub-agent steps, including 5 verification gates that run in parallel.
+You are the orchestrator reviewing completed iteration work. You will follow a coordinator that breaks review into 3 focused sub-agent steps: verify implementation, quality gates, decision + actions.
 
 ## ⚠️ SESSION BOUNDARIES
 
@@ -25,14 +25,16 @@ Before proceeding, use the Read tool to load these files:
 **Core context:**
 1. `.agent_process/orchestration/context/base-context.md` - Quick onboarding to process rules
 2. `.agent_process/README.md` - Process philosophy and principles
+3. `.agent_process/orchestration/context/personality/default-profile.md` - Agent personality baseline
+4. `.agent_process/orchestration/context/personality/user-profile.md` - User adaptation (if exists; create from `adaptation-schema.json` defaults if absent)
 
 **Coordinator (your step-by-step orchestration guide):**
-3. `.agent_process/orchestration/coordinators/review-iteration.md` - **Follow this file.** It tells you which sub-agents to spawn, in what order, and how to pass data between steps.
+5. `.agent_process/orchestration/coordinators/review-iteration.md` - **Follow this file.** It tells you which sub-agents to spawn, in what order, and how to pass data between steps.
 
 **Iteration artifacts:**
-4. `.agent_process/work/[scope]/iteration_plan.md` - Frozen criteria
-5. `.agent_process/work/[scope]/[iteration]/results.md` - Implementation self-report
-6. `.agent_process/work/[scope]/[iteration]/test-output.txt` - Validation results
+6. `.agent_process/work/[scope]/iteration_plan.md` - Frozen criteria
+7. `.agent_process/work/[scope]/[iteration]/results.md` - Implementation self-report
+8. `.agent_process/work/[scope]/[iteration]/test-output.txt` - Validation results
 
 Once you've loaded context, follow the coordinator from its first step.
 
@@ -83,16 +85,15 @@ Use the `scope` and `iteration` from this output for all subsequent operations.
 
 **Follow the coordinator at `orchestration/coordinators/review-iteration.md`.**
 
-The coordinator breaks review into focused steps:
-- **Step 01:** Load context and determine iteration state
-- **Step 1.5:** Scope event verification (direct bash)
-- **Parallel Gates:** 5 verification gates run simultaneously:
-  - Criteria evaluation, code verification, doc verification, integration verification, adversarial review
-- **Step 04-05:** Aggregate gates + count attempts
-- **Step 06:** HIGH STAKES decision (APPROVE/ITERATE/BLOCK/PIVOT) — uses best model
-- **Steps 07-10:** Post-decision actions (artifacts, knowledge, issue lifecycle, handoff)
+The coordinator breaks review into 3 focused steps (lean version):
+- **Step 0:** Resolve input → `scope`, `iteration`, `gh_issue`; set GH issue status to `reviewing`
+- **Step 1:** Verify implementation — capable agent reads `01-verify.md`, evaluates criteria, checks code matches claims and semantic intent → `.run/review/01-verify.md`
+- **Step 2:** Quality gates — capable agent reads `02-gates.md`, runs documentation/integration/adversarial/validation gates (fast-track for internal-only changes) → `.run/review/02-gates.md`
+- **Step 3:** Decision + actions — synthesis (best) model reads `03-decide.md`, chooses APPROVE/ITERATE/BLOCK/PIVOT with semantic-intent fixes if iterating → `.run/review/03-decision.md`
 
-Each step writes output to `.agent_process/work/{scope}/.run/` so subsequent steps can read it.
+After the 3 steps complete, present the decision to the human. Only after approval, execute the post-decision actions in the coordinator (requirement frontmatter update, GitHub lifecycle, etc.).
+
+Each step writes output to `.agent_process/work/{scope}/.run/review/` so subsequent steps can read it.
 
 ---
 
@@ -113,7 +114,6 @@ Each step writes output to `.agent_process/work/{scope}/.run/` so subsequent ste
 
 **Remember:**
 - Load context files first (Step 0)
-- Follow the coordinator — it handles sequencing and parallelism
-- 5 verification gates run in parallel for faster review
+- Follow the coordinator — it handles sequencing
 - The decision step uses the best available model — it's the highest-stakes call in AP
-- Stop and wait for human approval before executing post-decision actions
+- Stop and wait for human approval before executing post-decision actions (requirement frontmatter + GitHub lifecycle)
