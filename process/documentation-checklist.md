@@ -223,6 +223,20 @@ Your "users" are developers writing code against your library:
 - Integration examples for common frameworks
 - Architecture explanations for extension points
 
+### Removal / Rename Scopes
+When a scope removes or renames a public surface (HTTP route, MCP tool,
+CLI command, env var, exported symbol), this checklist alone is not
+enough — the standard "update affected docs" check answers *which* docs
+to update but not *how to prove* nothing live still references the old
+surface.
+
+For those scopes, also follow `process/removal-scope-checklist.md`. It
+adds an explicit `Removed Surfaces` section to the iteration plan, a
+workspace-wide stale-surface scrub in the validator, and a Gate 1 review
+contract that rejects unjustified whitelist entries — closing the loop
+where "stale references; not in scope" used to launder a half-removed
+public surface into the next iteration.
+
 ---
 
 ## Documentation Debt

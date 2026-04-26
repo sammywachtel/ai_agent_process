@@ -21,9 +21,32 @@ Read:
 Extract:
 - **Acceptance Criteria** (LOCKED)
 - **Files in Scope**
+- **Removed Surfaces** (if non-empty in the plan — see step §1.1 below)
 - **Validation Commands** (RUN vs SKIP)
 - **Technical Guidance**
 - **Human checkpoint requirements** (if `human-prereqs.md` exists)
+
+### 1.1 Removed Surfaces (if non-empty)
+
+If `iteration_plan.md` declares any **Removed Surfaces**, surface them in
+the prepare doc verbatim and add the following instruction for the
+implementer:
+
+> Before declaring this iteration complete, run the stale-surface scrub
+> block from the validator. If the scrub flags a reference outside the
+> whitelist, the implementer must either (a) update that reference to
+> remove or replace the removed surface, or (b) extend the per-surface
+> whitelist file at
+> `.agent_process/work/{scope}/.removal-whitelist/{surface}.txt` with
+> the new entry AND record a justification in `results.md`. Pasting an
+> entry into the whitelist without a justification is not acceptable —
+> the reviewer's Gate 1 will fail it.
+
+The implementer's `results.md` must include a **Removed-Surface Scrub**
+section per `process/removal-scope-checklist.md`. The reviewer reads it
+during Gate 1; missing or incomplete sections fail the gate.
+
+If the plan declares `Removed Surfaces: N/A`, skip this sub-step.
 
 ### Sub-iteration Context
 

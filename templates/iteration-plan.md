@@ -116,6 +116,29 @@ if necessary for correctness — see "Scope boundaries" note above.
 
 **Reference:** See `process/documentation-checklist.md` for guidance
 
+## Removed Surfaces
+
+*Populated when this scope removes or renames a public surface. See
+`process/removal-scope-checklist.md` for what counts as a public surface
+and how to fill out this section.*
+
+**Default for additive scopes:** *N/A — no public surfaces removed or renamed.*
+
+<!-- When the scope removes a public surface, replace the default with one
+entry per surface, following this shape:
+
+### `<surface identifier>` (e.g. `POST /api/metrics/query`, `list_metric_dimensions` (MCP tool))
+- **Replaced by:** `<replacement, or "no replacement — surface deleted">`
+- **Grep pattern:** `<regex the validator scrub will use>`
+- **Whitelist (allowed references after this scope completes):**
+  - `path/to/file:line-range` — *reason this reference is allowed (historical record, guardrail test, internal name collision, explicit "is removed" note, etc.)*
+- **Acceptance:** workspace grep returns only whitelisted hits.
+
+When this section is non-empty, the validation script generated below
+MUST include the stale-surface scrub block from
+`process/removal-scope-checklist.md`. The review's Gate 1 inspects this
+section explicitly. -->
+
 ## Validation Requirements (SCOPED)
 
 **Hook validation (after_edit):**
@@ -123,6 +146,8 @@ if necessary for correctness — see "Scope boundaries" note above.
 - Lints only files in scope
 - Tests only scope-specific patterns
 - Provides immediate feedback (not enforcement)
+- **If `Removed Surfaces` above is non-empty:** the script also runs the
+  stale-surface scrub. See `process/removal-scope-checklist.md`.
 
 **Important:** If scope expands during iterations (new files needed for fixes), the orchestrator must update the validation script to include new files.
 

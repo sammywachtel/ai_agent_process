@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Removal-scope checklist & stale-surface scrub gate** — New `process/removal-scope-checklist.md` encodes the migration lesson from CLAUDE.md so removal scopes can no longer ship with stale public-surface references via the "out of scope" channel. Planning step 04 now generates a per-surface whitelist; execution step 02 hands the executor a contract for extending it with justifications; review Gate 1 fails the iteration when the scrub is missing or whitelist entries lack justification. Additive scopes are unaffected — the gate falls back to its prior behavior when `Removed Surfaces` is `N/A`.
+- **`templates/results.md` — Removed-Surface Scrub section** — Reserved slot the executor populates with the hit/resolved/whitelisted table when the plan declares removed surfaces. Default `N/A` for additive scopes.
+
+### Changed
+- **`templates/iteration-plan.md`** — Added a `Removed Surfaces` section between Documentation in Scope and Validation Requirements; default is `N/A` so additive scopes are unaffected.
+- **`orchestration/steps/planning/04-plan.md`** — New step 2 ("Identify Removed Surfaces") between pre-existing-issues and validation-script generation; section list and step numbering updated accordingly.
+- **`orchestration/steps/execution/02-prepare.md`** — New §1.1 surfaces removed surfaces and the executor's whitelist-extension contract to the implementer.
+- **`orchestration/steps/review/02-gates.md`** — Gate 1 now has explicit FAIL conditions when `Removed Surfaces` is non-empty: missing scrub section, unjustified whitelist entries, or operator-facing surfaces whitelisted as "historical" while still serving as live guidance.
+
 ## [3.3.0-beta.1] - 2026-03-27
 
 ### Added

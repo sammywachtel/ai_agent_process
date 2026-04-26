@@ -69,6 +69,32 @@
 
 ---
 
+## Removed-Surface Scrub
+
+*Required when `iteration_plan.md` declares any **Removed Surfaces**.
+Reviewer's Gate 1 reads this section explicitly — missing or incomplete
+fails the gate. See `process/removal-scope-checklist.md`.*
+
+**Default for additive scopes:** *N/A — no public surfaces removed or renamed.*
+
+<!-- When Removed Surfaces is non-empty, replace the default with this table
+plus the whitelist-extension notes:
+
+| Surface | Hits Found | Hits Resolved | Hits Whitelisted (with justification) |
+|---------|-----------:|--------------:|---------------------------------------:|
+| `POST /api/example` | 7 | 4 | 3 |
+| `legacy_tool` (MCP) | 12 | 3 | 9 |
+
+**Whitelist additions beyond the planner's initial list:**
+- `path/to/file:line-range` — *justification (historical record, guardrail
+  test, internal name collision, explicit "is removed" note, etc.)*
+
+See `.agent_process/work/{scope}/.removal-whitelist/` for the per-surface
+whitelist files. Reasons of "out of scope" or "deferred to follow-up" are
+not acceptable — those defer the AC entirely, not a specific reference. -->
+
+---
+
 ## Acceptance Criteria Status
 
 Based on original criteria from iteration_plan.md:

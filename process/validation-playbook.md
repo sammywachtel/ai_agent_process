@@ -120,6 +120,21 @@ Reports:
 Run these periodically (e.g., after archiving completed scopes) to keep the
 scripts directory tidy.
 
+### Removal Scopes — Workspace-Wide Stale-Surface Scrub
+
+The scoped-validator pattern above intentionally bounds what gets linted
+and tested to files in scope. For scopes that **remove or rename a public
+surface** (HTTP route, MCP tool, CLI command, env var, exported symbol),
+the validator gains a second responsibility: prove that no live caller of
+the removed surface remains anywhere in the workspace.
+
+This is a different validator shape — a workspace-wide grep filtered
+against an explicit per-surface whitelist — and it lives next to the
+scoped commands inside the same `validate-{scope}.sh` script. The full
+contract (planner / executor / reviewer responsibilities, whitelist
+rules, anti-patterns) is in `process/removal-scope-checklist.md`. Read
+that file before planning any scope that removes a public surface.
+
 ---
 
 ## Pre-existing Debt Handling

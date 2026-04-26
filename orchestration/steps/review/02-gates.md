@@ -24,8 +24,32 @@ Fast-tracked gates still need quick verification, not full analysis.
 - Developer docs updated? (if API/architecture changed)
 - Orphaned references to removed code?
 
+### When the iteration plan declares `Removed Surfaces`
+
+If the plan's **Removed Surfaces** section is non-empty (i.e. this scope
+removes or renames a public surface), the "orphaned references" check is
+no longer a yes/no judgment. The reviewer MUST:
+
+1. Read the **Removed-Surface Scrub** section of the iteration's
+   `results.md`. If it is missing, **FAIL Gate 1**.
+2. For at least one declared surface, run the validator's stale-surface
+   scrub block manually — do not trust the implementer's count alone.
+3. Inspect each whitelist addition the executor made beyond the planner's
+   initial whitelist. Each addition must have an inline justification
+   (historical record, guardrail test, internal name collision, explicit
+   "is removed" note). **FAIL Gate 1** if any of these are true:
+   - A whitelist entry has no justification.
+   - The justification is *"out of scope"* / *"deferred to follow-up scope"* — those are valid reasons to defer entire AC, not to whitelist a specific stale reference while still claiming the AC is met.
+   - An operator-facing surface (smoke scripts, READMEs, runbooks, observability docs) is whitelisted as "historical" when it is in fact still serving as live operator guidance.
+
+When **Removed Surfaces** is empty (additive scope), this gate falls back
+to its existing yes/no check on orphaned references.
+
+See `process/removal-scope-checklist.md` for the full contract.
+
 **PASS:** Docs appropriately updated OR clear justification why N/A
-**FAIL:** External behavior changed with no doc update
+**FAIL:** External behavior changed with no doc update; OR removed-surface
+scrub missing/incomplete; OR a whitelist entry is unjustified
 
 ---
 
