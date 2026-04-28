@@ -47,9 +47,37 @@ to its existing yes/no check on orphaned references.
 
 See `process/removal-scope-checklist.md` for the full contract.
 
-**PASS:** Docs appropriately updated OR clear justification why N/A
-**FAIL:** External behavior changed with no doc update; OR removed-surface
-scrub missing/incomplete; OR a whitelist entry is unjustified
+### When `results.md` declares `Spec Concerns`
+
+If `results.md` contains a `## Spec Concerns` section, the reviewer
+MUST read it before applying any other gate logic. A surfaced concern
+is not by itself a FAIL — but it changes how the gates are weighted:
+
+- **Concern raised AND local fix applied:** Gate 1 verifies the fix
+  is correct AND that the iteration plan / prepare doc are updated to
+  reflect the corrected understanding (otherwise the next iteration
+  inherits the same gap).
+- **Concern raised WITHOUT a fix:** the iteration's overall decision
+  becomes ITERATE — revise the prepare doc to address the concern —
+  regardless of whether other gates pass. The reviewer MUST NOT mark
+  the iteration APPROVE while a Spec Concern is unresolved.
+
+A passing iteration that silently bypasses a known soundness concern
+is the failure mode this clause prevents. It encodes the lesson from
+sub-iterations where the implementer noticed a soundness issue,
+classified it as future-improvement, and shipped — leaving the next
+iteration to inherit the bug.
+
+**FAIL Gate 1** if a Spec Concern was raised, no fix was applied, and
+the decision is APPROVE. (The proper outcome for that combination is
+ITERATE.)
+
+**PASS:** Docs appropriately updated OR clear justification why N/A;
+AND no unresolved Spec Concerns
+**FAIL:** External behavior changed with no doc update; OR
+removed-surface scrub missing/incomplete; OR a whitelist entry is
+unjustified; OR an unresolved Spec Concern is paired with an APPROVE
+decision
 
 ---
 

@@ -44,6 +44,30 @@ Each fix MUST include:
 **Bad acceptance test:** "Checkout step added"
 **Good acceptance test:** "Workflow no longer emits 'No changes' when ai-lab sources changed"
 
+### Fixes that target quality-gate artifacts
+
+When an ITERATE fix targets a **quality-gate artifact** — validator,
+audit hook, scrub block, gate test, lint/type-check config,
+adversarial-review prompt — its **Acceptance Test** field MUST include
+a **negative case** alongside the operational case. "The validator
+exits 0" proves the artifact runs but never proves it catches what
+it's meant to catch; without a negative case, the next iteration's
+prepare doc inherits the soundness gap.
+
+**Bad acceptance test (quality-gate artifact):**
+"Validator exits 0 in the current checkout"
+
+**Good acceptance test (quality-gate artifact):**
+"Validator exits 0 on the current checkout AND, when a synthetic
+issue-tagged stale hit (e.g. `stale /api/foo (#999)` in a fake file)
+is introduced, exits non-zero with the hit reported under
+`STALE REFERENCES`."
+
+The prepare-step author (`steps/execution/02-prepare.md` §1.2) is
+required to expand the spec into both tests; this rule ensures the
+review decision provides them up front so the prepare-step author
+isn't guessing.
+
 ---
 
 ## Post-Decision Actions

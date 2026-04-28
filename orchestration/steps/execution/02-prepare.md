@@ -48,6 +48,95 @@ during Gate 1; missing or incomplete sections fail the gate.
 
 If the plan declares `Removed Surfaces: N/A`, skip this sub-step.
 
+### 1.2 Quality-Gate Artifact Check
+
+If any file in the iteration's **Files in Scope** is a **quality-gate
+artifact** — a validator script, audit hook, scrub block, gate test,
+lint or type-check config, adversarial-review prompt, or similar code
+whose job is to *judge* whether other code is correct — the prepare
+doc MUST include a **negative-case acceptance test** for every fix
+that touches one.
+
+A quality-gate artifact has a failure mode the scoped validator cannot
+catch on its own: the artifact can be silently broken in a way that
+always exits 0. "The validator runs and exits 0" proves the artifact
+is callable; it does not prove the artifact catches what it's meant
+to catch.
+
+**For every fix in Sub-iteration Fixes that modifies a quality-gate
+artifact, write two acceptance tests:**
+
+- **Operational:** the artifact runs and exits 0 on the current repo
+  state. Necessary, never sufficient.
+- **Negative case:** introduce a synthetic violation the artifact is
+  meant to catch and prove it gets caught (the artifact reports the
+  violation and exits non-zero). Examples:
+  - Stale-surface scrub → seed a fake file with a tagged stale hit
+    like `stale /api/foo (#999)` and prove the scrub flags it under
+    `STALE REFERENCES` and exits non-zero.
+  - Type-checker config change → add a deliberately mistyped fixture
+    and prove the checker fails on it.
+  - Lint rule update → add a fixture that violates the new rule and
+    prove lint exits non-zero.
+  - Adversarial-review prompt update → seed a known-faulty result and
+    prove the prompt produces a FAIL verdict.
+
+**If you, as the prepare-step author, cannot construct a credible
+negative-case test for a fix, treat that as a signal the fix spec is
+incomplete.** Surface the gap under `## Spec Concerns` in the prepare
+doc (see §1.4) and flag it to the coordinator before handoff —
+shipping a quality-gate change with only operational acceptance tests
+is the failure mode this rule prevents.
+
+### 1.3 Scope Boundary Flexibility (mirror of iteration-plan rule)
+
+When the prepare doc's `Files in Scope` list is narrower than the
+parent `iteration_plan.md` (typical for sub-iterations focused on a
+named fix), include this verbatim clause in the prepare doc just
+under the Files in Scope table:
+
+> **Boundary flexibility (mirrors the iteration-plan rule):** This
+> list is the *expected* touch surface, not a *forbidden* boundary.
+> If meeting the acceptance criteria correctly — including any
+> negative-case tests for quality-gate artifacts (§1.2) or
+> stale-surface whitelist updates for removed surfaces (§1.1) —
+> requires touching files outside this list, the implementer may do
+> so. Document the expansion in `results.md` under "Implementation
+> Notes" with what was added and why. The narrower list keeps
+> sub-iterations focused; it does not wall off soundness fixes.
+
+**Why this is required:** in practice, sub-iteration prepare docs
+that omit this clause have been read by implementers as a hard
+prohibition, even when soundness required expansion. The
+iteration-plan template already states the rule; the prepare doc must
+not silently revoke it for sub-iterations.
+
+### 1.4 Spec Concerns Channel
+
+Include this verbatim clause in the prepare doc, near the implementer
+summary:
+
+> **Spec Concerns channel:** If during execution you discover a gap
+> in *this prepare doc* — a missing acceptance test, an instruction
+> that conflicts with the iteration plan or framework rules, a
+> soundness question about a quality-gate artifact you're modifying,
+> or a fix spec that names a symptom rather than a root cause — pause
+> and write your concern at the top of `results.md` under a
+> `## Spec Concerns` heading. Then decide:
+>
+> - **Local fix is safe and obviously correct:** apply it, document
+>   it under Spec Concerns AND in Implementation Notes, including
+>   what changed and why.
+> - **Local fix is uncertain or expands scope significantly:** stop
+>   without applying it, leave the concern in `results.md`, and
+>   surface it to the coordinator so the prepare doc can be revised.
+>
+> Concerns raised in good faith are never a failure mode; silently
+> shipping work the implementer suspects is incomplete is.
+
+The reviewer's Gate 1 reads this section explicitly. See
+`steps/review/02-gates.md`.
+
 ### Sub-iteration Context
 
 For `_a`/`_b`/`_c` iterations, also extract from the placeholder results.md:
