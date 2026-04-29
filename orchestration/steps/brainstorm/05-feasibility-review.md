@@ -1,6 +1,6 @@
 # Step 05: Feasibility Review (MANDATORY)
 
-**Model tier:** capable
+**Model tier:** synthesis
 **Tools needed:** Read, Grep, Glob
 **Input:** Synthesis (`.run/04-synthesis.md`), idea
 **Output:** `.run/05-feasibility-review.md`

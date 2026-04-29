@@ -2,6 +2,14 @@
 
 Execute an iteration in 2 preparation steps + implementation.
 
+## Model Tiers
+
+| Tier | Use For | Claude Code | Codex |
+|------|---------|-------------|-------|
+| **cheap** | Preflight checks | haiku | gpt-5.4-mini |
+| **capable** | Preparation, context extraction | sonnet | gpt-5.4 |
+| **synthesis** | Implementation — code quality demands best model | opus | gpt-5.4 |
+
 ## Prohibitions
 
 - Do NOT commit during execution — validation runs, then results documented
@@ -113,6 +121,7 @@ Pass the recorded response from Step 0.5 (`proceed` / `local-only`) into the imp
 
 ```
 Agent({
+  model: "{synthesis}",  // Claude Code: "opus" | Codex: use best available
   subagent_type: "{selected_agent}",
   description: "Implement {scope}/{iteration}",
   prompt: "Implement {scope}/{iteration}:
@@ -147,6 +156,7 @@ Agent({
 
 ```
 Agent({
+  model: "{synthesis}",  // Claude Code: "opus" | Codex: use best available
   subagent_type: "{selected_agent}",
   description: "Fix {scope}/{iteration}",
   prompt: "Fix issues for {scope}/{iteration}:

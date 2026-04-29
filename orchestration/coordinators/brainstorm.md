@@ -28,8 +28,8 @@ The final synthesis saves to `.agent_process/brainstorms/{chosen_name}/brainstor
 | Tier | Use For | Claude Code | Codex |
 |------|---------|-------------|-------|
 | **cheap** | Config check | haiku | gpt-5.4-mini |
-| **capable** | Context + code review, brainstorm agents, feasibility review, requirement writing | sonnet | gpt-5.4 |
-| **synthesis** | Aggregating 3 perspectives into unified analysis | opus | gpt-5.4 |
+| **capable** | Context + code review, brainstorm agents, requirement writing | sonnet | gpt-5.4 |
+| **synthesis** | Aggregating 3 perspectives, feasibility gatekeeper | opus | gpt-5.4 |
 
 ## Data Flow
 
@@ -75,7 +75,7 @@ Spawn a **synthesis** sub-agent with `orchestration/steps/brainstorm/04-synthesi
 
 ### Step 05: Feasibility Review (MANDATORY)
 
-Spawn a **capable** sub-agent with `orchestration/steps/brainstorm/05-feasibility-review.md`.
+Spawn a **synthesis** sub-agent with `orchestration/steps/brainstorm/05-feasibility-review.md`.
 - Pass: synthesis output, idea
 - **Output:** `.run/05-feasibility-review.md`
 

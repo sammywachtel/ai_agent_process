@@ -2,6 +2,14 @@
 
 Plan a scope in 4 steps instead of 13.
 
+## Model Tiers
+
+| Tier | Use For | Claude Code | Codex |
+|------|---------|-------------|-------|
+| **cheap** | Scope setup, size check | haiku | gpt-5.4-mini |
+| **capable** | Technical assessment | sonnet | gpt-5.4 |
+| **synthesis** | Defining frozen criteria, creating final plan | opus | gpt-5.4 |
+
 ## Prohibitions
 
 - Do NOT commit, push, or modify application code during planning
@@ -64,10 +72,11 @@ Agent({
 
 ## Step 3: Define Scope
 
-Spawn **capable** agent:
+Spawn **synthesis** agent — frozen criteria cascade through the entire pipeline:
 
 ```
 Agent({
+  model: "{synthesis}",  // Claude Code: "opus" | Codex: use best available
   description: "Define {scope}",
   prompt: "Read orchestration/steps/planning/03-define.md and execute.
     Requirement: {requirement_path}
@@ -87,6 +96,7 @@ Spawn **synthesis** (best model) agent:
 
 ```
 Agent({
+  model: "{synthesis}",  // Claude Code: "opus" | Codex: use best available
   description: "Create plan for {scope}",
   prompt: "Read orchestration/steps/planning/04-plan.md and execute.
     Requirement: {requirement_path}

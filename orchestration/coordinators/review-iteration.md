@@ -12,8 +12,8 @@ Review a completed iteration in 3 steps instead of 10.
 | Tier | Use For |
 |------|---------|
 | **cheap** | File reads, gate counting, validation checks |
-| **capable** | Code verification, doc verification, criteria evaluation |
-| **synthesis** | The 4-choice decision — HIGH STAKES, use best model |
+| **capable** | (currently unused — all review steps need strong judgment) |
+| **synthesis** | Verification, gate evaluation, and the 4-choice decision |
 
 ## Local Environment Instructions
 
@@ -43,10 +43,11 @@ bash .agent_process/scripts/github-issues-lifecycle.sh set-status {scope} review
 
 ## Step 1: Verify Implementation
 
-Spawn **capable** agent:
+Spawn **synthesis** agent — semantic intent judgment requires best model:
 
 ```
 Agent({
+  model: "{synthesis}",  // Claude Code: "opus" | Codex: use best available
   description: "Verify {scope}/{iteration}",
   prompt: "Read orchestration/steps/review/01-verify.md and execute.
     Scope: {scope}
@@ -62,10 +63,11 @@ Agent({
 
 ## Step 2: Quality Gates
 
-Spawn **capable** agent:
+Spawn **synthesis** agent — gate quality bounds decision quality:
 
 ```
 Agent({
+  model: "{synthesis}",  // Claude Code: "opus" | Codex: use best available
   description: "Gates for {scope}/{iteration}",
   prompt: "Read orchestration/steps/review/02-gates.md and execute.
     Scope: {scope}
@@ -86,6 +88,7 @@ Spawn **synthesis** (best model) agent:
 
 ```
 Agent({
+  model: "{synthesis}",  // Claude Code: "opus" | Codex: use best available
   description: "Decision for {scope}/{iteration}",
   prompt: "Read orchestration/steps/review/03-decide.md and execute.
     Scope: {scope}
