@@ -257,7 +257,7 @@ bash .agent_process/scripts/github-issues-lifecycle.sh audit
 
 ## 5. Context File
 
-The lifecycle script generates `.agent_process/work/{scope}/.run/gh-issue-context.md` at `start` and `associate` time. This file contains:
+The lifecycle script generates `<project_root>/.agent_process/work/{scope}/.run/gh-issue-context.md` at `start` and `associate` time. This file contains:
 
 - Issue number and repo
 - Current status label
@@ -271,7 +271,7 @@ The lifecycle script generates `.agent_process/work/{scope}/.run/gh-issue-contex
 These rules exist because past violations caused duplicate issues, context bloat, and broken state:
 
 - **Never edit issue body directly** — use the lifecycle script
-- **Never load full issue body into agent context** — use the issue number as a pointer, or read `.run/gh-issue-context.md`
+- **Never load full issue body into agent context** — use the issue number as a pointer, or read `<project_root>/.agent_process/work/{scope}/.run/gh-issue-context.md`
 - **Never run `gh` without going through the lifecycle script** — the script handles `--repo`, retries, and tracker sync
 - **Never create duplicate issues** — always check `scope-tracker.jsonl` first via `start` (which checks tracker before creating)
 - **Never skip the lifecycle script for "simple" operations** — even a comment should go through `lifecycle.sh comment`
@@ -295,9 +295,9 @@ Parent coordinators spawn a **cheap** sub-agent for GH operations:
 
 ```markdown
 Spawn a cheap sub-agent:
-  - Input: process/github-issues-handling.md + .run/gh-issue-context.md (if exists)
+  - Input: process/github-issues-handling.md + <project_root>/.agent_process/work/{scope}/.run/gh-issue-context.md (if exists)
   - Task: "Verify GH issue for scope {scope}. Update status to {label}."
-  - Output: Updated .run/gh-issue-context.md
+  - Output: Updated <project_root>/.agent_process/work/{scope}/.run/gh-issue-context.md
 ```
 
 The parent coordinator does NOT read issues, run `gh`, or process labels. Simple single-command status updates (one bash call already in the orchestration) are acceptable inline — the sub-agent pattern is for anything involving decisions or multiple commands.

@@ -2,8 +2,8 @@
 
 **Model tier:** capable (x3 parallel agents)
 **Tools needed:** Agent/Task
-**Input:** idea, context output (`.run/02-context.md`)
-**Output:** `.run/03-product.md`, `.run/03-architect.md`, `.run/03-critical.md`
+**Input:** idea, context output (`<project_root>/.agent_process/brainstorms/{chosen_name}/.run/02-context.md`)
+**Output:** `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/03-product.md`, `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/03-architect.md`, `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/03-critical.md`
 
 ---
 
@@ -43,4 +43,4 @@ Stress-test the idea:
 
 - All 3 agents must be concrete and specific to this project
 - Launch all 3 in a single response (parallel)
-- Each writes its output to its own `.run/` file
+- Each writes its output to its own `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/` file

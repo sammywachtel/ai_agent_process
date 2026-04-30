@@ -2,8 +2,8 @@
 
 **Model tier:** synthesis
 **Tools needed:** Read, Write
-**Input:** `.run/03-product.md`, `.run/03-architect.md`, `.run/03-critical.md`
-**Output:** `.run/04-synthesis.md` + `.agent_process/brainstorms/{chosen_name}/brainstorm.md`
+**Input:** `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/03-product.md`, `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/03-architect.md`, `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/03-critical.md`
+**Output:** `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/04-synthesis.md` + `.agent_process/brainstorms/{chosen_name}/brainstorm.md`
 
 ---
 
@@ -51,7 +51,7 @@ Read all 3 agent outputs and synthesize into a unified brainstorm document. Wher
 ## Save
 
 Write to both:
-1. `.run/04-synthesis.md` (for the coordinator)
+1. `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/04-synthesis.md` (for the coordinator)
 2. `.agent_process/brainstorms/{chosen_name}/brainstorm.md` (permanent record)
 
 The directory was already created by the coordinator.

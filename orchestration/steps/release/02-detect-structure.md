@@ -3,7 +3,7 @@
 **Model tier:** cheap
 **Tools needed:** Bash
 **Input:** none (reads filesystem)
-**Output:** `.run/release/02-structure.md`
+**Output:** `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/02-structure.md`
 
 ---
 
@@ -30,7 +30,7 @@ ls -la frontend/package.json backend/pyproject.toml 2>/dev/null
 
 ## Output Format
 
-Write to `.run/release/02-structure.md`:
+Write to `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/02-structure.md`:
 
 ```markdown
 # Project Structure

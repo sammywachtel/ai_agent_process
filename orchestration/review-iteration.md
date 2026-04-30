@@ -87,13 +87,13 @@ Use the `scope` and `iteration` from this output for all subsequent operations.
 
 The coordinator breaks review into 3 focused steps (lean version):
 - **Step 0:** Resolve input → `scope`, `iteration`, `gh_issue`; set GH issue status to `reviewing`
-- **Step 1:** Verify implementation — capable agent reads `01-verify.md`, evaluates criteria, checks code matches claims and semantic intent → `.run/review/01-verify.md`
-- **Step 2:** Quality gates — capable agent reads `02-gates.md`, runs documentation/integration/adversarial/validation gates (fast-track for internal-only changes) → `.run/review/02-gates.md`
-- **Step 3:** Decision + actions — synthesis (best) model reads `03-decide.md`, chooses APPROVE/ITERATE/BLOCK/PIVOT with semantic-intent fixes if iterating → `.run/review/03-decision.md`
+- **Step 1:** Verify implementation — capable agent reads `01-verify.md`, evaluates criteria, checks code matches claims and semantic intent → `<project_root>/.agent_process/work/{scope}/.run/review/01-verify.md`
+- **Step 2:** Quality gates — capable agent reads `02-gates.md`, runs documentation/integration/adversarial/validation gates (fast-track for internal-only changes) → `<project_root>/.agent_process/work/{scope}/.run/review/02-gates.md`
+- **Step 3:** Decision + actions — synthesis (best) model reads `03-decide.md`, chooses APPROVE/ITERATE/BLOCK/PIVOT with semantic-intent fixes if iterating → `<project_root>/.agent_process/work/{scope}/.run/review/03-decision.md`
 
 After the 3 steps complete, present the decision to the human. Only after approval, execute the post-decision actions in the coordinator (requirement frontmatter update, GitHub lifecycle, etc.).
 
-Each step writes output to `.agent_process/work/{scope}/.run/review/` so subsequent steps can read it.
+Each step writes output to `<project_root>/.agent_process/work/{scope}/.run/review/` so subsequent steps can read it.
 
 ---
 

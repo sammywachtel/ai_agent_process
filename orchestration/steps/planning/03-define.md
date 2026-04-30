@@ -1,7 +1,7 @@
 # Step 03: Define Scope
 
 **Input:** Requirement file, assessment output
-**Output:** `.run/planning/03-define.md`
+**Output:** `<project_root>/.agent_process/work/{scope}/.run/planning/03-define.md`
 
 ---
 

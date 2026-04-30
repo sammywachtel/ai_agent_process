@@ -2,8 +2,8 @@
 
 **Model tier:** synthesis
 **Tools needed:** Read, Grep, Glob
-**Input:** Synthesis (`.run/04-synthesis.md`), idea
-**Output:** `.run/05-feasibility-review.md`
+**Input:** Synthesis (`<project_root>/.agent_process/brainstorms/{chosen_name}/.run/04-synthesis.md`), idea
+**Output:** `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/05-feasibility-review.md`
 
 ---
 
@@ -25,7 +25,7 @@ Previously, brainstorm was producing idealistic requirements that got rejected b
 
 ## Input: What You're Reviewing
 
-Read `.run/04-synthesis.md` and extract:
+Read `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/04-synthesis.md` and extract:
 - **Success Criteria** — Are these measurable and testable?
 - **Technical Assessment** — Are the files/components real?
 - **Proposed Approach** — Is this feasible with current architecture?
@@ -64,7 +64,7 @@ Your review directly shapes the final requirement:
 
 ## Output Location
 
-Write your review to: `.run/05-feasibility-review.md`
+Write your review to: `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/05-feasibility-review.md`
 
 Use the output template from `process/code-feasibility-review.md`.
 

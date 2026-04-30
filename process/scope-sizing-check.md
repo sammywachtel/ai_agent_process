@@ -116,7 +116,7 @@ This requirement exceeds size thresholds. Recommend splitting into:
 
 ### For Plan-Scope (Step 01)
 
-- Output: `.run/planning/01-scope-check.md`
+- Output: `<project_root>/.agent_process/work/{scope}/.run/planning/01-scope-check.md`
 - If FAIL → Coordinator offers to run breakdown (Step 01b)
 - If PASS/WARN → Continue to Step 02
 

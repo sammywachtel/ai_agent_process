@@ -2,8 +2,8 @@
 
 **Model tier:** cheap
 **Tools needed:** Read, Write
-**Input:** structure output (`.run/release/02-structure.md`), new version
-**Output:** `.run/release/06-version-update.md`
+**Input:** structure output (`<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/02-structure.md`), new version
+**Output:** `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/06-version-update.md`
 
 ---
 
@@ -35,7 +35,7 @@ setup(version="{new_version}", ...)
 
 ## Output Format
 
-Write to `.run/release/06-version-update.md`:
+Write to `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/06-version-update.md`:
 
 ```markdown
 # Version Update

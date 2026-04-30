@@ -1,6 +1,6 @@
 # Step 01: Preflight Checks
 
-**Output:** `.run/execution/01-preflight.md`
+**Output:** `<project_root>/.agent_process/work/{scope}/.run/execution/01-preflight.md`
 
 ---
 

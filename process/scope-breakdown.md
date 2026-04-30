@@ -292,12 +292,12 @@ The description should explain what work this child scope handles and how it rel
 
 - Runs after Step 01 returns FAIL
 - Full orchestration with parallel sub-agents for review
-- Output: `.run/planning/01b-breakdown.md` + child files
+- Output: `<project_root>/.agent_process/work/{scope}/.run/planning/01b-breakdown.md` + child files
 
 ### For /ap_requirements add
 
 - Runs inline when scope check fails
-- Same process, but outputs directly (no `.run/` files)
+- Same process, but outputs directly (no `<project_root>/.agent_process/work/{scope}/.run/` files)
 - Creates children in `requirements_docs/{category}/`
 
 ### For /ap_brainstorm

@@ -26,17 +26,17 @@ The run directory depends on context mode:
 ```bash
 # Read the current scope
 SCOPE=$(grep "^SCOPE=" .agent_process/work/current_iteration.conf | cut -d= -f2)
-mkdir -p .agent_process/work/${SCOPE}/.run/release
+mkdir -p <project_root>/.agent_process/work/${SCOPE}/.run/release
 ```
-All step outputs go to `.agent_process/work/{scope}/.run/release/`.
+All step outputs go to `<project_root>/.agent_process/work/{scope}/.run/release/`.
 
 **Noscope mode (explicit `noscope` arg only):**
 ```bash
-mkdir -p .agent_process/work/_noscope/.run/release
+mkdir -p <project_root>/.agent_process/work/_noscope/.run/release
 ```
-All step outputs go to `.agent_process/work/_noscope/.run/release/`.
+All step outputs go to `<project_root>/.agent_process/work/_noscope/.run/release/`.
 
-**Never write `.run/` to the project root.** It always goes under `.agent_process/work/`.
+**Never write `<project_root>/.agent_process/work/{scope_or_noscope}/.run/` to the project root.** It always goes under `.agent_process/work/`.
 
 ---
 
@@ -58,10 +58,10 @@ Spawn TWO **cheap** sub-agents **simultaneously**:
 
 1. `orchestration/steps/release/01-gather-context.md`
    - Pass: context mode (scope/noscope), scope name, iteration name
-   - **Output:** `.run/release/01-context.md`
+   - **Output:** `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/01-context.md`
 
 2. `orchestration/steps/release/02-detect-structure.md`
-   - **Output:** `.run/release/02-structure.md`
+   - **Output:** `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/02-structure.md`
 
 Wait for both before proceeding.
 
@@ -69,28 +69,28 @@ Wait for both before proceeding.
 
 Spawn a **cheap** sub-agent with `orchestration/steps/release/03-get-version.md`.
 - Pass: structure output, mode, version type
-- **Output:** `.run/release/03-version.md`
+- **Output:** `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/03-version.md`
 
 ### Step 04: Determine Change Type (sequential)
 
 Spawn a **capable** sub-agent with `orchestration/steps/release/04-change-type.md`.
 - Pass: context output, mode
-- **Output:** `.run/release/04-change-type.md` (includes drafted changelog entry)
+- **Output:** `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/04-change-type.md` (includes drafted changelog entry)
 
 ### Step 05: Update Changelog (sequential)
 
 Spawn a **capable** sub-agent with `orchestration/steps/release/05-update-changelog.md`.
 - Pass: mode, version info, change type output
-- **Output:** `.run/release/05-changelog.md`
+- **Output:** `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/05-changelog.md`
 - **Action:** Writes to `CHANGELOG.md` (and `USER_CHANGELOG.md` for beta/release)
 
 ### Step 06: Update Version Files (CONDITIONAL — release mode only)
 
-**If mode is NOT `release`:** Skip, write "N/A — not release mode" to `.run/release/06-version-update.md`.
+**If mode is NOT `release`:** Skip, write "N/A — not release mode" to `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/06-version-update.md`.
 
 **If mode IS `release`:** Spawn a **cheap** sub-agent with `orchestration/steps/release/06-update-version.md`.
 - Pass: structure output, new version
-- **Output:** `.run/release/06-version-update.md`
+- **Output:** `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/06-version-update.md`
 
 ### Steps 07-09: Commit, Tag, Push, PR (MUST BE SEQUENTIAL)
 
@@ -99,7 +99,7 @@ Spawn a **capable** sub-agent with `orchestration/steps/release/07-09-commit-tag
 **These git operations MUST run as a single sequential step.** Do NOT attempt to parallelize commit, tag, push, or PR creation.
 
 - Pass: mode, version info, build number, context mode, scope, changelog entry
-- **Output:** `.run/release/07-09-git-ops.md`
+- **Output:** `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/07-09-git-ops.md`
 
 ### Step 095: PR Shepherd (CONDITIONAL)
 
@@ -111,15 +111,15 @@ Spawn a **capable** sub-agent with `orchestration/steps/release/07-09-commit-tag
 
 **If running:** Spawn a **capable** sub-agent with `orchestration/steps/release/095-pr-shepherd.md`.
 - Pass: PR URL from step 07-09 output
-- **Output:** `.run/release/095-shepherd.md`
+- **Output:** `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/095-shepherd.md`
 
-**If skipping:** Write "Skipped — {reason}" to `.run/release/095-shepherd.md`.
+**If skipping:** Write "Skipped — {reason}" to `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/095-shepherd.md`.
 
 ### Step 10: Report (sequential)
 
 Spawn a **cheap** sub-agent with `orchestration/steps/release/10-report.md`.
-- Pass: ALL `.run/release/*` files
-- **Output:** `.run/release/10-report.md`
+- Pass: ALL `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/*` files
+- **Output:** `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/10-report.md`
 - Present the report to the user
 
 ---
@@ -128,12 +128,12 @@ Spawn a **cheap** sub-agent with `orchestration/steps/release/10-report.md`.
 
 Before presenting the report, verify:
 
-- [ ] `.run/release/01-context.md`
-- [ ] `.run/release/02-structure.md`
-- [ ] `.run/release/03-version.md`
-- [ ] `.run/release/04-change-type.md`
-- [ ] `.run/release/05-changelog.md`
-- [ ] `.run/release/06-version-update.md`
-- [ ] `.run/release/07-09-git-ops.md`
-- [ ] `.run/release/095-shepherd.md`
-- [ ] `.run/release/10-report.md`
+- [ ] `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/01-context.md`
+- [ ] `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/02-structure.md`
+- [ ] `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/03-version.md`
+- [ ] `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/04-change-type.md`
+- [ ] `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/05-changelog.md`
+- [ ] `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/06-version-update.md`
+- [ ] `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/07-09-git-ops.md`
+- [ ] `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/095-shepherd.md`
+- [ ] `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/10-report.md`

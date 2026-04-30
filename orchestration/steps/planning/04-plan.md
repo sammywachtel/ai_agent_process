@@ -1,6 +1,6 @@
 # Step 04: Create Plan
 
-**Input:** All `.run/planning/` outputs, requirement file
+**Input:** All `<project_root>/.agent_process/work/{scope}/.run/planning/` outputs, requirement file
 **Output:** `.agent_process/work/{scope}/iteration_plan.md`
 
 ---
@@ -149,7 +149,7 @@ If simple/moderate: skip this gate.
 
 ## 5. Write Iteration Plan
 
-Synthesize ALL `.run/planning/` outputs into the final plan.
+Synthesize ALL `<project_root>/.agent_process/work/{scope}/.run/planning/` outputs into the final plan.
 
 Use template structure from `.agent_process/templates/iteration-plan.md`.
 

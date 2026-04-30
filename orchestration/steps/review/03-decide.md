@@ -1,7 +1,7 @@
 # Step 03: Decision + Actions
 
-**Input:** `.run/review/01-verify.md`, `.run/review/02-gates.md`
-**Output:** `.run/review/03-decision.md`
+**Input:** `<project_root>/.agent_process/work/{scope}/.run/review/01-verify.md`, `<project_root>/.agent_process/work/{scope}/.run/review/02-gates.md`
+**Output:** `<project_root>/.agent_process/work/{scope}/.run/review/03-decision.md`
 
 ---
 

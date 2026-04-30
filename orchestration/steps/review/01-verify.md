@@ -1,6 +1,6 @@
 # Step 01: Verify Implementation
 
-**Output:** `.run/review/01-verify.md`
+**Output:** `<project_root>/.agent_process/work/{scope}/.run/review/01-verify.md`
 
 ---
 

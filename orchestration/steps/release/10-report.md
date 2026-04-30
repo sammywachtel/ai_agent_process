@@ -2,8 +2,8 @@
 
 **Model tier:** cheap
 **Tools needed:** Read
-**Input:** ALL `.run/release/*` files
-**Output:** `.run/release/10-report.md`
+**Input:** ALL `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/*` files
+**Output:** `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/10-report.md`
 
 ---
 
@@ -13,7 +13,7 @@ Read all release step outputs and produce a final summary for the user.
 
 ## Output Format
 
-Write to `.run/release/10-report.md`:
+Write to `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/10-report.md`:
 
 ```markdown
 # Release Complete: {mode}

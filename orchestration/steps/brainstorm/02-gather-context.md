@@ -3,7 +3,7 @@
 **Model tier:** capable
 **Tools needed:** Read, Grep, Glob, Bash
 **Input:** idea (from user)
-**Output:** `.agent_process/brainstorms/{name}/.run/02-context.md`
+**Output:** `<project_root>/.agent_process/brainstorms/{name}/.run/02-context.md`
 
 ---
 

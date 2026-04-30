@@ -3,7 +3,7 @@
 **Model tier:** capable
 **Tools needed:** Bash
 **Input:** mode, version info, build number, context mode, scope, changelog entry
-**Output:** `.run/release/07-09-git-ops.md`
+**Output:** `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/07-09-git-ops.md`
 
 ---
 
@@ -122,7 +122,7 @@ cd -
 
 ## Output Format
 
-Write to `.run/release/07-09-git-ops.md`:
+Write to `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/07-09-git-ops.md`:
 
 ### Single-repo:
 ```markdown

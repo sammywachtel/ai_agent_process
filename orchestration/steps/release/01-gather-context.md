@@ -3,7 +3,7 @@
 **Model tier:** cheap
 **Tools needed:** Read, Bash
 **Input:** context mode (scope/noscope), scope name, iteration name
-**Output:** `.run/release/01-context.md`
+**Output:** `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/01-context.md`
 
 ---
 
@@ -20,7 +20,7 @@ cat .agent_process/work/current_iteration.conf
 **Step 1: Read artifacts for context**
 - `.agent_process/work/{scope}/{iteration}/results.md` — what was implemented
 - `.agent_process/work/{scope}/iteration_plan.md` — scope context  
-- `.agent_process/work/{scope}/.run/gh-issue-context.md` — tracked GitHub issue context, if present
+- `<project_root>/.agent_process/work/{scope}/.run/gh-issue-context.md` — tracked GitHub issue context, if present
 
 Extract: summary, change type (feature/fix/breaking), user-facing changes, and GitHub issue number if available.
 
@@ -72,7 +72,7 @@ echo "Build number: ${BUILD_NUM}"
 
 ## Output Format
 
-Write to `.run/release/01-context.md`:
+Write to `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/01-context.md`:
 
 ```markdown
 # Release Context

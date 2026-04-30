@@ -3,7 +3,7 @@
 **Model tier:** cheap
 **Tools needed:** Read
 **Input:** none (reads quality-config.json)
-**Output:** `.agent_process/brainstorms/.run/01-config.md`
+**Output:** `<project_root>/.agent_process/brainstorms/.run/01-config.md`
 
 ---
 

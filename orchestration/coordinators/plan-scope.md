@@ -13,7 +13,7 @@ Plan a scope in 4 steps instead of 13.
 ## Prohibitions
 
 - Do NOT commit, push, or modify application code during planning
-- Planning artifacts go to `.agent_process/work/{scope}/.run/planning/` only
+- Planning artifacts go to `<project_root>/.agent_process/work/{scope}/.run/planning/` only
 
 ---
 
@@ -43,7 +43,7 @@ Agent({
     
     Check scope size, derive names, create work folder.
     If FAIL: offer breakdown or override.
-    Output: .run/planning/01-setup.md"
+    Output: <project_root>/.agent_process/work/{scope}/.run/planning/01-setup.md"
 })
 ```
 
@@ -64,7 +64,7 @@ Agent({
     
     Query knowledge base, review code feasibility, document design decisions.
     Capture WHY decisions were made, not just WHAT.
-    Output: .run/planning/02-assess.md"
+    Output: <project_root>/.agent_process/work/{scope}/.run/planning/02-assess.md"
 })
 ```
 
@@ -81,10 +81,10 @@ Agent({
   prompt: "Read orchestration/steps/planning/03-define.md and execute.
     Requirement: {requirement_path}
     Scope: {scope}
-    Input: .run/planning/02-assess.md
+    Input: <project_root>/.agent_process/work/{scope}/.run/planning/02-assess.md
     
     Define files, create frozen criteria, assess doc impact.
-    Output: .run/planning/03-define.md"
+    Output: <project_root>/.agent_process/work/{scope}/.run/planning/03-define.md"
 })
 ```
 
@@ -101,7 +101,7 @@ Agent({
   prompt: "Read orchestration/steps/planning/04-plan.md and execute.
     Requirement: {requirement_path}
     Scope: {scope}
-    Inputs: All .run/planning/*.md files
+    Inputs: All <project_root>/.agent_process/work/{scope}/.run/planning/*.md files
     
     Document pre-existing issues, create validation script, write iteration plan.
     Include Design Decisions table from assessment.
@@ -159,9 +159,9 @@ This creates/adopts the issue and sets `status:planning`.
 ## Completion
 
 Verify outputs:
-- `.run/planning/01-setup.md`
-- `.run/planning/02-assess.md`
-- `.run/planning/03-define.md`
+- `<project_root>/.agent_process/work/{scope}/.run/planning/01-setup.md`
+- `<project_root>/.agent_process/work/{scope}/.run/planning/02-assess.md`
+- `<project_root>/.agent_process/work/{scope}/.run/planning/03-define.md`
 - `.agent_process/work/{scope}/iteration_plan.md`
 
 Report to user:

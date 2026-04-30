@@ -5,7 +5,7 @@ Review a completed iteration in 3 steps instead of 10.
 ## Prohibitions
 
 - Do NOT commit, push, or modify application code during review
-- Review artifacts go to `.run/review/` only
+- Review artifacts go to `<project_root>/.agent_process/work/{scope}/.run/review/` only
 
 ## Model Tiers
 
@@ -55,7 +55,7 @@ Agent({
     
     Load context, evaluate criteria, verify code matches claims.
     Check if executor understood semantic intent, not just made mechanical changes.
-    Output: .run/review/01-verify.md"
+    Output: <project_root>/.agent_process/work/{scope}/.run/review/01-verify.md"
 })
 ```
 
@@ -72,11 +72,11 @@ Agent({
   prompt: "Read orchestration/steps/review/02-gates.md and execute.
     Scope: {scope}
     Iteration: {iteration}
-    Input: .run/review/01-verify.md
+    Input: <project_root>/.agent_process/work/{scope}/.run/review/01-verify.md
     
     Run documentation, integration, adversarial, and validation gates.
     Fast-track if internal-only changes.
-    Output: .run/review/02-gates.md"
+    Output: <project_root>/.agent_process/work/{scope}/.run/review/02-gates.md"
 })
 ```
 
@@ -93,11 +93,11 @@ Agent({
   prompt: "Read orchestration/steps/review/03-decide.md and execute.
     Scope: {scope}
     Iteration: {iteration}
-    Inputs: .run/review/01-verify.md, .run/review/02-gates.md
+    Inputs: <project_root>/.agent_process/work/{scope}/.run/review/01-verify.md, <project_root>/.agent_process/work/{scope}/.run/review/02-gates.md
     
     Choose APPROVE/ITERATE/BLOCK/PIVOT.
     For ITERATE: specify fixes with semantic intent and outcome-based tests.
-    Output: .run/review/03-decision.md"
+    Output: <project_root>/.agent_process/work/{scope}/.run/review/03-decision.md"
 })
 ```
 
@@ -105,7 +105,7 @@ Agent({
 
 ## Post-Decision (after human approval)
 
-Based on decision in `.run/review/03-decision.md`:
+Based on decision in `<project_root>/.agent_process/work/{scope}/.run/review/03-decision.md`:
 
 **APPROVE:**
 1. Update requirement doc frontmatter (`status: approved`) — use the `requirement_path` from resolve-input:
@@ -154,8 +154,8 @@ No close — new scope takes over.
 ## Completion
 
 Verify outputs exist:
-- `.run/review/01-verify.md`
-- `.run/review/02-gates.md`
-- `.run/review/03-decision.md`
+- `<project_root>/.agent_process/work/{scope}/.run/review/01-verify.md`
+- `<project_root>/.agent_process/work/{scope}/.run/review/02-gates.md`
+- `<project_root>/.agent_process/work/{scope}/.run/review/03-decision.md`
 
 Present decision to user. Wait for approval before executing post-decision actions.

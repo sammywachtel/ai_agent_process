@@ -20,7 +20,7 @@ Once confirmed, create the directory:
 mkdir -p .agent_process/brainstorms/{chosen_name}/.run
 ```
 
-All step outputs go to `.agent_process/brainstorms/{chosen_name}/.run/`.
+All step outputs go to `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/`.
 The final synthesis saves to `.agent_process/brainstorms/{chosen_name}/brainstorm.md`.
 
 ## Model Tiers
@@ -33,7 +33,7 @@ The final synthesis saves to `.agent_process/brainstorms/{chosen_name}/brainstor
 
 ## Data Flow
 
-Step outputs go to `.agent_process/brainstorms/{chosen_name}/.run/`.
+Step outputs go to `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/`.
 
 ---
 
@@ -48,13 +48,13 @@ Read `.agent_process/process/local_environment_instructions.md` before starting 
 ### Step 01: Config Check (sequential)
 
 Spawn a **cheap** sub-agent with `orchestration/steps/brainstorm/01-config-check.md`.
-- **Output:** `.run/01-config.md`
+- **Output:** `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/01-config.md`
 
 ### Step 02: Gather Context + Code Review (sequential)
 
 Spawn a **capable** sub-agent with `orchestration/steps/brainstorm/02-gather-context.md`.
 - Pass: idea
-- **Output:** `.run/02-context.md`
+- **Output:** `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/02-context.md`
 
 This step now does actual code exploration — not just README scanning — so brainstorm agents have grounded technical context.
 
@@ -62,7 +62,7 @@ This step now does actual code exploration — not just README scanning — so b
 
 Spawn THREE **capable** sub-agents **simultaneously** with `orchestration/steps/brainstorm/03-spawn-agents.md`.
 - Pass: idea, context output
-- **Outputs:** `.run/03-product.md`, `.run/03-architect.md`, `.run/03-critical.md`
+- **Outputs:** `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/03-product.md`, `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/03-architect.md`, `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/03-critical.md`
 
 Wait for all three.
 
@@ -70,14 +70,14 @@ Wait for all three.
 
 Spawn a **synthesis** sub-agent with `orchestration/steps/brainstorm/04-synthesize.md`.
 - Pass: all 3 agent outputs
-- **Output:** `.run/04-synthesis.md`
+- **Output:** `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/04-synthesis.md`
 - Also saves to `.agent_process/brainstorms/{chosen_name}/brainstorm.md`
 
 ### Step 05: Feasibility Review (MANDATORY)
 
 Spawn a **synthesis** sub-agent with `orchestration/steps/brainstorm/05-feasibility-review.md`.
 - Pass: synthesis output, idea
-- **Output:** `.run/05-feasibility-review.md`
+- **Output:** `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/05-feasibility-review.md`
 
 This step runs the same checks plan-scope uses — knowledge base query, CLAUDE.md review, actual code review. It ensures the requirement is grounded in codebase reality before writing.
 
@@ -99,12 +99,12 @@ Run scope-sizing check per `process/scope-sizing-check.md` with thresholds from 
 3. Compare against thresholds
 
 **If VERDICT: PASS or WARN:**
-- Output: `.run/05b-scope-check.md`
+- Output: `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/05b-scope-check.md`
 - Proceed to Step 06
 - If WARN, include risk note for the requirement
 
 **If VERDICT: FAIL:**
-- Output: `.run/05b-scope-check.md` with failure details
+- Output: `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/05b-scope-check.md` with failure details
 - Ask the user:
 
 > "The brainstormed requirement exceeds size thresholds:
@@ -121,7 +121,7 @@ Run scope-sizing check per `process/scope-sizing-check.md` with thresholds from 
 2. Use brainstorm context to inform split decisions
 3. Create child requirements with sequential naming
 4. Validate each child against thresholds
-5. Output: `.run/05b-breakdown.md` + child requirement files
+5. Output: `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/05b-breakdown.md` + child requirement files
 6. Proceed to Step 06 with children
 
 **If user declines:**
@@ -150,15 +150,15 @@ The feasibility review findings inform:
 
 ## Verification Checklist
 
-- [ ] `.run/01-config.md`
-- [ ] `.run/02-context.md`
-- [ ] `.run/03-product.md`
-- [ ] `.run/03-architect.md`
-- [ ] `.run/03-critical.md`
-- [ ] `.run/04-synthesis.md`
-- [ ] `.run/05-feasibility-review.md`
+- [ ] `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/01-config.md`
+- [ ] `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/02-context.md`
+- [ ] `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/03-product.md`
+- [ ] `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/03-architect.md`
+- [ ] `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/03-critical.md`
+- [ ] `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/04-synthesis.md`
+- [ ] `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/05-feasibility-review.md`
 - [ ] `CLARIFICATION_NEEDED: false` in feasibility review
-- [ ] `.run/05b-scope-check.md`
+- [ ] `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/05b-scope-check.md`
 - [ ] `VERDICT: PASS` or `WARN` (or breakdown completed)
 - [ ] Requirement file(s) in `requirements_docs/`
 

@@ -210,13 +210,13 @@ All questions resolved from code and documentation.
 ### For Plan-Scope
 
 - Runs as Step 03
-- Output: `.run/planning/03-code-review.md`
+- Output: `<project_root>/.agent_process/work/{scope}/.run/planning/03-code-review.md`
 - Blocks planning if `CLARIFICATION_NEEDED: true`
 
 ### For Brainstorm
 
 - Runs as Step 05 (mandatory)
-- Output: `.run/brainstorm/05-feasibility-review.md`
+- Output: `<project_root>/.agent_process/work/{scope}/.run/brainstorm/05-feasibility-review.md`
 - Must resolve or escalate all questions before writing requirement
 - Findings inform: Technical Requirements, Known Risks, Success Criteria
 

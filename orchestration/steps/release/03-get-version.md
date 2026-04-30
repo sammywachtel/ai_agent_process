@@ -2,8 +2,8 @@
 
 **Model tier:** cheap
 **Tools needed:** Read, Bash
-**Input:** structure output (`.run/release/02-structure.md`), mode, version type
-**Output:** `.run/release/03-version.md`
+**Input:** structure output (`<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/02-structure.md`), mode, version type
+**Output:** `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/03-version.md`
 
 ---
 
@@ -41,7 +41,7 @@ git tag -l "v*-beta.*" | sort -V | tail -1
 
 ## Output Format
 
-Write to `.run/release/03-version.md`:
+Write to `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/03-version.md`:
 
 ```markdown
 # Version

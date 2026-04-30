@@ -1,7 +1,7 @@
 # Step 02: Prepare Execution
 
 **Input:** Preflight results
-**Output:** `.run/execution/02-prepare.md`
+**Output:** `<project_root>/.agent_process/work/{scope}/.run/execution/02-prepare.md`
 
 ---
 

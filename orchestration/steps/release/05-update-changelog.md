@@ -2,8 +2,8 @@
 
 **Model tier:** capable
 **Tools needed:** Read, Write
-**Input:** mode, version info (`.run/release/03-version.md`), change type (`.run/release/04-change-type.md`)
-**Output:** `.run/release/05-changelog.md`
+**Input:** mode, version info (`<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/03-version.md`), change type (`<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/04-change-type.md`)
+**Output:** `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/05-changelog.md`
 
 ---
 
@@ -36,7 +36,7 @@ For `beta` and `release` modes, check if `USER_CHANGELOG.md` exists:
 
 ## Output Format
 
-Write to `.run/release/05-changelog.md`:
+Write to `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/05-changelog.md`:
 
 ```markdown
 # Changelog Update

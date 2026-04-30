@@ -2,7 +2,7 @@
 
 **Model tier:** capable
 **Tools needed:** Read, Write, Bash
-**Input:** synthesis (`.run/04-synthesis.md`), feasibility review (`.run/05-feasibility-review.md`), scope check (`.run/05b-scope-check.md`), idea
+**Input:** synthesis (`<project_root>/.agent_process/brainstorms/{chosen_name}/.run/04-synthesis.md`), feasibility review (`<project_root>/.agent_process/brainstorms/{chosen_name}/.run/05-feasibility-review.md`), scope check (`<project_root>/.agent_process/brainstorms/{chosen_name}/.run/05b-scope-check.md`), idea
 **Output:** Requirement file(s) in `requirements_docs/{category}/`
 
 ---
@@ -57,7 +57,7 @@ source: ap-brainstorm
 - **Perspectives:** Product, Architecture, Critical
 
 ### Feasibility Review
-{Summary from `.run/05-feasibility-review.md` — key findings that shaped this requirement}
+{Summary from `<project_root>/.agent_process/brainstorms/{chosen_name}/.run/05-feasibility-review.md` — key findings that shaped this requirement}
 
 ### Open Questions
 {Items needing human input}

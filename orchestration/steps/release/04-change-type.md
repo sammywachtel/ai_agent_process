@@ -2,8 +2,8 @@
 
 **Model tier:** capable
 **Tools needed:** Read
-**Input:** context output (`.run/release/01-context.md`), mode
-**Output:** `.run/release/04-change-type.md`
+**Input:** context output (`<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/01-context.md`), mode
+**Output:** `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/04-change-type.md`
 
 ---
 
@@ -34,7 +34,7 @@ Write user-facing summaries (1-2 sentences max per item):
 
 ## Output Format
 
-Write to `.run/release/04-change-type.md`:
+Write to `<project_root>/.agent_process/work/{scope_or_noscope}/.run/release/04-change-type.md`:
 
 ```markdown
 # Change Classification

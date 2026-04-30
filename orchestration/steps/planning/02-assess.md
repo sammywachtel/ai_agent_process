@@ -1,7 +1,7 @@
 # Step 02: Technical Assessment
 
 **Input:** Requirement file, scope name
-**Output:** `.run/planning/02-assess.md`
+**Output:** `<project_root>/.agent_process/work/{scope}/.run/planning/02-assess.md`
 
 ---
 

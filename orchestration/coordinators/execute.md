@@ -82,7 +82,7 @@ Agent({
     Iteration: {iteration}
     
     Check branch, working state, git context.
-    Output: .run/execution/01-preflight.md"
+    Output: <project_root>/.agent_process/work/{scope}/.run/execution/01-preflight.md"
 })
 ```
 
@@ -103,7 +103,7 @@ Agent({
     
     Load context, assess decomposition, select agent.
     For sub-iterations: extract semantic intent from each fix.
-    Output: .run/execution/02-prepare.md"
+    Output: <project_root>/.agent_process/work/{scope}/.run/execution/02-prepare.md"
 })
 ```
 
@@ -111,7 +111,7 @@ Agent({
 
 ## Step 3: Implement
 
-Read `.run/execution/02-prepare.md` for agent selection and context.
+Read `<project_root>/.agent_process/work/{scope}/.run/execution/02-prepare.md` for agent selection and context.
 
 **Sub-agents cannot interactively wait for a human.** If the preparation artifact flags a mid-execution checkpoint (e.g. "before live validation"), the sub-agent must STOP at that point, report what's pending, and return — the coordinator (main conversation) will surface the question to the human and resume on the user's reply.
 
@@ -141,7 +141,7 @@ Agent({
     - If local-only: skip any step that requires live/external systems,
       note the skipped items in results.md.
 
-    **Mid-execution checkpoint:** If .run/execution/02-prepare.md declares
+    **Mid-execution checkpoint:** If <project_root>/.agent_process/work/{scope}/.run/execution/02-prepare.md declares
     a pause point you hit (e.g. before a destructive/external action),
     STOP immediately, write what you need confirmed into results.md under
     'PENDING HUMAN', and return. Do NOT try to wait interactively — you
@@ -173,7 +173,7 @@ Agent({
     **Human mode from coordinator:** {proceed | local-only}
     - If local-only: skip any step that requires live/external systems.
 
-    **Mid-execution checkpoint:** If .run/execution/02-prepare.md declares
+    **Mid-execution checkpoint:** If <project_root>/.agent_process/work/{scope}/.run/execution/02-prepare.md declares
     a pause point you hit, STOP, write 'PENDING HUMAN' items into results,
     and return. You cannot wait interactively — the coordinator will.
 

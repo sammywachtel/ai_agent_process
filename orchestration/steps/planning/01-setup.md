@@ -1,7 +1,7 @@
 # Step 01: Scope Setup
 
 **Input:** Requirement file path
-**Output:** `.run/planning/01-setup.md`
+**Output:** `<project_root>/.agent_process/work/{scope}/.run/planning/01-setup.md`
 
 ---
 
@@ -37,7 +37,7 @@ From the requirement file path, derive:
 
 Create the run directory:
 ```bash
-mkdir -p .agent_process/work/{scope}/.run/planning
+mkdir -p <project_root>/.agent_process/work/{scope}/.run/planning
 ```
 
 ---

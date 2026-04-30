@@ -1,7 +1,7 @@
 # Step 02: Quality Gates
 
-**Input:** `.run/review/01-verify.md`
-**Output:** `.run/review/02-gates.md`
+**Input:** `<project_root>/.agent_process/work/{scope}/.run/review/01-verify.md`
+**Output:** `<project_root>/.agent_process/work/{scope}/.run/review/02-gates.md`
 
 ---
 
