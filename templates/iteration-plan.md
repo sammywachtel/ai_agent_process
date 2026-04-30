@@ -72,6 +72,16 @@ N/A — scope complexity is not `complex` (or design review gate disabled)
 **Implementation Guidance:**
 [Specific guidance: patterns to follow, pitfalls to avoid, best practices to apply]
 
+**Design Decisions (made by orchestrator, not human prereqs):**
+
+This is the home for choices the orchestrator made during planning that did NOT need to go to the human (failed the human-prereqs filter — see `orchestration/coordinators/plan-scope.md`). The reviewer reads this section and may flag any choice they disagree with at review time; the human is not paused for these.
+
+| Decision | Chosen | Rejected | Why |
+|----------|--------|----------|-----|
+| [Decision summary, in user-outcome terms] | [Chosen approach] | [Rejected alternative(s)] | [Reason — must include user/operator-visible consequence] |
+
+*If empty:* "No design decisions beyond Implementation Approach above; nothing fell into the orchestrator-decides bucket."
+
 ## Iteration Budget (ENFORCED)
 - iteration_01: First attempt
 - iteration_01_a: First revision (if needed)

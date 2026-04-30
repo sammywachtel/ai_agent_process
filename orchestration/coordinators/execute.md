@@ -43,18 +43,24 @@ If `NONE`, skip this step. If `EXISTS`:
 
 1. Read `.agent_process/work/{scope}/human-prereqs.md` in full.
 2. Identify which items must be handled **before** work starts (environment setup, credentials, policy decisions, scope confirmations). When a file doesn't explicitly label pre-work vs post-work, treat any "Required Decisions" / "Blocking Assumptions" / "Operator Actions" as pre-work by default — better to ask early than silently skip.
-3. **Stop and present to the user directly in the main conversation**, using this format:
+3. **For each item, present it in human-readable form.** If the file follows the structured template (`Plain-language question` / `What this means` / `Recommended answer` / `If yes / If no` / `Override required because`), pass those fields through verbatim. If the file is in a legacy / looser format, do the translation yourself before showing it to the user — strip codebase jargon, internal step numbers, internal table or contract identifiers, and planning artifacts. State the user-visible consequence in one sentence. Add a recommended answer if the file's context makes one obvious.
+
+   **Translation rule for legacy items:** if you cannot translate an item into a one-sentence user-outcome question with a recommended answer, the item is wrong-shaped. Surface it to the user with a flag: "this prereq item is written in planning vocabulary I can't translate cleanly — please re-read the source file or revise the planning step."
+
+4. **Stop and present to the user directly in the main conversation**, using this format:
 
    ```markdown
    ## Questions for you — {scope}/{iteration}
 
-   `human-prereqs.md` declares the following items that need your attention before execution:
+   The planning step flagged the following for your call before execution starts:
 
-   1. {item title}
-      - {what needs to be decided or done}
-      - {any context or options from the file}
+   1. **{Plain-language question}**
+      - **What this means:** {1–2 sentences in user-outcome terms}
+      - **Recommended:** {YES / NO + one-line reason}
+      - **If you say YES:** {user-outcome consequence}
+      - **If you say NO:** {user-outcome consequence}
 
-   2. {item title}
+   2. **{Plain-language question}**
       - ...
 
    **How do you want to proceed?**
@@ -62,6 +68,8 @@ If `NONE`, skip this step. If `EXISTS`:
    - `blocked` — cannot move forward, stop here
    - `local-only` — defer live/external items, run local work only and note limitation
    ```
+
+   Do NOT show the human raw planning vocabulary. If the structured template fields are present, present them. If not, translate as best you can; if you cannot translate, say so explicitly rather than dumping the raw text.
 
 4. **Wait for the user's response in the main conversation.** Do not spawn any further sub-agents until the human replies.
 5. Record the decision — it will be carried into the prepare step and the results doc.
