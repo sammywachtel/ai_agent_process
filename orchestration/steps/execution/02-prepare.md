@@ -169,52 +169,150 @@ The reviewer's Gate 1 reads this section explicitly and applies a
 **Weakened-Assertion FAIL** rule when the implementer chooses the
 weakening path. See `steps/review/02-gates.md`.
 
-### 1.5 AC Enumeration Coverage
+### 1.5 AC Enumeration & Concrete Scenario Coverage
 
-When the iteration's acceptance criteria use **universal quantifiers**
-("every", "each", "all", "for every X") or enumerate multiple subjects
-joined by "and" ("X and Y", "GET /api/foo and GET /api/foo/{id}"), the
-prepare doc must expand each enumeration into a per-subject coverage
-list. A single happy-path test that "covers the family" passes the
-exit-0 check while leaving N−1 cells unproven; the AC's universal
-quantifier requires per-cell proof.
+The framework's experience: ACs that read like clean behavior
+assertions get compressed during AC-to-test translation into a single
+operational check, leaving coverage gaps that no validator catches.
+Three failure shapes have recurred (these examples span backend APIs,
+MCP tools, and frontend UIs — the same compression happens in every
+domain):
 
-**For every AC that quantifies universally or names multiple subjects:**
+- **Universal quantifier compressed.** AC says "every X" → test
+  asserts on one X "for the family." The other N−1 cells are unproven.
+  *Backend example:* "every public endpoint returns the full v2
+  response schema" → one endpoint tested. *Frontend example:* "every
+  list-item type opens the matching detail view" → only one item
+  type tested.
+- **Alternative-with-divergent-semantics compressed.** AC names
+  alternatives joined by "or" → executor reads them as symmetric,
+  missing that one alternative has a different shape. *Backend
+  example:* "auth via API key, OAuth token, or session cookie" →
+  executor handles all three the same way, missing that OAuth tokens
+  refresh and session cookies have CSRF semantics. *Frontend
+  example:* "trigger characters `@`, `#`, or `[[`" → executor reads
+  three trigger types symmetrically, missing that `[[ ]]` is a phrase
+  wrapper (multi-word) while `@` and `#` are token triggers
+  (whitespace-delimited).
+- **State dependency compressed.** AC names a behavior whose outcome
+  depends on ambient state, but only one state value gets tested.
+  *Backend example:* "rate-limit returns 429 on excessive requests"
+  → tested with 0 prior failures, not the cliff-edge case of 5 prior
+  failures within the window. *Frontend example:* "selecting a list
+  item opens the detail view" → tested with the list populated, not
+  with the list empty (where a different fallback resolution path
+  must run).
 
-1. **List the subjects.** If the AC names "every retrofitted canonical
-   metric," list the canonical metrics. If it names "GET /api/x and
-   GET /api/x/{name}," list both endpoints.
-2. **List the surfaces.** Often an AC quantifies over both subjects
-   AND surfaces (e.g., "every metric across REST list, REST detail,
-   MCP describe, MCP query"). Build the (subject × surface) matrix.
-3. **Bind each cell to a test.** In the Sub-iteration Fixes / per-fix
-   Acceptance Test section, the test must reference the parametrize
-   fixture or test list that exercises every cell. A single test
-   covering "the happy path" is not sufficient. The transcript should
-   show N×M parametrized cases passing.
-4. **Combine with §1.2.** If a cell exercises a quality-gate artifact,
-   the cell needs both operational and negative-case tests per §1.2 —
-   yielding a coverage matrix of (subject × surface × {operational,
-   negative}).
+The rule fires **whenever any of these triggers are present:**
 
-**Bad acceptance test (AC quantifies, test doesn't):**
-"`pytest test_metrics.py` exits 0" — passes whether or not every
-canonical metric × every endpoint is covered.
+1. **Universal quantifiers** — "every", "each", "all", "for every X".
+2. **Multiple subjects joined by "and"** — "X and Y", "GET /api/foo
+   and GET /api/foo/{id}", "service A and worker B".
+3. **Alternatives joined by "or" when the alternatives may have
+   divergent semantics.** Examples that span domains:
+   - Auth methods: "API key, OAuth token, or session cookie"
+     (different lifetime / refresh / revocation rules).
+   - HTTP methods: "GET, HEAD, or OPTIONS" (different response-body
+     and idempotency semantics).
+   - Input formats: "JSON, form-encoded, or multipart" (different
+     parsing and streaming).
+   - Outcome types: "succeed, validate-only, or fail-fast" (different
+     response shapes).
+   - Trigger characters: "`@`, `#`, or `[[`" (token vs phrase wrapper).
 
-**Good acceptance test (AC enumeration honored):**
-"`pytest test_metrics.py::TestPhase1cCanonicalNamesAndRetirements -v`
-emits N×M parametrized cases (N canonical metrics × M surfaces:
-{registry presence, detail meta, query contract, MCP describe, MCP
-query}) and all pass. The transcript shows the parametrize matrix."
+   When in doubt whether alternatives diverge, treat them as
+   divergent — the cost of an extra scenario row is small; the cost
+   of compressing divergent semantics is what produced this rule.
+4. **State-dependent behavior** — the AC describes behavior that
+   varies by ambient state. Each named state value is a separate
+   scenario. Examples:
+   - List populated vs empty.
+   - Authenticated vs anonymous vs expired-token.
+   - Cache hit vs miss vs revalidating.
+   - Rate-limit window: under threshold vs at threshold vs locked.
+   - Save / write-back: in flight vs persisted vs failed.
+   - Service: cold start vs warm.
 
-**Why this rule exists:** AC prose with universal quantifiers is the
-contract. A test that proves the property "in general" by asserting
-on one example proves nothing about the other N−1 cells. The executor
-and reviewer both lose visibility into which cells were proven and
-which were merely assumed when a single happy-path test stands in for
-a parametrized proof. Framework experience: ACs that say "and" or
-"every" get compressed during AC-to-test translation into a single
-operational check, leaving a coverage gap that no validator catches.
+**For every AC that fires any trigger above:**
+
+1. **Build a scenario table, not just a code-surface matrix.** Each
+   row is a **concrete behavior scenario** with three cells filled in:
+   - **Input** — the literal request body / URL / event / user input
+     that arrives. Not "client sends a request"; rather
+     `POST /api/v1/users {email: "alice@example.com"}`. Not "user
+     submits the form"; rather "user types `alice@example.com` into
+     the email field, then clicks Sign In".
+   - **State context** — what's true about the system when the input
+     arrives. Named state values (cache populated / empty;
+     authenticated / anonymous; rate-limit window position;
+     persistence in flight / complete). Not "API endpoint"; rather
+     "API endpoint, account active, no recent failures".
+   - **Observable outcome** — what an external observer sees: HTTP
+     status + body, log line, queue message, UI state, side-effect
+     in another store. Not "endpoint returns success"; rather
+     "200 OK, response body contains `access_token` claim with
+     `iss=api.example.com`, account's `last_login` updated".
+2. **Code-surface cells supplement, never replace, scenario cells.**
+   "Layer A vs layer B," "compose vs read surface," or "service A vs
+   service B" is useful framing, but a matrix made only of surface
+   labels lets the implementer prove the *code path exists* without
+   proving the *external outcome*. Every code-surface row needs at
+   least one concrete-scenario row inside it.
+3. **Bind each scenario to a test.** Per-scenario parametrize
+   fixture, per-scenario test name, or per-scenario assertion block.
+   The transcript should show one entry per scenario row. A single
+   "happy path" test covering N scenarios is not sufficient.
+4. **Combine with §1.2.** If a scenario exercises a quality-gate
+   artifact, it gains operational + negative-case dimensions per §1.2.
+
+**Bad scenario table (code surfaces only):**
+
+| Endpoint | Method | Fix |
+|---|---|---|
+| `/api/v1/auth/login` | POST | Fix 1 |
+| `/api/v1/auth/logout` | POST | Fix 2 |
+
+This proves the endpoints exist. It does not prove that bad
+credentials trigger the rate limiter, that a locked account
+returns the right status, or that a logged-out token is actually
+revoked at the session store. Code paths can be present and still
+not honor the contract under the states that matter.
+
+**Good scenario table (concrete behavior scenarios — backend API
+example):**
+
+| Endpoint | Input | State | Observable outcome |
+|---|---|---|---|
+| `POST /login` | valid creds | account active, no recent failures | 200; body contains `access_token`; `last_login` updated in DB |
+| `POST /login` | wrong password | account active, no recent failures | 401; no token; `failure_count` incremented |
+| `POST /login` | wrong password | account active, 5 failures in last 60s | 429; `Retry-After` header set; account locked for 5min |
+| `POST /login` | valid creds | account locked | 423; "account locked" error code |
+| `POST /login` | valid creds | account exists, password hash uses legacy algorithm | 200; token issued; `password_hash` rotated to current algorithm in DB |
+| `POST /logout` | valid token | session active | 204; subsequent call with same token returns 401 |
+| `POST /logout` | expired token | session already expired | 204 (idempotent); no DB write |
+
+The same shape applies to MCP tool ACs (input = tool call args,
+state = workspace/auth context, outcome = tool response + side
+effects), to message-queue handler ACs (input = message body, state
+= consumer-group offset / dedup state, outcome = downstream effect),
+and to frontend UI ACs (input = literal user action, state = client
+state context, outcome = visible UI change + URL/route effect).
+Every row is a test the implementer must pass and the reviewer can
+re-run. Each cell is concrete enough that a human reading it knows
+exactly what to send, what state to set up, and what to assert on.
+
+**Why this rule exists:** AC prose is the contract; tests are the
+proof. The translation from prose to tests has historically lost
+information when ACs use universal quantifiers, when ACs join
+alternatives with semantic divergence, or when ACs imply state
+dependencies. Each compression has produced a shipped iteration with
+a real outcome gap. The Concrete Scenarios requirement reverses the
+loss: the prepare doc enumerates the scenarios *before* the executor
+implements anything, so coverage gaps are visible at planning time,
+not after the next sub-iteration's review finds them.
+
+When no AC fires any trigger, this rule is silent. Single-subject
+single-state ACs are unaffected.
 
 When no AC quantifies universally and no AC names multiple subjects,
 this rule is silent. Additive scopes with single-subject ACs are
