@@ -200,6 +200,22 @@ its existing yes/no check.
   scrub is the minimal extension that handles this without abandoning
   the file-scoped pattern (which is still what runs ruff/pytest).
 
+- **Append-instead-of-update on canonical records.** A scope renames
+  or replaces a surface, then *appends* a "Phase X Implementation
+  Index" or a "see new section below" pointer to the canonical record
+  (catalog entry, README owner table, decision log, registry doc) —
+  while leaving the original entry intact and describing the old
+  state. Result: two sources of truth for the same fact — one
+  current, one stale — and the stale one is the one a reader hits
+  first. The fix is not "add an index"; it is "update the entry in
+  place." The stale-surface scrub catches body-text references like
+  `mace_metrics.yml`, but it cannot catch a structured catalog entry
+  whose *fields* still describe the old reality. Planner
+  responsibility: when the iteration plan's documentation-in-scope
+  list includes a canonical record (catalog, owner table, decision
+  log), the entries describing the renamed/replaced surface are
+  updated in place, not supplemented with a forward-pointer index.
+
 ---
 
 ## When this checklist is overkill

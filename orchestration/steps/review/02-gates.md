@@ -72,6 +72,36 @@ iteration to inherit the bug.
 the decision is APPROVE. (The proper outcome for that combination is
 ITERATE.)
 
+**Weakened-Assertion FAIL.** If `results.md` acknowledges removing,
+relaxing, commenting-out, or rephrasing-around a failing test
+assertion, validator check, or guard — especially under Spec Concerns
+or as a "future scope" note — AND the underlying production fix did
+NOT land in the same iteration, **FAIL Gate 1** regardless of other
+gate signals. Signature phrases to watch for in `results.md`:
+
+- "dropped the X assertion" / "removed the assertion since..."
+- "rephrased the comment to avoid the validator check"
+- "future scope can extend the loader / fix the gap"
+- "weakened to match current behavior"
+
+The reviewer MUST spot-check the test diff against the previous
+iteration to verify whether an assertion was actually weakened. A
+weakened assertion is a *contract reduction*, even when the edit is
+mechanically simple — and contract reductions cannot be silently
+shipped. The proper response when this is found:
+
+- **ITERATE** with a fix that either (a) restores the assertion AND
+  adds the production fix in the same iteration, or (b) preserves
+  the weakening only if the coordinator has explicitly accepted the
+  contract reduction in writing, with the iteration plan updated to
+  reflect the reduced contract.
+
+This rule encodes the lesson from scopes where an executor classified
+a contract-erosion as a "safe local fix" under §1.4 and shipped the
+iteration with the contract surface silently reduced. The §1.4
+channel's third-option prohibition is mirrored here on the reviewer
+side: weakening is not a valid resolution path.
+
 **PASS:** Docs appropriately updated OR clear justification why N/A;
 AND no unresolved Spec Concerns
 **FAIL:** External behavior changed with no doc update; OR
