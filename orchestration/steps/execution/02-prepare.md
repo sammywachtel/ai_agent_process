@@ -67,7 +67,15 @@ to catch.
 artifact, write two acceptance tests:**
 
 - **Operational:** the artifact runs and exits 0 on the current repo
-  state. Necessary, never sufficient.
+  state, **under the documented invocation shell/runtime**. For shell
+  validators, "the documented invocation" is the shebang the script
+  uses (`#!/usr/bin/env bash` on macOS resolves to `/bin/bash` =
+  3.2.57 unless the operator has Homebrew bash earlier on PATH).
+  Confirm with `bash --version` in the recorded transcript. Recording
+  exit 0 from a Homebrew-bash-5 invocation when the documented
+  invocation is `bash <script>` does not satisfy the operational
+  check — the script must run under the same shell a fresh checkout
+  produces. Necessary, never sufficient.
 - **Negative case:** introduce a synthetic violation the artifact is
   meant to catch and prove it gets caught (the artifact reports the
   violation and exits non-zero). Examples:

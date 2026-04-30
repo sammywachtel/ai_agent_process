@@ -68,6 +68,72 @@ echo "✅ Scoped validation passed"
 
 Make executable: `chmod +x`
 
+### Bash 3.2 Portability (REQUIRED)
+
+The validator script MUST run under macOS default `/bin/bash` (version
+3.2.57), not just modern bash 4+/5. The shebang `#!/usr/bin/env bash`
+resolves to whatever `bash` is first on PATH, which on macOS is
+`/bin/bash` = 3.2 unless the operator has Homebrew bash earlier on
+PATH. Validators that use bash-4-only features fail silently or with
+opaque errors on a clean macOS checkout — and "the recorded validator
+pass is not reproducible" is a Gate 4 (Scoped Validation) FAIL.
+
+**Forbidden bash-4+ features** (each has bitten this framework before):
+
+| Forbidden | Use instead |
+|---|---|
+| `declare -A NAME=(...)` (associative array) | `case "$KEY" in foo) echo bar;; ...; esac` (function returning value), OR parallel arrays + index loop |
+| `${var^^}`, `${var,,}` (case conversion) | `echo "$var" \| tr '[:lower:]' '[:upper:]'` |
+| `&>>` redirect (combined stdout+stderr append) | `>> file 2>&1` |
+| `mapfile` / `readarray` builtin | `while IFS= read -r line; do ...; done < <(cmd)` |
+| `[[ -v VAR ]]` (variable existence check) | `[[ -n "${VAR-}" ]]` (also works under `set -u`) |
+
+**Pattern for surface→pattern lookups (recurring need in the
+stale-surface scrub):**
+
+```bash
+# DO THIS (bash 3.2 compatible):
+surface_pattern() {
+  case "$1" in
+    route_api_metadata_entities) printf '%s' '/api/metadata/entities' ;;
+    legacy_metric_names) printf '%s' '(prevail_subject_count|...)' ;;
+    *) printf '[%s-validation] unknown surface: %s\n' "$SCOPE" "$1" >&2; return 1 ;;
+  esac
+}
+
+for SURFACE in route_api_metadata_entities legacy_metric_names; do
+  PATTERN="$(surface_pattern "$SURFACE")"
+  # ...grep workspace, filter against per-surface whitelist...
+done
+
+# DON'T DO THIS (bash 4+ only — fails on macOS /bin/bash 3.2):
+declare -A PATTERNS=(
+  [route_api_metadata_entities]='/api/metadata/entities'
+  [legacy_metric_names]='(prevail_subject_count|...)'
+)
+for SURFACE in "${!PATTERNS[@]}"; do
+  PATTERN="${PATTERNS[$SURFACE]}"
+  ...
+done
+```
+
+The `case`-statement function gives the same name→pattern lookup, the
+same `set -u` safety against typos (the `*)` arm errors loudly), and
+runs unmodified from bash 3.2 through bash 5+. The associative-array
+form is shorter but has produced an unreproducible-validator
+Gate 4 FAIL three times across two scopes — do not reach for it.
+
+**Smoke-test before handoff.** When the validator is generated, sanity-
+check it under the documented shell:
+
+```bash
+bash --version  # confirm 3.2.x if running on macOS default
+bash -n .agent_process/scripts/after_edit/validate-{scope}.sh  # syntax check
+```
+
+A failed `bash -n` under 3.2 is a planning-step bug, not an executor
+problem. Fix the validator template before handoff.
+
 ---
 
 ## 4. Design Review Gate (if complex)
