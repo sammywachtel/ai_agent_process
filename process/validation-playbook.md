@@ -468,6 +468,31 @@ the script emitted. This removes the executor-discipline dependency entirely —
 recurring multi-check bounce — and is the preferred shape for any scope with more than
 the scoped validator to run.
 
+#### Three rules that close the *second* evidence-bounce class (capture-then-mutate)
+
+Folding the surface into the validator kills the *missing-transcript* bounce. It does
+NOT kill the *stale-transcript* bounce, which is what gets you once the validator is the
+source of truth. These three rules close it. (-01-01 iteration_01 bounced on exactly
+this: a complete, correct `76 passed` validator run sat in the file next to a stale
+`75 passed` standalone section and a "re-confirmed by the coordinator" sentence backed
+by no command.)
+
+1. **One source, no duplicate sections.** Once the validator runs the full surface,
+   *that run is the transcript.* Do **not** also hand-paste standalone `SCOPED PYTEST` /
+   `SCOPED RUFF` sections. A second copy of the same evidence is just a copy that rots
+   the instant you touch the code again — and the reviewer can't tell your "old" copy
+   from a real disagreement.
+2. **The final validator run is the LAST thing you do.** Change *any* code after a
+   capture — even adding one test — and every earlier capture is now a lie by omission.
+   Re-run `validate-<scope>.sh` as the final action *before* writing `results.md`, and
+   cite that single run. If you re-ran it, delete the now-stale earlier run; don't leave
+   both in the file "for history."
+3. **No reconfirmation prose.** `results.md` quotes its number from exactly **one**
+   transcript block. Never write "independently re-confirmed", "also verified by", or any
+   phrasing that asserts a run with no matching `==== <name> ====` block. To the gate, a
+   claimed run with no captured command didn't happen — and it's a blocker even when the
+   code is perfect.
+
 ---
 
 ## Common Patterns

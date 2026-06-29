@@ -107,6 +107,15 @@ Agent({
 
 Based on decision in `<project_root>/.agent_process/work/{scope}/.run/review/03-decision.md`:
 
+> **Recovery guard — never delete work dirs.** If you ever detect that tracking was
+> advanced before approval (the decision step is decision-only per
+> `steps/review/03-decide.md`, but enforce defensively), revert it **tracker-only**:
+> `set-iteration {scope}` back to the reviewed iteration. **Do NOT `rm` any
+> `work/{scope}/iteration_*` directory** — an `/ap_exec` run may have already written
+> real artifacts there, and `mkdir -p` below is non-destructive, so a stray dir costs
+> nothing while deleting one destroys work (this ate a real `iteration_01_a` on
+> 2026-06-29).
+
 **APPROVE:**
 1. Update requirement doc frontmatter (`status: approved`) — use the `requirement_path` from resolve-input:
    ```bash

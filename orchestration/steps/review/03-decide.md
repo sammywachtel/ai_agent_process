@@ -13,7 +13,7 @@ All criteria MET, gates PASS, no blockers.
 
 ### ITERATE  
 Specific fixable issues AND attempts remaining (not at `_c`).
-→ Create next iteration folder, write fix specifications
+→ Record fix specifications in the decision doc (the coordinator creates the next iteration **after human approval**)
 
 ### BLOCK
 External blocker, framework limitation, OR at `_c` with criteria not met.
@@ -70,7 +70,20 @@ isn't guessing.
 
 ---
 
-## Post-Decision Actions
+## Post-Decision Actions — RECORD ONLY, DO NOT EXECUTE
+
+> **This step is decision-only. Its sole side effect is writing `03-decision.md`.**
+> Do **NOT** create folders, advance tracking (`set-iteration`), close issues,
+> update requirement frontmatter, or hand off to `/ap_exec` from this step. Those
+> are **coordinator** actions executed **only after human approval** — see
+> `orchestration/coordinators/review-iteration.md` § "Post-Decision (after human
+> approval)". Advancing tracking here is the boundary violation that orphaned a
+> real exec-built iteration dir (gcp_platform_mcp_audit_convergence-01-01, 2026-06-29):
+> the decision step advanced to `iteration_01_a` pre-approval, the coordinator reverted
+> it, and the revert ate the exec's already-written `iteration_01_a/`. Just record the
+> recommended actions below in `03-decision.md` so the coordinator can run them.
+
+Record in `03-decision.md` (the coordinator executes these post-approval):
 
 ### If APPROVE
 1. Update `iteration_plan.md`: decision = APPROVE
