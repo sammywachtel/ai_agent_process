@@ -73,6 +73,15 @@ If test-output.txt does NOT exist:
 
 **Create the results document:**
 
+> **Validation-evidence rule (prevents the #1 review bounce):** the results doc's validation
+> section must **reference `test-output.txt` sections** — do NOT re-assert "X passed / N tests
+> passed" in prose unless that exact command + `# exit=` block appears in `test-output.txt`.
+> The review gate checks every validation claim against the transcript
+> (`orchestration/steps/review/01-verify.md`); a claim with no matching transcript block is a
+> blocker even when the work itself passed. If you're about to write a pass/fail you can't point
+> to in `test-output.txt`, go run it and capture it (see `ap_exec` Step 4 + `process/validation-playbook.md`
+> § "Capture by construction") rather than claiming it.
+
 Use this template structure:
 
 ```markdown

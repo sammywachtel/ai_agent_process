@@ -50,6 +50,8 @@ Open each claimed changed file. Check:
 
 **Red flag:** If executor made the literal change but missed the semantic requirement (e.g., added checkout step but git diff still queries wrong repo), mark as PARTIAL.
 
+**Validation-evidence check:** every validation command claimed in `results.md` must have a matching transcript block (command + exit status + decisive output) in `test-output.txt` — per the **Evidence completeness** rule in `process/validation-playbook.md`. A scoped-validator log alone does NOT substantiate claimed pytest/ruff/pre-commit runs. If a claim lacks a matching transcript, FAIL the Scoped Validation gate and **name the missing/inconsistent command** in the failure message (not a generic "validation failed").
+
 ## 4. Scope Expansion Assessment
 
 If the executor touched files outside the planned scope:

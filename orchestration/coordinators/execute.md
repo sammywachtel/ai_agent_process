@@ -199,11 +199,34 @@ Agent({
 
 Hook fires automatically after edits. If fails, fix and retry (max 3 attempts).
 
-Then run full validation:
+Then capture the **full validation surface** into `test-output.txt`. This file is the
+**single source of evidence** the review gate checks — and the #1 cause of evidence-only
+ITERATE bounces is teeing *only* the scope validator here while `results.md` claims more.
+Run the scope validator **and every other check you will reference in `results.md`**
+(pytest suites, lint/format, syntax checks, negative cases), teeing them all into one
+transcript:
 ```bash
-bash .agent_process/scripts/after_edit/validate-{scope}.sh {scope} {iteration} \
-  | tee .agent_process/work/{scope}/{iteration}/test-output.txt
+OUT=.agent_process/work/{scope}/{iteration}/test-output.txt; : > "$OUT"
+run() { printf '\n### $ %s\n' "$2" | tee -a "$OUT"; bash -c "$2" 2>&1 | tee -a "$OUT"; printf '# exit=%s\n' "${PIPESTATUS[0]}" | tee -a "$OUT"; }
+run "scope-validator" ".agent_process/scripts/after_edit/validate-{scope}.sh {scope} {iteration}"
+run "pytest"          "<the pytest command(s) for this scope>"
+run "lint/format"     "<ruff/etc., if claimed>"
+# ...one run() per check results.md will cite
 ```
+**Invariant the review gate enforces (`steps/review/01-verify.md`):** every check
+`results.md` claims has a matching `### $ <cmd>` + `# exit=` block in `test-output.txt`.
+The most durable way to guarantee it — preferred — is to put the full check surface
+*inside* `validate-{scope}.sh` so the single tee captures everything by construction
+(see `process/validation-playbook.md` § "Capture by construction").
+
+**`results.md` REFERENCES `test-output.txt` sections — it never re-asserts pass/fail in
+prose the transcript doesn't show.** Claim and evidence must be one artifact's output, not
+two hand-written ones that drift.
+
+Before handoff, **reconcile your own `.run/execution/*.md` prepare notes**: if scope
+evolved during the iteration (a check came into scope, an "N/A"/"not in scope" assumption
+changed), update the note. The review gate flags stale process notes as a blocker even when
+the work itself passed.
 
 ---
 

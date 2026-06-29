@@ -420,6 +420,54 @@ Detailed Logs (timestamped sections below)
 [test output...]
 ```
 
+### Evidence completeness (REQUIRED — what the review gate verifies)
+
+`test-output.txt` is the **canonical evidence artifact**. The review gate
+(`orchestration/steps/review/01-verify.md`) checks every claim against it, **not**
+against prose in `results.md`. Therefore:
+
+- **Every validation command claimed in `results.md` MUST appear in `test-output.txt`**
+  with its command line, exit status, and the decisive output (`59 passed`,
+  `All checks passed`, `exit=0`).
+- **`results.md` may claim NOTHING the transcript does not show.** Didn't actually run
+  a check → don't list it (or run it and capture it).
+- A scoped-validator log **alone is not sufficient** when `results.md` also claims
+  pytest / ruff / pre-commit / etc. — each is a separate command and needs its own
+  `==== <name> ====` block. (This is the single most common cause of an evidence-only
+  ITERATE: the code is correct but the transcript doesn't substantiate the claims.)
+
+**Self-check before requesting review (this is exactly what the gate runs):** every
+command named in the `results.md` "Validation" section has a matching `==== <name> ====`
+block with an exit status in `test-output.txt`. Mismatch → fix it now, or the iteration
+bounces on evidence alone with no code change to make.
+
+### Capture by construction — don't hand-assemble test-output.txt
+
+Tee every command into the transcript **as you run it**, so what you claim can't drift
+from what you recorded:
+
+```bash
+OUT="$WORKDIR/iteration_XX/test-output.txt"; : > "$OUT"   # truncate at iteration start
+
+run() {  # run a validation command AND record it (name, command, output, exit)
+  printf '\n==== %s ====\n$ %s\n' "$1" "$2" | tee -a "$OUT"
+  bash -c "$2" 2>&1 | tee -a "$OUT"
+  printf 'exit=%s\n' "${PIPESTATUS[0]}" | tee -a "$OUT"
+}
+
+run "scoped-validator" ".agent_process/scripts/after_edit/validate-<scope>.sh <scope> <iter>"
+run "pytest:bumper"    "cd nap-gcp-platform && python -m pytest tests/scripts/test_bump_prod_pins_from_release_outputs.py -q"
+run "ruff"             "cd nap-gcp-platform && ruff check src/ailab_mcp"
+run "pre-commit"       "pre-commit run --files <changed files>"
+```
+
+**Best — make it complete by construction:** put the full claimed check surface
+(pytest + ruff + pre-commit + the scope checks) **inside** `validate-<scope>.sh`, so
+`test-output.txt` is generated complete in one run and `results.md` can only claim what
+the script emitted. This removes the executor-discipline dependency entirely — the
+recurring multi-check bounce — and is the preferred shape for any scope with more than
+the scoped validator to run.
+
 ---
 
 ## Common Patterns

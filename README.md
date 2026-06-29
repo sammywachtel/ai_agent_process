@@ -659,9 +659,9 @@ your-project/
 │       ├── ap_iteration_results.md
 │       └── ap_changelog_init.md
 │
-├── quality-config.json     # Feature control for all quality gates
-│
 └── .agent_process/
+    ├── quality-config.json # Feature control for all quality gates
+    │
     ├── orchestration/      # Planning and review prompts
     │   ├── plan-scope.md                  # Planning prompt (entry point)
     │   ├── review-iteration.md            # Review prompt (entry point)
