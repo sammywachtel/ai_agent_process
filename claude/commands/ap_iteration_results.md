@@ -81,6 +81,15 @@ If test-output.txt does NOT exist:
 > blocker even when the work itself passed. If you're about to write a pass/fail you can't point
 > to in `test-output.txt`, go run it and capture it (see `ap_exec` Step 4 + `process/validation-playbook.md`
 > § "Capture by construction") rather than claiming it.
+>
+> **Cite exactly ONE block, and never editorialize.** Quote your pass count from a single
+> transcript block — the final validator run. Do NOT add reconfirmation prose
+> ("independently re-confirmed", "also verified by the coordinator", "re-ran to be sure") with
+> no matching `==== <name> ====` block: that asserts a run that didn't happen, and it bounces
+> even when the code is perfect. If you changed any code after capturing evidence (even one new
+> test), the only honest move is to re-run the validator as your *last* action and delete the
+> now-stale earlier capture — see `process/validation-playbook.md` § "Three rules that close the
+> *second* evidence-bounce class".
 
 Use this template structure:
 
