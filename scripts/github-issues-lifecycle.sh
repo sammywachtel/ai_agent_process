@@ -464,7 +464,15 @@ do_create() {
       echo "[gh-issues] Adopted existing issue #$tracked_issue for $scope"
       return 0
     else
-      echo "[gh-issues] WARNING: Could not verify issue #$tracked_issue — proceeding to search/create" >&2
+      # Fail CLOSED. The tracker says this scope already has an issue; if we
+      # can't verify it (network hiccup, auth, deleted issue), creating a new
+      # one splits the scope's history across two threads — the worse outcome,
+      # and the one #63 documented. A blocked command is recoverable; a
+      # duplicate issue needs a human to notice it.
+      echo "ERROR: tracker links '$scope' to issue #$tracked_issue but it could not be verified." >&2
+      echo "       Refusing to create a possible duplicate. Check connectivity/auth, or re-point" >&2
+      echo "       with: github-issues-lifecycle.sh associate $scope <issue_number>" >&2
+      return 1
     fi
   fi
 
@@ -486,6 +494,14 @@ do_create() {
     return 1
   elif [[ $search_rc -eq 0 && -n "$search_result" ]]; then
     issue_num="$search_result"
+  elif [[ $search_rc -ne 0 ]]; then
+    # Any other nonzero rc means the search itself BROKE (crashed python, gh
+    # failure) — not "no match found". Falling through to create here is how
+    # a swallowed traceback becomes a duplicate issue (#63). Fail closed.
+    echo "ERROR: issue search failed (rc=$search_rc) for scope '$scope' — refusing to create" >&2
+    echo "       a possible duplicate. Fix the underlying error, or link explicitly with:" >&2
+    echo "       github-issues-lifecycle.sh associate $scope <issue_number>" >&2
+    return 1
   fi
 
   if [[ -n "$issue_num" ]]; then
@@ -1047,7 +1063,14 @@ print(json.dumps({
 PYEOF
 }
 
-render_issue_body() {
+# Renders a full issue body FROM a requirement doc's frontmatter + sections.
+# NOT the same as render_issue_body() above (the 5-arg template renderer).
+# History lesson: this used to ALSO be named render_issue_body, and since bash
+# keeps the last definition, it silently shadowed the 5-arg one for every
+# caller — Path("") resolved to '.', read_text() blew up with IsADirectoryError,
+# the $() swallowed the traceback, and do_create minted duplicate issues with
+# empty bodies (issue #63). Two functions, one name, zero warnings from bash.
+render_issue_body_from_requirement() {
   local scope="$1"
   local req_path="$2"
 
@@ -1056,7 +1079,16 @@ from pathlib import Path
 import sys
 
 scope = sys.argv[1]
-req_path = Path(sys.argv[2])
+req_path_arg = sys.argv[2] if len(sys.argv) > 2 else ""
+# Fail loudly on a bad path — an empty string becomes Path('.') and read_text()
+# on a directory is exactly the crash that caused #63. Never trust argv here.
+if not req_path_arg:
+    print("render_issue_body_from_requirement: empty requirement path", file=sys.stderr)
+    sys.exit(1)
+req_path = Path(req_path_arg)
+if not req_path.is_file():
+    print(f"render_issue_body_from_requirement: not a file: {req_path}", file=sys.stderr)
+    sys.exit(1)
 text = req_path.read_text()
 
 frontmatter = {}
@@ -1170,7 +1202,11 @@ do_sync_body() {
 
   local body_file
   body_file=$(mktemp)
-  render_issue_body "$scope" "$req_path" > "$body_file"
+  if ! render_issue_body_from_requirement "$scope" "$req_path" > "$body_file"; then
+    rm -f "$body_file"
+    echo "ERROR: could not render issue body from '$req_path' for scope '$scope'" >&2
+    return 1
+  fi
 
   if [[ "$GH_ENABLED" != "true" ]]; then
     events_log "$scope" "COMMENT" "message=sync-body:local-only"
